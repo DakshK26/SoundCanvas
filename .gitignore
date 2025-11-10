@@ -29,3 +29,11 @@ cmake-build-*/
 .env
 config/*.env
 config/env.local
+
+# Environment variables (contains API keys!)
+.env
+*.env
+
+# Kaggle credentials (NEVER commit this!)
+**/.kaggle/
+kaggle.json
