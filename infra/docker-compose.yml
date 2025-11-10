@@ -1,15 +1,45 @@
 version: "3.8"
 
 services:
+  # MySQL Database
+  db:
+    image: mysql:8
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=soundcanvas
+      - MYSQL_USER=soundcanvas
+      - MYSQL_PASSWORD=soundcanvas
+    ports:
+      - "3306:3306"
+    volumes:
+      - soundcanvas-db:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "soundcanvas", "-psoundcanvas"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # GraphQL Gateway
   gateway:
     build: ../gateway
-    command: ["sh", "-c", "echo 'Gateway placeholder'; sleep 3600"]
+    environment:
+      - PORT=4000
+      - CPP_SERVICE_URL=http://cpp-core:8080/generate
+      - SC_DATA_ROOT=/data
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_USER=soundcanvas
+      - DB_PASSWORD=soundcanvas
+      - DB_NAME=soundcanvas
+    depends_on:
+      - db
+      - cpp-core
+    volumes:
+      - soundcanvas-data:/data
     ports:
       - "4000:4000"
-    environment:
-      - CPP_SERVICE_URL=http://cpp-core:8080
-      - TF_SERVING_URL=http://tf-serving:8501
 
+  # C++ Core Service
   cpp-core:
     build: ../cpp-core
     command: ["./soundcanvas_core", "--serve"]
@@ -18,14 +48,14 @@ services:
     environment:
       - SC_TF_SERVING_URL=http://tf-serving:8501/v1/models/soundcanvas:predict
       - SC_DEFAULT_MODE=model
-      - SC_OUTPUT_DIR=/app/examples
+      - SC_OUTPUT_DIR=/data/audio
       - SC_HTTP_PORT=8080
     volumes:
-      - ../cpp-core/examples:/app/examples
+      - soundcanvas-data:/data
     depends_on:
       - tf-serving
 
-  # Custom TensorFlow Serving container (Apple Silicon compatible)
+  # TensorFlow Serving (Custom for Apple Silicon)
   tf-serving:
     build:
       context: ../ml
@@ -37,3 +67,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+
+volumes:
+  soundcanvas-db:
+  soundcanvas-data:
