@@ -7,6 +7,7 @@
 #include "AudioEngine.hpp"
 #include "MusicMapping.hpp"
 #include "ModelClient.hpp"
+#include "HttpServer.hpp"
 
 enum class Mode {
     Heuristic,
@@ -19,15 +20,53 @@ Mode parseMode(const std::string& s) {
     throw std::runtime_error("Unknown mode: " + s + " (expected 'heuristic' or 'model')");
 }
 
+// Helper to get environment variable or return default
+static std::string getEnvOrDefault(const char* key, const std::string& defaultValue) {
+    const char* val = std::getenv(key);
+    return val ? std::string(val) : defaultValue;
+}
+
 int main(int argc, char** argv) {
+    // Check for server mode first
+    if (argc >= 2 && std::string(argv[1]) == "--serve") {
+        // HTTP server mode
+        std::string defaultMode = getEnvOrDefault("SC_DEFAULT_MODE", "model");
+        std::string outputDir = getEnvOrDefault("SC_OUTPUT_DIR", "../examples");
+        
+        int port = 8080;
+        const char* portEnv = std::getenv("SC_HTTP_PORT");
+        if (portEnv) {
+            try {
+                port = std::stoi(portEnv);
+            } catch (...) {
+                std::cerr << "Invalid SC_HTTP_PORT value, using default 8080" << std::endl;
+            }
+        }
+
+        std::cout << "Starting HTTP server mode..." << std::endl;
+        std::cout << "  Port: " << port << std::endl;
+        std::cout << "  Default mode: " << defaultMode << std::endl;
+        std::cout << "  Output directory: " << outputDir << std::endl;
+
+        try {
+            runHttpServer(port, defaultMode, outputDir);
+            return 0;
+        } catch (const std::exception& ex) {
+            std::cerr << "Failed to start HTTP server: " << ex.what() << std::endl;
+            return 1;
+        }
+    }
+
+    // CLI mode (existing Phase 3 behavior)
     // Usage:
     //   soundcanvas_core <input_image> <output_wav>                          → heuristic mode (default)
     //   soundcanvas_core --mode=<heuristic|model> <input_image> <output_wav> → explicit mode
     
     if (argc < 3 || argc > 4) {
         std::cerr << "Usage:\n"
-                  << "  soundcanvas_core <input_image> <output_wav>\n"
-                  << "  soundcanvas_core --mode=<heuristic|model> <input_image> <output_wav>\n";
+                  << "  soundcanvas_core --serve                                           → HTTP server mode\n"
+                  << "  soundcanvas_core <input_image> <output_wav>                        → CLI heuristic mode\n"
+                  << "  soundcanvas_core --mode=<heuristic|model> <input_image> <output_wav> → CLI with mode\n";
         return 1;
     }
 
@@ -71,10 +110,10 @@ int main(int argc, char** argv) {
             std::cout << "Using model mapping via TF Serving.\n";
 
             // Get TF Serving URL from environment variable or use default
-            const char* envUrl = std::getenv("SC_TF_SERVING_URL");
-            std::string baseUrl = envUrl
-                ? std::string(envUrl)
-                : std::string("http://localhost:8501/v1/models/soundcanvas:predict");
+            std::string baseUrl = getEnvOrDefault(
+                "SC_TF_SERVING_URL",
+                "http://localhost:8501/v1/models/soundcanvas:predict"
+            );
 
             std::cout << "TF Serving URL: " << baseUrl << std::endl;
 

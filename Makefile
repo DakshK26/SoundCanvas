@@ -1,22 +1,20 @@
-# Root Makefile for SoundCanvas
-
-.PHONY: help init format lint test build run-local
+.PHONY: help run-local test-http stop clean
 
 help:
-\t@echo "Useful targets:"
-\t@echo "  make init       # initial setup (dependencies, etc.)"
-\t@echo "  make test       # run all tests"
-\t@echo "  make build      # build all services"
-\t@echo "  make run-local  # run local docker-compose stack"
-
-init:
-\t@echo "Phase 0: nothing to init yet. Fill this in later."
-
-test:
-\t@echo "Phase 0: no tests yet."
-
-build:
-\t@echo "Phase 0: nothing to build yet."
+    @echo "SoundCanvas - Available targets:"
+    @echo "  run-local   - Start cpp-core and tf-serving services via Docker"
+    @echo "  test-http   - Test the HTTP /generate endpoint"
+    @echo "  stop        - Stop all Docker services"
+    @echo "  clean       - Stop services and remove volumes"
 
 run-local:
-\tdocker compose -f infra/docker-compose.yml up --build
+    cd infra && docker compose up --build cpp-core tf-serving
+
+test-http:
+    python3 scripts/test_http_generate.py cpp-core/examples/test_image.png
+
+stop:
+    cd infra && docker compose down
+
+clean:
+    cd infra && docker compose down -v
