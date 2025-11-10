@@ -84,15 +84,17 @@ void runHttpServer(
 
             generateAmbientTrack(outPath.string(), params);
 
-            // Build JSON response
+            // Build JSON response with new 7-dim parameters
             json resp;
             resp["audio_path"] = outPath.string();
             resp["params"] = {
-                {"tempoBpm",        params.tempoBpm},
-                {"baseFrequency",   params.baseFrequency},
-                {"brightness",      params.brightness},
-                {"volume",          params.volume},
-                {"durationSeconds", params.durationSeconds}
+                {"tempoBpm",      params.tempoBpm},
+                {"baseFrequency", params.baseFrequency},
+                {"energy",        params.energy},
+                {"brightness",    params.brightness},
+                {"reverb",        params.reverb},
+                {"scaleType",     params.scaleType},
+                {"patternType",   params.patternType}
             };
 
             res.status = 200;

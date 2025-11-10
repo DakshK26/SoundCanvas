@@ -45,12 +45,19 @@ MusicParameters ModelClient::predict(const ImageFeatures& f) const {
     httplib::Client cli(host, port);
     cli.set_read_timeout(5, 0);  // 5 seconds
 
-    // Build JSON payload: {"instances": [[avgR, avgG, avgB, brightness]]}
+    // Build JSON payload: {"instances": [[avgR, avgG, avgB, brightness, hue, saturation, colorfulness, contrast]]}
     json payload;
     payload["instances"] = json::array();
-    payload["instances"].push_back(
-        {f.avgR, f.avgG, f.avgB, f.brightness}
-    );
+    payload["instances"].push_back({
+        f.avgR,
+        f.avgG,
+        f.avgB,
+        f.brightness,
+        f.hue,
+        f.saturation,
+        f.colorfulness,
+        f.contrast
+    });
 
     auto res = cli.Post(path.c_str(), payload.dump(), "application/json");
     if (!res) {
@@ -67,17 +74,28 @@ MusicParameters ModelClient::predict(const ImageFeatures& f) const {
     }
 
     const auto& pred = body["predictions"][0];
-    if (!pred.is_array() || pred.size() < 5) {
-        throw std::runtime_error("TF Serving prediction has wrong shape");
+    if (!pred.is_array() || pred.size() < 7) {
+        throw std::runtime_error("TF Serving prediction has wrong shape (expected 7 outputs)");
     }
 
-    // Order must match music_params_to_vector: [tempo, baseFreq, brightness, volume, duration]
+    // Order must match music_params_to_vector:
+    // [0] tempo_bpm
+    // [1] base_frequency
+    // [2] energy
+    // [3] brightness
+    // [4] reverb
+    // [5] scale_type
+    // [6] pattern_type
     MusicParameters params;
-    params.tempoBpm        = static_cast<float>(pred[0].get<double>());
-    params.baseFrequency   = static_cast<float>(pred[1].get<double>());
-    params.brightness      = static_cast<float>(pred[2].get<double>());
-    params.volume          = static_cast<float>(pred[3].get<double>());
-    params.durationSeconds = static_cast<float>(pred[4].get<double>());
+    params.tempoBpm      = static_cast<float>(pred[0].get<double>());
+    params.baseFrequency = static_cast<float>(pred[1].get<double>());
+    params.energy        = static_cast<float>(pred[2].get<double>());
+    params.brightness    = static_cast<float>(pred[3].get<double>());
+    params.reverb        = static_cast<float>(pred[4].get<double>());
+
+    // Round to nearest int for discrete controls
+    params.scaleType     = static_cast<int>(std::round(pred[5].get<double>()));
+    params.patternType   = static_cast<int>(std::round(pred[6].get<double>()));
 
     return params;
 }

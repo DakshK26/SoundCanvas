@@ -19,7 +19,9 @@ void writeLE(std::ofstream& out, std::uint32_t value, int bytes) {
 }  // namespace
 
 void generateAmbientTrack(const std::string& outputPath, const MusicParameters& params) {
-    const int numSamples = static_cast<int>(params.durationSeconds * SAMPLE_RATE);
+    // Fixed duration for now (Person B will make this dynamic based on params)
+    const double durationSeconds = 10.0;
+    const int numSamples = static_cast<int>(durationSeconds * SAMPLE_RATE);
 
     std::ofstream out(outputPath, std::ios::binary);
     if (!out) {
@@ -53,10 +55,16 @@ void generateAmbientTrack(const std::string& outputPath, const MusicParameters& 
     out.write("data", 4);
     writeLE(out, dataSize, 4);
 
-    // --- Generate samples ---
+    // --- Generate samples (PLACEHOLDER - Person B will redesign) ---
+    // TODO: Person B - implement scale types, pattern types, reverb, energy
+    // For now: simple sine wave with basic parameter usage
+    
     double baseFreq = params.baseFrequency;
     double phase = 0.0;
     double phaseStep = 2.0 * M_PI * baseFreq / SAMPLE_RATE;
+    
+    // Use brightness to control amplitude (placeholder)
+    double volume = 0.3 + params.brightness * 0.4;  // 0.3-0.7 range
 
     for (int i = 0; i < numSamples; ++i) {
         double t = static_cast<double>(i) / numSamples;
@@ -64,10 +72,10 @@ void generateAmbientTrack(const std::string& outputPath, const MusicParameters& 
         // Simple fade in/out envelope
         double env = std::sin(M_PI * t);
 
-        // Slight modulation for "ambient" feel
+        // Slight modulation based on tempo (placeholder for rhythm)
         double mod = 0.5 + 0.5 * std::sin(2.0 * M_PI * t * (params.tempoBpm / 60.0));
 
-        double sampleValue = std::sin(phase) * env * mod * params.volume;
+        double sampleValue = std::sin(phase) * env * mod * volume;
 
         phase += phaseStep;
         if (phase > 2.0 * M_PI) {

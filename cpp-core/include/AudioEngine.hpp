@@ -2,11 +2,13 @@
 #include <string>
 
 struct MusicParameters {
-  float tempoBpm;         // e.g. 40–100 BPM
-  float baseFrequency;    // e.g. 110 Hz (A2) – 440 Hz (A4)
-  float brightness;       // 0–1 -> affects waveform character
-  float volume;           // 0–1 -> overall amplitude
-  float durationSeconds;  // e.g. 8–12 seconds
+    float tempoBpm;        // 40–90 BPM (slow ambient range)
+    float baseFrequency;   // 100–400 Hz (bass to mid range)
+    float energy;          // 0–1 (texture density/busyness)
+    float brightness;      // 0–1 (filter cutoff, waveform choice)
+    float reverb;          // 0–1 (dry to big hall)
+    int   scaleType;       // 0=major, 1=minor, 2=dorian, 3=lydian
+    int   patternType;     // 0=pad, 1=arp, 2=chords
 };
 
 // Generates a mono WAV file (16-bit PCM, 44.1kHz) with ambient audio

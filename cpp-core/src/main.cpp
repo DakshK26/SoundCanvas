@@ -95,11 +95,15 @@ int main(int argc, char** argv) {
         std::cout << "Reading image: " << inputImage << std::endl;
         ImageFeatures features = extractImageFeatures(inputImage);
 
-        std::cout << "Image features:\n"
-                  << "  avgR=" << features.avgR
-                  << "  avgG=" << features.avgG
-                  << "  avgB=" << features.avgB
-                  << "  brightness=" << features.brightness << std::endl;
+        std::cout << "Image features (8-dim):\n"
+                  << "  avgR         = " << features.avgR << "\n"
+                  << "  avgG         = " << features.avgG << "\n"
+                  << "  avgB         = " << features.avgB << "\n"
+                  << "  brightness   = " << features.brightness << "\n"
+                  << "  hue          = " << features.hue << "\n"
+                  << "  saturation   = " << features.saturation << "\n"
+                  << "  colorfulness = " << features.colorfulness << "\n"
+                  << "  contrast     = " << features.contrast << std::endl;
 
         MusicParameters params;
 
@@ -121,12 +125,25 @@ int main(int argc, char** argv) {
             params = mapFeaturesToMusicModel(features, client);
         }
 
-        std::cout << "Music parameters:\n"
-                  << "  tempoBpm=" << params.tempoBpm
-                  << "  baseFrequency=" << params.baseFrequency
-                  << "  brightness=" << params.brightness
-                  << "  volume=" << params.volume
-                  << "  durationSeconds=" << params.durationSeconds
+        // Map scale and pattern types to human-readable names
+        const char* scaleNames[] = {"Major", "Minor", "Dorian", "Lydian"};
+        const char* patternNames[] = {"Pad", "Arp", "Chords"};
+        
+        const char* scaleName = (params.scaleType >= 0 && params.scaleType <= 3) 
+                                ? scaleNames[params.scaleType] 
+                                : "Unknown";
+        const char* patternName = (params.patternType >= 0 && params.patternType <= 2) 
+                                  ? patternNames[params.patternType] 
+                                  : "Unknown";
+
+        std::cout << "Music parameters (7-dim):\n"
+                  << "  tempoBpm      = " << params.tempoBpm << " BPM\n"
+                  << "  baseFrequency = " << params.baseFrequency << " Hz\n"
+                  << "  energy        = " << params.energy << "\n"
+                  << "  brightness    = " << params.brightness << "\n"
+                  << "  reverb        = " << params.reverb << "\n"
+                  << "  scaleType     = " << params.scaleType << " (" << scaleName << ")\n"
+                  << "  patternType   = " << params.patternType << " (" << patternName << ")"
                   << std::endl;
 
         generateAmbientTrack(outputWav, params);
