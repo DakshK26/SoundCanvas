@@ -16,7 +16,7 @@ services:
     ports:
       - "8080:8080"
     environment:
-      - TF_SERVING_URL=http://tf-serving:8501
+      - SC_TF_SERVING_URL=http://tf-serving:8501/v1/models/soundcanvas:predict
 
   # Custom TensorFlow Serving container (Apple Silicon compatible)
   tf-serving:
