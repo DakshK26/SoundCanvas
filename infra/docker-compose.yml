@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  gateway:
+    build: ../gateway
+    command: ["sh", "-c", "echo 'Gateway placeholder'; sleep 3600"]
+    ports:
+      - "4000:4000"
+
+  cpp-core:
+    build: ../cpp-core
+    command: ["./soundcanvas_core"]
+    ports:
+      - "8080:8080"
+
+  tf-serving:
+    image: tensorflow/serving
+    command: ["sh", "-c", "echo 'TF Serving placeholder'; sleep 3600"]
+    ports:
+      - "8501:8501"

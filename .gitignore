@@ -1,41 +1,31 @@
-# Prerequisites
-*.d
+# Node / frontend
+node_modules/
+dist/
+build/
 
-# Compiled Object files
-*.slo
-*.lo
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# C++ / build
+build/
+cmake-build-*/
 *.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
 *.a
-*.lib
-
-# Executables
+*.so
 *.exe
-*.out
-*.app
 
-# debug information files
-*.dwo
+# IDEs
+.vscode/
+.idea/
+*.swp
+
+# Python notebooks
+*.ipynb_checkpoints/
+
+# Env files
+.env
+config/*.env
+config/env.local
