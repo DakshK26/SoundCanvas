@@ -1,3 +1,3 @@
-const { GraphQLUpload } = require("graphql-upload");
+import { GraphQLUpload } from "graphql-upload-minimal";  // ← Changed this line
 
 export const UploadScalar = GraphQLUpload;

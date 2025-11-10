@@ -32,8 +32,10 @@ services:
       - DB_PASSWORD=soundcanvas
       - DB_NAME=soundcanvas
     depends_on:
-      - db
-      - cpp-core
+      db:
+        condition: service_healthy  # ← Add this!
+      cpp-core:
+        condition: service_started
     volumes:
       - soundcanvas-data:/data
     ports:

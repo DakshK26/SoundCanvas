@@ -1,3 +1,4 @@
+import { FileUpload } from "graphql-upload-minimal";  // ← Changed this line
 import { generateSoundViaCpp } from "../services/cppClient";
 import {
   ensureStorageDirs,
@@ -8,13 +9,6 @@ import {
 import { dbInsertSoundGeneration } from "../db";
 
 type SoundMode = "HEURISTIC" | "MODEL";
-
-interface FileUpload {
-  filename: string;
-  mimetype: string;
-  encoding: string;
-  createReadStream: () => NodeJS.ReadableStream;
-}
 
 export const Mutation = {
   uploadAndGenerateSound: async (
