@@ -1,3 +1,5 @@
 tensorflow~=2.20
 numpy
 pillow
+requests
+flask

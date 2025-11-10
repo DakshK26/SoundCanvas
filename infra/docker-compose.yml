@@ -18,21 +18,15 @@ services:
     environment:
       - TF_SERVING_URL=http://tf-serving:8501
 
-  # TensorFlow Serving container
+  # Custom TensorFlow Serving container (Apple Silicon compatible)
   tf-serving:
-    image: tensorflow/serving:latest
-    environment:
-      - MODEL_NAME=soundcanvas
-    volumes:
-      # Mount the exported model into the container
-      # TF Serving expects /models/<MODEL_NAME>/<VERSION>
-      # Our SavedModel is at ml/models/exported_model/
-      - ../ml/models/exported_model:/models/soundcanvas/1
+    build:
+      context: ../ml
+      dockerfile: Dockerfile.tfserving
     ports:
-      - "8501:8501"  # REST API
-      - "8500:8500"  # gRPC API (optional)
+      - "8501:8501"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/v1/models/soundcanvas"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8501/v1/models/soundcanvas || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3

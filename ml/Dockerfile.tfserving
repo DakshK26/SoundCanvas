@@ -1,16 +1,20 @@
-# TensorFlow Serving wrapper for SoundCanvas model
-# Base image with TF Serving pre-installed
-FROM tensorflow/serving:latest
+# Custom TensorFlow Serving container for Apple Silicon compatibility
+FROM python:3.11-slim
 
-# TF Serving expects models at /models/<MODEL_NAME>/<VERSION>
-# We'll use MODEL_NAME=soundcanvas (set via environment variable)
-# The actual model files will be mounted via docker-compose volume
+WORKDIR /app
 
-# Expose REST API port (8501) and gRPC port (8500)
-EXPOSE 8500 8501
+# Install dependencies
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Environment variables can be overridden in docker-compose.yml
-ENV MODEL_NAME=soundcanvas
+# Copy the serving script
+COPY src/serve_model.py .
 
-# TF Serving will automatically discover and serve the model
-# No additional configuration needed for basic setup
+# Copy the model
+COPY models/exported_model_versioned /models/soundcanvas
+
+# Expose TF Serving compatible ports
+EXPOSE 8501
+
+# Run the server
+CMD ["python", "serve_model.py"]
