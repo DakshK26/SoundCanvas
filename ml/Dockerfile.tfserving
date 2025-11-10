@@ -1,0 +1,16 @@
+# TensorFlow Serving wrapper for SoundCanvas model
+# Base image with TF Serving pre-installed
+FROM tensorflow/serving:latest
+
+# TF Serving expects models at /models/<MODEL_NAME>/<VERSION>
+# We'll use MODEL_NAME=soundcanvas (set via environment variable)
+# The actual model files will be mounted via docker-compose volume
+
+# Expose REST API port (8501) and gRPC port (8500)
+EXPOSE 8500 8501
+
+# Environment variables can be overridden in docker-compose.yml
+ENV MODEL_NAME=soundcanvas
+
+# TF Serving will automatically discover and serve the model
+# No additional configuration needed for basic setup

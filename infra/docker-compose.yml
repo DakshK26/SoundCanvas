@@ -6,15 +6,33 @@ services:
     command: ["sh", "-c", "echo 'Gateway placeholder'; sleep 3600"]
     ports:
       - "4000:4000"
+    environment:
+      - CPP_SERVICE_URL=http://cpp-core:8080
+      - TF_SERVING_URL=http://tf-serving:8501
 
   cpp-core:
     build: ../cpp-core
     command: ["./soundcanvas_core"]
     ports:
       - "8080:8080"
+    environment:
+      - TF_SERVING_URL=http://tf-serving:8501
 
+  # TensorFlow Serving container
   tf-serving:
-    image: tensorflow/serving
-    command: ["sh", "-c", "echo 'TF Serving placeholder'; sleep 3600"]
+    image: tensorflow/serving:latest
+    environment:
+      - MODEL_NAME=soundcanvas
+    volumes:
+      # Mount the exported model into the container
+      # TF Serving expects /models/<MODEL_NAME>/<VERSION>
+      # Our SavedModel is at ml/models/exported_model/
+      - ../ml/models/exported_model:/models/soundcanvas/1
     ports:
-      - "8501:8501"
+      - "8501:8501"  # REST API
+      - "8500:8500"  # gRPC API (optional)
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/v1/models/soundcanvas"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
