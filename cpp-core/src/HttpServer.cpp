@@ -1,0 +1,114 @@
+#include "HttpServer.hpp"
+
+#include "httplib.h"
+#include "json.hpp"
+
+#include "ImageFeatures.hpp"
+#include "MusicMapping.hpp"
+#include "ModelClient.hpp"
+#include "AudioEngine.hpp"
+
+#include <chrono>
+#include <cstdlib>
+#include <filesystem>
+#include <iostream>
+#include <stdexcept>
+
+using json = nlohmann::json;
+namespace fs = std::filesystem;
+
+static std::string getEnvOrDefault(const char* key, const std::string& def) {
+    const char* v = std::getenv(key);
+    return v ? std::string(v) : def;
+}
+
+void runHttpServer(
+    int port,
+    const std::string& defaultMode,
+    const std::string& outputDir
+) {
+    httplib::Server svr;
+
+    // Ensure output directory exists
+    fs::create_directories(outputDir);
+
+    svr.Post("/generate", [defaultMode, outputDir](const httplib::Request& req, httplib::Response& res) {
+        try {
+            if (req.body.empty()) {
+                res.status = 400;
+                res.set_content("Missing request body", "text/plain");
+                return;
+            }
+
+            json body = json::parse(req.body);
+            if (!body.contains("image_path") || !body["image_path"].is_string()) {
+                res.status = 400;
+                res.set_content("Missing or invalid 'image_path'", "text/plain");
+                return;
+            }
+
+            std::string imagePath = body["image_path"].get<std::string>();
+            std::string mode = defaultMode;
+            if (body.contains("mode") && body["mode"].is_string()) {
+                mode = body["mode"].get<std::string>();
+            }
+
+            std::cout << "[HTTP] /generate image_path=" << imagePath
+                      << " mode=" << mode << std::endl;
+
+            // Extract features
+            ImageFeatures features = extractImageFeatures(imagePath);
+
+            // Choose mapping
+            MusicParameters params;
+            if (mode == "heuristic") {
+                params = mapFeaturesToMusicHeuristic(features);
+            } else if (mode == "model") {
+                std::string tfUrl = getEnvOrDefault(
+                    "SC_TF_SERVING_URL",
+                    "http://localhost:8501/v1/models/soundcanvas:predict"
+                );
+                ModelClient client(tfUrl);
+                params = mapFeaturesToMusicModel(features, client);
+            } else {
+                res.status = 400;
+                res.set_content("Unknown mode (expected 'heuristic' or 'model')", "text/plain");
+                return;
+            }
+
+            // Output filename
+            auto now = std::chrono::system_clock::now().time_since_epoch();
+            auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(now).count();
+            std::string filename = "sound_" + std::to_string(millis) + ".wav";
+            fs::path outPath = fs::path(outputDir) / filename;
+
+            generateAmbientTrack(outPath.string(), params);
+
+            // Build JSON response
+            json resp;
+            resp["audio_path"] = outPath.string();
+            resp["params"] = {
+                {"tempoBpm",        params.tempoBpm},
+                {"baseFrequency",   params.baseFrequency},
+                {"brightness",      params.brightness},
+                {"volume",          params.volume},
+                {"durationSeconds", params.durationSeconds}
+            };
+
+            res.status = 200;
+            res.set_content(resp.dump(), "application/json");
+        } catch (const std::exception& ex) {
+            std::cerr << "[HTTP] Error in /generate: " << ex.what() << std::endl;
+            res.status = 500;
+            res.set_content(std::string("Internal server error: ") + ex.what(), "text/plain");
+        }
+    });
+
+    std::cout << "[HTTP] Server starting on port " << port
+              << " (defaultMode=" << defaultMode
+              << ", outputDir=" << outputDir << ")" << std::endl;
+
+    if (!svr.listen("0.0.0.0", port)) {
+        throw std::runtime_error("Failed to start HTTP server on port " + std::to_string(port));
+    }
+}
