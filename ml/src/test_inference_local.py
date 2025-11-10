@@ -11,7 +11,9 @@ def main():
     This validates the model works before deploying to TF Serving.
     """
     print("Loading model from disk...")
-    model = tf.keras.models.load_model(MODEL_EXPORT_PATH)
+    # Use tf.saved_model.load for exported SavedModel format
+    loaded = tf.saved_model.load(str(MODEL_EXPORT_PATH))
+    infer = loaded.signatures["serving_default"]
     
     # Create test features: [avgR, avgG, avgB, brightness]
     # Example: bright, slightly blue-ish image
@@ -24,8 +26,11 @@ def main():
     print("\nInput features:")
     print(test_features)
     
-    # Run inference
-    predictions = model.predict(test_features)
+    # Run inference - need to convert to tensor
+    input_tensor = tf.constant(test_features)
+    output = infer(input_tensor)
+    # Extract the output tensor (key might vary, usually 'output_0' or similar)
+    predictions = list(output.values())[0].numpy()
     
     # Display results
     print("\nPredicted music parameters:")

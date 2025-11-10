@@ -49,9 +49,9 @@ def main():
     )
 
     MODEL_EXPORT_PATH.mkdir(parents=True, exist_ok=True)
-    model.save(MODEL_EXPORT_PATH)
+    model.export(MODEL_EXPORT_PATH)  # Use export() for TensorFlow Serving
     
-    print(f"\nModel saved to {MODEL_EXPORT_PATH}")
+    print(f"\nModel exported to {MODEL_EXPORT_PATH}")
 
 if __name__ == "__main__":
     main()
