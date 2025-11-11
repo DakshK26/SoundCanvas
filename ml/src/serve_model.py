@@ -7,7 +7,8 @@ import numpy as np
 import tensorflow as tf
 from flask import Flask, request, jsonify
 
-MODEL_PATH = Path("/models/soundcanvas/1")
+# Use relative path from this file to the exported model
+MODEL_PATH = Path(__file__).parent.parent / "models" / "exported_model_versioned" / "1"
 
 # Load model at startup using TFSMLayer for Keras 3 compatibility
 print(f"Loading model from {MODEL_PATH}...")
