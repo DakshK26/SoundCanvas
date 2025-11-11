@@ -44,9 +44,9 @@ StyleParameters deriveStyle(const ImageFeatures& f, const MusicParameters& m) {
     else if (m.patternType == 2 && m.brightness > 0.5f) {
         style.instrumentPreset = InstrumentPreset::BELL;
     }
-    // Default: Soft keys (piano-ish) for everything else
+    // Default: Keys (piano-ish) for everything else
     else {
-        style.instrumentPreset = InstrumentPreset::SOFT_KEYS;
+        style.instrumentPreset = InstrumentPreset::KEYS;
     }
 
     // ========== Mood Score (Lushness) ==========
@@ -70,25 +70,4 @@ StyleParameters deriveStyle(const ImageFeatures& f, const MusicParameters& m) {
     style.moodScore = std::clamp(baseMood, 0.0f, 1.0f);
 
     return style;
-}
-
-const char* ambienceTypeName(AmbienceType type) {
-    switch (type) {
-        case AmbienceType::NONE:   return "None";
-        case AmbienceType::OCEAN:  return "Ocean";
-        case AmbienceType::RAIN:   return "Rain";
-        case AmbienceType::FOREST: return "Forest";
-        case AmbienceType::CITY:   return "City";
-        default:                    return "Unknown";
-    }
-}
-
-const char* instrumentPresetName(InstrumentPreset preset) {
-    switch (preset) {
-        case InstrumentPreset::SOFT_PAD:  return "Soft Pad";
-        case InstrumentPreset::SOFT_KEYS: return "Soft Keys";
-        case InstrumentPreset::PLUCK:     return "Pluck";
-        case InstrumentPreset::BELL:      return "Bell";
-        default:                           return "Unknown";
-    }
 }

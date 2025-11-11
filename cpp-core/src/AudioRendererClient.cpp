@@ -4,6 +4,7 @@
 #include <stdexcept>
 
 #include "AudioEngine.hpp"
+#include "MusicalStyle.hpp"  // For StyleParameters definition
 #include "httplib.h"
 #include "json.hpp"
 
@@ -41,8 +42,9 @@ bool AudioRendererClient::renderMidiToWav(const std::string& midiPath,
     // Map ambience type to string
     const char* ambienceTypes[] = {"none", "ocean", "rain", "forest", "city"};
     std::string ambienceStr = "none";
-    if (style.ambienceType >= 0 && style.ambienceType <= 4) {
-      ambienceStr = ambienceTypes[style.ambienceType];
+    int ambienceIdx = static_cast<int>(style.ambienceType);
+    if (ambienceIdx >= 0 && ambienceIdx <= 4) {
+      ambienceStr = ambienceTypes[ambienceIdx];
     }
 
     // Build request JSON

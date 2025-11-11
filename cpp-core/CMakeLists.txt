@@ -17,6 +17,12 @@ set(SOURCES
     src/MusicalStyle.cpp
     src/AudioRendererClient.cpp
     src/AudioProducerClient.cpp
+    src/SongSpec.cpp
+    src/MidiWriter.cpp
+    src/Composer.cpp
+    src/GenreTemplate.cpp
+    src/SectionPlanner.cpp
+    src/PatternTransform.cpp
 )
 
 add_executable(soundcanvas_core ${SOURCES})
