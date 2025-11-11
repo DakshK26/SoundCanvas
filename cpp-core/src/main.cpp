@@ -2,6 +2,7 @@
 #include <stdexcept>
 #include <string>
 #include <cstdlib>
+#include <cstdio>  // for std::remove
 
 #include "ImageFeatures.hpp"
 #include "AudioEngine.hpp"
@@ -232,7 +233,38 @@ int main(int argc, char** argv) {
                   << "  moodScore         = " << style.moodScore << " (lushness)"
                   << std::endl;
 
-        generateAmbientTrack(outputWav, params, &style);
+        // Phase 7: Create SongSpec from features and parameters
+        SongSpec songSpec = makeSongSpec(features, params);
+        
+        std::cout << "Song structure:\n"
+                  << "  Tempo: " << songSpec.tempoBpm << " BPM\n"
+                  << "  Key: MIDI " << songSpec.rootMidiNote << " (" << scaleName << ")\n"
+                  << "  Sections: " << songSpec.sections.size() << "\n"
+                  << "  Tracks: " << songSpec.tracks.size() << "\n"
+                  << "  Total bars: " << songSpec.totalBars << "\n"
+                  << "  Groove: " << grooveTypeName(songSpec.groove) << "\n"
+                  << "  Ambience: " << ambienceTypeName(songSpec.ambience) << "\n"
+                  << "  Mood: " << songSpec.moodScore << std::endl;
+
+        // Generate intermediate MIDI file
+        std::string tempMidi = outputWav + ".tmp.mid";
+        std::cout << "Composing MIDI to: " << tempMidi << std::endl;
+        composeSongToMidi(songSpec, tempMidi);
+
+        // Render MIDI to WAV using FluidSynth
+        std::string soundfont = "/usr/share/sounds/sf2/FluidR3_GM.sf2";
+        std::cout << "Rendering MIDI to WAV using FluidSynth..." << std::endl;
+        
+        std::string fluidCmd = "fluidsynth -ni -g 0.8 -F \"" + outputWav + "\" \"" + soundfont + "\" \"" + tempMidi + "\" 2>&1";
+        int result = std::system(fluidCmd.c_str());
+        
+        if (result != 0) {
+            std::cerr << "Warning: FluidSynth returned non-zero exit code: " << result << std::endl;
+        }
+
+        // Clean up temporary MIDI file
+        std::remove(tempMidi.c_str());
+
         std::cout << "Wrote audio to: " << outputWav << std::endl;
 
         return 0;
