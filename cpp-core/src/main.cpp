@@ -8,6 +8,7 @@
 #include "MusicMapping.hpp"
 #include "ModelClient.hpp"
 #include "HttpServer.hpp"
+#include "MusicalStyle.hpp"  // Phase 7: Extended style controls
 
 enum class Mode {
     Heuristic,
@@ -146,7 +147,16 @@ int main(int argc, char** argv) {
                   << "  patternType   = " << params.patternType << " (" << patternName << ")"
                   << std::endl;
 
-        generateAmbientTrack(outputWav, params);
+        // Phase 7: Derive extended style controls
+        StyleParameters style = deriveStyle(features, params);
+        
+        std::cout << "Style parameters (Phase 7):\n"
+                  << "  ambienceType      = " << ambienceTypeName(style.ambienceType) << "\n"
+                  << "  instrumentPreset  = " << instrumentPresetName(style.instrumentPreset) << "\n"
+                  << "  moodScore         = " << style.moodScore << " (lushness)"
+                  << std::endl;
+
+        generateAmbientTrack(outputWav, params, &style);
         std::cout << "Wrote audio to: " << outputWav << std::endl;
 
         return 0;

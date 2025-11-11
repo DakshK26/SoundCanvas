@@ -11,6 +11,11 @@ struct MusicParameters {
     int   patternType;     // 0=pad, 1=arp, 2=chords
 };
 
+// Forward declaration for Phase 7 style parameters
+struct StyleParameters;
+
 // Generates a mono WAV file (16-bit PCM, 44.1kHz) with ambient audio
+// Phase 7: Added optional styleParams for ambience, instrument presets, mood
 void generateAmbientTrack(const std::string& outputPath,
-                          const MusicParameters& params);
+                          const MusicParameters& params,
+                          const StyleParameters* styleParams = nullptr);

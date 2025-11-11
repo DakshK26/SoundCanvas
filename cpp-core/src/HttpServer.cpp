@@ -7,6 +7,7 @@
 #include "MusicMapping.hpp"
 #include "ModelClient.hpp"
 #include "AudioEngine.hpp"
+#include "MusicalStyle.hpp"  // Phase 7
 
 #include <chrono>
 #include <cstdlib>
@@ -82,7 +83,10 @@ void runHttpServer(
             std::string filename = "sound_" + std::to_string(millis) + ".wav";
             fs::path outPath = fs::path(outputDir) / filename;
 
-            generateAmbientTrack(outPath.string(), params);
+            // Phase 7: Derive extended style parameters
+            StyleParameters style = deriveStyle(features, params);
+
+            generateAmbientTrack(outPath.string(), params, &style);
 
             // Build JSON response with new 7-dim parameters
             json resp;

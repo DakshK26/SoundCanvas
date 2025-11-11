@@ -1,4 +1,5 @@
 #include "AudioEngine.hpp"
+#include "MusicalStyle.hpp"
 #include <cmath>
 #include <cstdint>
 #include <fstream>
@@ -190,7 +191,16 @@ static double synthChordSample(SynthContext& ctx) {
 
 }  // namespace
 
-void generateAmbientTrack(const std::string& outputPath, const MusicParameters& params) {
+void generateAmbientTrack(const std::string& outputPath, 
+                          const MusicParameters& params,
+                          const StyleParameters* styleParams) {
+    // Phase 7: styleParams available for Person B to use for:
+    // - Ambience layer mixing (ocean/rain/forest/city samples)
+    // - Instrument preset selection (pad/keys/pluck/bell oscillators)
+    // - Mood-based lushness adjustment (reverb, envelope times, melody presence)
+    // For now, ignored - Person B will implement in their tasks
+    (void)styleParams;  // Suppress unused parameter warning
+    
     // Duration based on energy (more energy = slightly longer, more complex)
     const double durationSeconds = 8.0 + params.energy * 4.0;  // 8-12 seconds
     const int numSamples = static_cast<int>(durationSeconds * SAMPLE_RATE);
