@@ -114,15 +114,15 @@ int main(int argc, char** argv) {
       std::cout << "\nSections:\n";
       for (const auto& section : songSpec.sections) {
         std::cout << "  " << section.name << ": " << section.bars
-                  << " bars (energy: " << section.energy << ")\n";
+                  << " bars (energy: " << section.targetEnergy << ")\n";
       }
 
       std::cout << "\nTracks:\n";
       for (const auto& track : songSpec.tracks) {
-        std::cout << "  " << track.role << ": "
-                  << instrumentPresetName(track.preset) << " (program "
-                  << track.midiProgram << ")"
-                  << " vol=" << track.volume
+        std::cout << "  " << trackRoleName(track.role) << ": "
+                  << "program " << track.program
+                  << " (channel " << track.midiChannel << ")"
+                  << " vol=" << track.baseVolume
                   << " complexity=" << track.complexity << "\n";
       }
 

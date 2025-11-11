@@ -10,24 +10,6 @@ int freqToMidiNote(float freq) {
   return static_cast<int>(std::round(midi));
 }
 
-// General MIDI program numbers for different presets
-static int getProgramNumber(InstrumentPreset preset, int scaleType) {
-  switch (preset) {
-    case InstrumentPreset::SOFT_PAD:
-      return 89;  // Pad 2 (warm)
-    case InstrumentPreset::KEYS:
-      // Major/Lydian = bright piano, Minor/Dorian = electric piano
-      return (scaleType == 0 || scaleType == 3) ? 0
-                                                : 4;  // Acoustic/Electric Piano
-    case InstrumentPreset::PLUCK:
-      return 46;  // Orchestral Harp
-    case InstrumentPreset::BELL:
-      return 11;  // Vibraphone
-    default:
-      return 0;
-  }
-}
-
 SongSpec makeSongSpec(const ImageFeatures& f, const MusicParameters& m) {
   SongSpec spec;
 
@@ -35,7 +17,7 @@ SongSpec makeSongSpec(const ImageFeatures& f, const MusicParameters& m) {
 
   // Tempo: quantize to musical values for better feel
   int tempoRounded = static_cast<int>(std::round(m.tempoBpm / 5.0f)) * 5;
-  spec.tempoBpm = std::clamp(tempoRounded, 40, 140);
+  spec.tempoBpm = std::clamp(tempoRounded, 40, 180);  // Extended range for EDM
 
   // Scale & root note
   spec.scaleType = m.scaleType;
@@ -68,41 +50,6 @@ SongSpec makeSongSpec(const ImageFeatures& f, const MusicParameters& m) {
     spec.ambience = AmbienceType::RAIN;
   }
 
-  // ========== Song Structure & Length ==========
-
-  // Total bars based on energy and mood
-  // Low energy/mood = shorter (16 bars = ~30s at 80bpm)
-  // High energy/mood = longer (32-48 bars = 60-90s)
-  if (m.energy < 0.3f && spec.moodScore < 0.4f) {
-    spec.totalBars = 16;
-  } else if (m.energy < 0.6f || spec.moodScore < 0.6f) {
-    spec.totalBars = 24;
-  } else {
-    spec.totalBars = 32;
-  }
-
-  // Sections: intro, A, optional B, outro
-  spec.sections.clear();
-
-  if (spec.totalBars == 16) {
-    // Simple: intro(4) + A(8) + outro(4)
-    spec.sections.push_back({"intro", 4, m.energy * 0.5f});
-    spec.sections.push_back({"A", 8, m.energy});
-    spec.sections.push_back({"outro", 4, m.energy * 0.6f});
-  } else if (spec.totalBars == 24) {
-    // Medium: intro(4) + A(8) + B(8) + outro(4)
-    spec.sections.push_back({"intro", 4, m.energy * 0.5f});
-    spec.sections.push_back({"A", 8, m.energy});
-    spec.sections.push_back({"B", 8, m.energy * 0.9f});
-    spec.sections.push_back({"outro", 4, m.energy * 0.6f});
-  } else {
-    // Long: intro(4) + A(12) + B(12) + outro(4)
-    spec.sections.push_back({"intro", 4, m.energy * 0.5f});
-    spec.sections.push_back({"A", 12, m.energy});
-    spec.sections.push_back({"B", 12, m.energy * 0.95f});
-    spec.sections.push_back({"outro", 4, m.energy * 0.6f});
-  }
-
   // ========== Groove Type ==========
 
   // Determine rhythm style from tempo + energy + pattern
@@ -116,80 +63,104 @@ SongSpec makeSongSpec(const ImageFeatures& f, const MusicParameters& m) {
     spec.groove = GrooveType::DRIVING;  // Energetic, rhythmic
   } else {
     spec.groove = GrooveType::STRAIGHT;  // Standard 4/4
-  }  // ========== Track Assignments ==========
+  }
+
+  // ========== Phase 8: Song Structure (intro/build/drop/break/outro) ==========
+
+  // Total bars based on energy: 16-32 bars for 45-90s tracks
+  if (m.energy < 0.3f) {
+    spec.totalBars = 16;  // ~30s at 80 BPM
+  } else if (m.energy < 0.6f) {
+    spec.totalBars = 24;  // ~45s at 80 BPM
+  } else {
+    spec.totalBars = 32;  // ~60s at 80 BPM
+  }
+
+  // Phase 8 Section Planning: EDM-style structure
+  spec.sections.clear();
+
+  if (spec.totalBars == 16) {
+    // Short structure: intro(4) + build(4) + drop(4) + outro(4)
+    spec.sections.push_back({"intro", 4, 0.2f});
+    spec.sections.push_back({"build", 4, 0.5f});
+    spec.sections.push_back({"drop", 4, 1.0f});
+    spec.sections.push_back({"outro", 4, 0.2f});
+  } else if (spec.totalBars == 24) {
+    // Medium: intro(4) + build(6) + drop(8) + break(2) + outro(4)
+    spec.sections.push_back({"intro", 4, 0.2f});
+    spec.sections.push_back({"build", 6, 0.5f});
+    spec.sections.push_back({"drop", 8, 1.0f});
+    spec.sections.push_back({"break", 2, 0.4f});
+    spec.sections.push_back({"outro", 4, 0.2f});
+  } else {
+    // Long: intro(4) + build(8) + drop(8) + break(4) + build2(4) + outro(4)
+    spec.sections.push_back({"intro", 4, 0.2f});
+    spec.sections.push_back({"build", 8, 0.5f});
+    spec.sections.push_back({"drop", 8, 1.0f});
+    spec.sections.push_back({"break", 4, 0.4f});
+    spec.sections.push_back({"build2", 4, 0.6f});
+    spec.sections.push_back({"outro", 4, 0.2f});
+  }
+
+  // ========== Phase 8: Track Roles & Assignments ==========
 
   spec.tracks.clear();
 
-  // 1. Drums (if appropriate)
-  // Skip drums for very low energy or very ambient (chill pad-only tracks)
+  // Track 1: Drums (General MIDI channel 9 = percussion)
+  // Skip drums for very low energy or very ambient
   bool includeDrums = (m.energy > 0.25f) &&
                       (spec.groove != GrooveType::CHILL || m.energy > 0.5f);
   if (includeDrums) {
     spec.tracks.push_back({
-        "drums",
-        InstrumentPreset::KEYS,  // Not used for drums (channel 10)
-        0,                       // Drums use channel 10, program change ignored
-        0.6f + m.energy * 0.3f,  // Volume: louder with more energy
-        m.energy  // Complexity: more fills/variations with energy
+        TrackRole::DRUMS,
+        0.8f + m.energy * 0.15f,  // Base volume: louder with more energy
+        m.energy,                 // Complexity: more fills/variations
+        9,                        // MIDI channel 9 (drums in GM)
+        0                         // Program ignored for drums
     });
   }
 
-  // 2. Bass (always included unless very minimal)
+  // Track 2: Bass (always included unless very minimal)
   if (spec.moodScore > 0.2f || m.energy > 0.3f) {
     spec.tracks.push_back({
-        "bass", InstrumentPreset::KEYS,
-        32 + (m.scaleType % 4),  // Acoustic Bass (32-35 variants)
+        TrackRole::BASS,
+        0.8f,  // Strong bass presence
+        m.energy * 0.6f,
+        1,    // MIDI channel 1
+        34    // Finger Bass (GM)
+    });
+  }
+
+  // Track 3: Chords (harmonic foundation)
+  // Pick program based on brightness and energy
+  int chordProgram = (m.brightness > 0.5f) ? 4 : 89;  // Electric Piano or Pad
+  spec.tracks.push_back({
+      TrackRole::CHORDS,
+      0.6f + spec.moodScore * 0.15f,
+      0.5f + m.energy * 0.3f,
+      2,  // MIDI channel 2
+      chordProgram
+  });
+
+  // Track 4: Lead (melodic hooks - only if mood/energy high enough)
+  if (spec.moodScore > 0.4f || m.energy > 0.5f) {
+    spec.tracks.push_back({
+        TrackRole::LEAD,
         0.7f,
-        m.energy * 0.6f  // Less complex than melody
+        spec.moodScore * 0.7f + m.energy * 0.3f,
+        3,   // MIDI channel 3
+        81   // Lead 1 (square wave) - classic synth lead
     });
   }
 
-  // 3. Chords (main harmonic foundation)
-  // Pick instrument based on scale type and brightness
-  InstrumentPreset chordPreset;
-  if (m.scaleType == 0 || m.scaleType == 3) {
-    // Major/Lydian: brighter sounds
-    chordPreset = (m.brightness > 0.5f) ? InstrumentPreset::KEYS
-                                        : InstrumentPreset::PLUCK;
-  } else {
-    // Minor/Dorian: warmer sounds
-    chordPreset =
-        (m.brightness > 0.5f) ? InstrumentPreset::BELL : InstrumentPreset::KEYS;
-  }
-
-  spec.tracks.push_back({"chords", chordPreset,
-                         getProgramNumber(chordPreset, m.scaleType),
-                         0.5f + spec.moodScore * 0.2f, 0.5f + m.energy * 0.3f});
-
-  // 4. Melody (only if mood is high enough - lush scenes deserve melody)
-  if (spec.moodScore > 0.4f) {
-    InstrumentPreset melodyPreset;
-    if (spec.moodScore > 0.7f) {
-      // Very pleasant: use bell-like sounds
-      melodyPreset = InstrumentPreset::BELL;
-    } else if (m.brightness > 0.6f) {
-      // Bright: plucks
-      melodyPreset = InstrumentPreset::PLUCK;
-    } else {
-      // Default: keys
-      melodyPreset = InstrumentPreset::KEYS;
-    }
-
+  // Track 5: Pad (atmospheric layer)
+  if (spec.moodScore > 0.3f || spec.groove == GrooveType::CHILL) {
     spec.tracks.push_back({
-        "melody", melodyPreset, getProgramNumber(melodyPreset, m.scaleType),
-        0.4f + spec.moodScore * 0.3f,
-        spec.moodScore  // Melody complexity tracks mood
-    });
-  }
-
-  // 5. Pad (sustained background layer)
-  // Include for most tracks unless very minimal
-  if (spec.moodScore > 0.3f || m.patternType == 0) {
-    spec.tracks.push_back({
-        "pad", InstrumentPreset::SOFT_PAD,
-        getProgramNumber(InstrumentPreset::SOFT_PAD, m.scaleType),
-        0.3f + spec.moodScore * 0.2f,  // Subtle volume
-        0.3f                           // Low complexity (long sustained notes)
+        TrackRole::PAD,
+        0.4f + spec.moodScore * 0.2f,
+        0.3f,  // Low complexity (sustained)
+        4,     // MIDI channel 4
+        91     // Pad 4 (choir) - warm atmospheric sound
     });
   }
 
@@ -237,6 +208,25 @@ const char* grooveTypeName(GrooveType type) {
       return "Chill";
     case GrooveType::DRIVING:
       return "Driving";
+    default:
+      return "Unknown";
+  }
+}
+
+const char* trackRoleName(TrackRole role) {
+  switch (role) {
+    case TrackRole::DRUMS:
+      return "Drums";
+    case TrackRole::BASS:
+      return "Bass";
+    case TrackRole::CHORDS:
+      return "Chords";
+    case TrackRole::LEAD:
+      return "Lead";
+    case TrackRole::PAD:
+      return "Pad";
+    case TrackRole::FX:
+      return "FX";
     default:
       return "Unknown";
   }

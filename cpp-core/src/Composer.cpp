@@ -30,6 +30,28 @@ std::vector<int> getScaleIntervals(int scaleType) {
   }
 }
 
+// Phase 8: Velocity scaling based on section energy for dynamics
+int scaleVelocity(int baseVelocity, float sectionEnergy) {
+  // intro/outro (0.2): 60-80
+  // build (0.5): 80-95
+  // drop (1.0): 90-110
+  // break (0.4): 70-90
+  
+  int scaled;
+  if (sectionEnergy < 0.3f) {
+    // Intro/outro: soft
+    scaled = 60 + static_cast<int>((baseVelocity - 60) * 0.3f);
+  } else if (sectionEnergy < 0.6f) {
+    // Build/break: medium
+    scaled = 70 + static_cast<int>((baseVelocity - 70) * 0.6f);
+  } else {
+    // Drop: loud
+    scaled = 90 + static_cast<int>((baseVelocity - 90) * 1.2f);
+  }
+  
+  return std::max(40, std::min(120, scaled));
+}
+
 // Chord progression templates for different scale types
 struct ChordProgression {
   std::vector<int> degrees;  // Scale degrees (0-6)
@@ -69,7 +91,7 @@ int randomInt(int min, int max) {
 // Generate drums for one bar
 void generateDrumsBar(MidiWriter& midi, int trackIdx, int startTick,
                       int ticksPerBar, GrooveType groove, float energy,
-                      float complexity) {
+                      float complexity, bool addFill = false) {
   int ticksPerBeat = ticksPerBar / 4;
   int channel = 9;  // MIDI channel 10 (9 in 0-indexed) = drums
 
@@ -78,6 +100,8 @@ void generateDrumsBar(MidiWriter& midi, int trackIdx, int startTick,
   const int snare = 38;
   const int closedHat = 42;
   const int openHat = 46;
+  const int crash = 49;
+  const int ride = 51;
 
   int baseVelocity = 80 + static_cast<int>(energy * 30);
 
@@ -170,110 +194,208 @@ void generateDrumsBar(MidiWriter& midi, int trackIdx, int startTick,
                       channel, closedHat);
     }
   }
+  
+  // Phase 8: Add fills at section transitions
+  if (addFill && energy > 0.3f) {
+    // Snare roll in the last half-beat
+    int fillStart = startTick + ticksPerBar - ticksPerBeat;
+    int sixteenthNote = ticksPerBeat / 4;
+    
+    for (int i = 0; i < 4; ++i) {
+      int vel = baseVelocity - 10 + i * 5;  // Crescendo
+      midi.addNoteOn(trackIdx, fillStart + i * sixteenthNote, channel, snare, vel);
+      midi.addNoteOff(trackIdx, fillStart + i * sixteenthNote + sixteenthNote / 2, channel, snare);
+    }
+    
+    // Crash on the downbeat of next section (added by next bar generation)
+  }
 }
 
-// Generate bass line for one bar
+// Generate bass line for one bar (Phase 8: Enhanced with EDM-style patterns)
 void generateBassBar(MidiWriter& midi, int trackIdx, int startTick,
                      int ticksPerBar, int rootNote, int chordDegree,
                      const std::vector<int>& scale, int channel, float energy,
                      float complexity) {
   int ticksPerBeat = ticksPerBar / 4;
-  int baseVelocity = 70 + static_cast<int>(energy * 20);
+  int baseVelocity = 70 + static_cast<int>(energy * 25);
 
   // Bass plays root of current chord, octave down
   int bassNote = rootNote - 12 + scale[chordDegree % scale.size()];
+  int fifthNote = rootNote - 12 + scale[(chordDegree + 4) % scale.size()];
+  int octaveUp = bassNote + 12;
 
-  if (complexity < 0.3f) {
-    // Simple: whole notes
+  if (energy < 0.3f) {
+    // Low energy: simple whole notes or half notes
     midi.addNoteOn(trackIdx, startTick, channel, bassNote, baseVelocity);
     midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, bassNote);
-  } else if (complexity < 0.6f) {
-    // Medium: root on 1 and 3
+  } else if (energy < 0.6f) {
+    // Medium energy: root on 1 and 3 with octave variation
     midi.addNoteOn(trackIdx, startTick, channel, bassNote, baseVelocity);
     midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 - 10, channel,
                     bassNote);
 
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, bassNote,
+    // Octave jump on beat 3
+    int note2 = (complexity > 0.4f) ? octaveUp : bassNote;
+    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, note2,
                    baseVelocity - 5);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, bassNote);
+    midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, note2);
   } else {
-    // Walking bass: root + fifth pattern
-    int fifthNote = rootNote - 12 + scale[(chordDegree + 4) % scale.size()];
-
+    // High energy: Walking bass with 8th notes (EDM-style)
+    // Pattern: root - fifth - octave - fifth (creates movement)
+    int eighthNote = ticksPerBeat / 2;
+    
+    // Beat 1: root
     midi.addNoteOn(trackIdx, startTick, channel, bassNote, baseVelocity);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBeat - 10, channel, bassNote);
-
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat, channel, fifthNote,
+    midi.addNoteOff(trackIdx, startTick + eighthNote - 5, channel, bassNote);
+    
+    // Beat 1.5: fifth
+    midi.addNoteOn(trackIdx, startTick + eighthNote, channel, fifthNote,
                    baseVelocity - 10);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 - 10, channel,
-                    fifthNote);
-
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, bassNote,
+    midi.addNoteOff(trackIdx, startTick + ticksPerBeat - 5, channel, fifthNote);
+    
+    // Beat 2: root (accented)
+    midi.addNoteOn(trackIdx, startTick + ticksPerBeat, channel, bassNote,
                    baseVelocity - 5);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, bassNote);
+    midi.addNoteOff(trackIdx, startTick + ticksPerBeat + eighthNote - 5, channel,
+                    bassNote);
+    
+    // Beat 3: octave up (creates lift)
+    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, octaveUp,
+                   baseVelocity);
+    midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 + eighthNote - 5,
+                    channel, octaveUp);
+    
+    // Beat 3.5: fifth
+    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2 + eighthNote, channel,
+                   fifthNote, baseVelocity - 10);
+    midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 3 - 5, channel,
+                    fifthNote);
+    
+    // Beat 4: root (leads back to next bar)
+    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3, channel, bassNote,
+                   baseVelocity - 5);
+    midi.addNoteOff(trackIdx, startTick + ticksPerBar - 5, channel, bassNote);
   }
 }
 
-// Generate chord voicing for one bar
+// Generate chord voicing for one bar (Phase 8: Rhythmic variation based on energy)
 void generateChordBar(MidiWriter& midi, int trackIdx, int startTick,
                       int ticksPerBar, int rootNote, int chordDegree,
                       const std::vector<int>& scale, int channel, float energy,
                       float complexity) {
   int ticksPerBeat = ticksPerBar / 4;
-  int baseVelocity = 60 + static_cast<int>(energy * 15);
+  int baseVelocity = 60 + static_cast<int>(energy * 20);
 
   // Build triad: root, third, fifth
   std::vector<int> chordNotes;
   chordNotes.push_back(rootNote + scale[chordDegree % scale.size()]);
   chordNotes.push_back(rootNote + scale[(chordDegree + 2) % scale.size()]);
   chordNotes.push_back(rootNote + scale[(chordDegree + 4) % scale.size()]);
+  
+  // Add 7th for complexity
+  if (complexity > 0.6f) {
+    chordNotes.push_back(rootNote + scale[(chordDegree + 6) % scale.size()]);
+  }
 
-  if (complexity < 0.4f) {
-    // Whole note chords
+  if (energy < 0.3f) {
+    // Intro/break: long sustained chords (2 bars worth of sustain)
     for (int note : chordNotes) {
-      midi.addNoteOn(trackIdx, startTick, channel, note, baseVelocity);
+      midi.addNoteOn(trackIdx, startTick, channel, note, baseVelocity - 10);
       midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, note);
     }
-  } else {
-    // Rhythmic chords on beats 1 and 3
+  } else if (energy < 0.7f) {
+    // Build: half-note chords (on beats 1 and 3)
     for (int note : chordNotes) {
       midi.addNoteOn(trackIdx, startTick, channel, note, baseVelocity);
-      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 - 10, channel,
-                      note);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 - 10, channel, note);
 
       midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, note,
                      baseVelocity - 5);
       midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, note);
     }
+  } else {
+    // Drop: rhythmic quarter-note stabs (EDM-style)
+    // Pattern: 1, 1.5, 2, 2.5, 3, 4 (syncopated)
+    int eighthNote = ticksPerBeat / 2;
+    int stabs[] = {0, eighthNote, ticksPerBeat, ticksPerBeat + eighthNote,
+                   ticksPerBeat * 2, ticksPerBeat * 3};
+    int stabbedVel = baseVelocity + 5;  // Accented for drop
+    
+    for (int stab : stabs) {
+      for (int note : chordNotes) {
+        midi.addNoteOn(trackIdx, startTick + stab, channel, note, stabbedVel);
+        midi.addNoteOff(trackIdx, startTick + stab + eighthNote - 10, channel, note);
+      }
+      stabbedVel -= 3;  // Slight velocity variation
+    }
   }
 }
 
-// Generate melody for one bar
+// Phase 8: Motif-based lead/hook generator
 void generateMelodyBar(MidiWriter& midi, int trackIdx, int startTick,
                        int ticksPerBar, int rootNote, int chordDegree,
                        const std::vector<int>& scale, int channel,
                        float moodScore, int& melodicState) {
   int ticksPerBeat = ticksPerBar / 4;
-  int baseVelocity = 70 + static_cast<int>(moodScore * 20);
+  int baseVelocity = 75 + static_cast<int>(moodScore * 20);
 
-  // Simple melodic motif based on current chord
-  // Use stepwise motion within the scale
-  int noteCount = (moodScore > 0.6f) ? 4 : 2;
-
-  for (int i = 0; i < noteCount; ++i) {
-    // Random walk through scale degrees
-    int degree = (chordDegree + melodicState) % scale.size();
-    melodicState += randomInt(-1, 2);  // Step up/down/stay
-    melodicState = std::max(0, std::min(6, melodicState));
-
-    int note = rootNote + 12 + scale[degree];  // Octave up from root
-    int tick = startTick + i * (ticksPerBar / noteCount);
-    int duration = (ticksPerBar / noteCount) - 10;
-
-    int velocity = baseVelocity + randomInt(-10, 10);
-    midi.addNoteOn(trackIdx, tick, channel, note, velocity);
-    midi.addNoteOff(trackIdx, tick + duration, channel, note);
+  // Create a 4-note motif from scale degrees 0, 2, 4 (root, third, fifth)
+  // This creates a memorable, singable hook
+  std::vector<int> motifDegrees;
+  
+  if (moodScore > 0.6f) {
+    // Happy/bright: ascending motif (0-2-4-5 or similar)
+    motifDegrees = {0, 2, 4, 5, 4, 2};  // Up and back down
+  } else if (moodScore > 0.4f) {
+    // Neutral: stepwise with repetition
+    motifDegrees = {0, 2, 2, 4, 4, 2};  // Repetitive hook
+  } else {
+    // Dark/moody: descending or sparse
+    motifDegrees = {4, 2, 0, 2};  // Descending
   }
+  
+  // Rhythm: use 8th notes for energetic feel, quarter notes for chill
+  bool use16ths = (moodScore > 0.7f);
+  int noteDuration = use16ths ? (ticksPerBeat / 4) : (ticksPerBeat / 2);
+  
+  int tick = startTick;
+  for (size_t i = 0; i < motifDegrees.size() && tick < startTick + ticksPerBar; ++i) {
+    // Calculate note from scale degree relative to chord
+    int degree = (chordDegree + motifDegrees[i]) % scale.size();
+    int note = rootNote + 12 + scale[degree];  // Octave up from root
+    
+    // Add slight transposition based on melodic state (creates variation)
+    if (melodicState > 3) {
+      note += 12;  // Jump up an octave for variation
+    } else if (melodicState < -2) {
+      note -= 12;  // Down for contrast
+    }
+    
+    // Ensure note stays in reasonable range
+    note = std::max(60, std::min(84, note));
+    
+    // Add rhythmic variation: some notes are accented or sustained
+    int duration = noteDuration;
+    int velocity = baseVelocity;
+    
+    if (i == 0 || i == motifDegrees.size() - 1) {
+      // Accent first and last notes of motif
+      velocity += 10;
+      duration = noteDuration * 3 / 2;  // Slightly longer
+    }
+    
+    // Humanization: slight velocity variation
+    velocity += randomInt(-5, 5);
+    
+    midi.addNoteOn(trackIdx, tick, channel, note, velocity);
+    midi.addNoteOff(trackIdx, tick + duration - 5, channel, note);
+    
+    tick += noteDuration;
+  }
+  
+  // Update melodic state for variation across bars
+  melodicState += randomInt(-1, 2);
+  melodicState = std::max(-3, std::min(4, melodicState));
 }
 
 // Generate pad (sustained chords) for one bar
@@ -317,24 +439,20 @@ void composeSongToMidi(const SongSpec& spec, const std::string& midiPath) {
   auto progression =
       progressions[0];  // Use first progression (can be randomized)
 
-  // Create tracks
-  std::map<std::string, int> trackIndices;
-  std::map<std::string, int> channelMap;
-  int nextChannel = 0;
+  // Create tracks with TrackRole enum support
+  std::map<TrackRole, int> trackIndices;
+  std::map<TrackRole, int> channelMap;
 
   for (const auto& trackSpec : spec.tracks) {
-    int trackIdx = midi.addTrack(trackSpec.role);
+    const char* roleName = trackRoleName(trackSpec.role);
+    int trackIdx = midi.addTrack(roleName);
     trackIndices[trackSpec.role] = trackIdx;
+    channelMap[trackSpec.role] = trackSpec.midiChannel;
 
-    if (trackSpec.role == "drums") {
-      channelMap[trackSpec.role] = 9;  // MIDI channel 10 (drums)
-    } else {
-      channelMap[trackSpec.role] = nextChannel++;
-      if (nextChannel == 9) nextChannel++;  // Skip drum channel
-
-      // Add program change at start
-      midi.addProgramChange(trackIdx, 0, channelMap[trackSpec.role],
-                            trackSpec.midiProgram);
+    // Add program change at start (except for drums)
+    if (trackSpec.role != TrackRole::DRUMS) {
+      midi.addProgramChange(trackIdx, 0, trackSpec.midiChannel,
+                            trackSpec.program);
     }
   }
 
@@ -342,39 +460,74 @@ void composeSongToMidi(const SongSpec& spec, const std::string& midiPath) {
   int currentTick = 0;
   int melodicState = 2;  // Start on third degree for melody
 
-  for (const auto& section : spec.sections) {
-    float sectionEnergy = section.energy;
+  for (size_t secIdx = 0; secIdx < spec.sections.size(); ++secIdx) {
+    const auto& section = spec.sections[secIdx];
+    float sectionEnergy = section.targetEnergy;
+    
+    // Determine if this is the last section
+    bool isLastSection = (secIdx == spec.sections.size() - 1);
+    
+    // Phase 8: Determine if lead should be active in this section
+    bool leadActive = false;
+    if (section.name == "drop" || section.name == "outro") {
+      leadActive = true;  // Always active in drop and outro
+    } else if (section.name == "build" || section.name == "build2") {
+      // Active in second half of build
+      leadActive = false;  // Will be enabled per-bar below
+    }
 
     // Generate bars for this section
     for (int bar = 0; bar < section.bars; ++bar) {
       // Current chord from progression
       int progressionIndex = bar % progression.degrees.size();
       int chordDegree = progression.degrees[progressionIndex];
+      
+      // Check if this is the last bar of a section (for fills)
+      bool isLastBarOfSection = (bar == section.bars - 1) && !isLastSection;
+      
+      // Activate lead in second half of build sections
+      bool leadActiveThisBar = leadActive;
+      if (!leadActiveThisBar && (section.name == "build" || section.name == "build2")) {
+        leadActiveThisBar = (bar >= section.bars / 2);
+      }
 
       // Generate each track for this bar
       for (const auto& trackSpec : spec.tracks) {
         int trackIdx = trackIndices[trackSpec.role];
         int channel = channelMap[trackSpec.role];
 
-        if (trackSpec.role == "drums") {
-          generateDrumsBar(midi, trackIdx, currentTick, ticksPerBar,
-                           spec.groove, sectionEnergy, trackSpec.complexity);
-        } else if (trackSpec.role == "bass") {
-          generateBassBar(midi, trackIdx, currentTick, ticksPerBar,
-                          spec.rootMidiNote, chordDegree, scale, channel,
-                          sectionEnergy, trackSpec.complexity);
-        } else if (trackSpec.role == "chords") {
-          generateChordBar(midi, trackIdx, currentTick, ticksPerBar,
-                           spec.rootMidiNote, chordDegree, scale, channel,
-                           sectionEnergy, trackSpec.complexity);
-        } else if (trackSpec.role == "melody") {
-          generateMelodyBar(midi, trackIdx, currentTick, ticksPerBar,
+        switch (trackSpec.role) {
+          case TrackRole::DRUMS:
+            generateDrumsBar(midi, trackIdx, currentTick, ticksPerBar,
+                             spec.groove, sectionEnergy, trackSpec.complexity,
+                             isLastBarOfSection);
+            break;
+          case TrackRole::BASS:
+            generateBassBar(midi, trackIdx, currentTick, ticksPerBar,
                             spec.rootMidiNote, chordDegree, scale, channel,
-                            spec.moodScore, melodicState);
-        } else if (trackSpec.role == "pad") {
-          generatePadBar(midi, trackIdx, currentTick, ticksPerBar,
-                         spec.rootMidiNote, chordDegree, scale, channel,
-                         spec.moodScore);
+                            sectionEnergy, trackSpec.complexity);
+            break;
+          case TrackRole::CHORDS:
+            generateChordBar(midi, trackIdx, currentTick, ticksPerBar,
+                             spec.rootMidiNote, chordDegree, scale, channel,
+                             sectionEnergy, trackSpec.complexity);
+            break;
+          case TrackRole::LEAD:
+            // Only generate lead if active in this section/bar
+            if (leadActiveThisBar) {
+              generateMelodyBar(midi, trackIdx, currentTick, ticksPerBar,
+                                spec.rootMidiNote, chordDegree, scale, channel,
+                                spec.moodScore, melodicState);
+            }
+            break;
+          case TrackRole::PAD:
+            generatePadBar(midi, trackIdx, currentTick, ticksPerBar,
+                           spec.rootMidiNote, chordDegree, scale, channel,
+                           spec.moodScore);
+            break;
+          case TrackRole::FX:
+            // TODO: FX track implementation
+            break;
         }
       }
 
@@ -418,18 +571,25 @@ std::map<std::string, std::string> composeSongToStems(
 
   // Generate composition (reusing logic from composeSongToMidi)
   std::vector<int> scale = getScaleIntervals(spec.scaleType);
-  int rootNote = spec.rootMidiNote;  // Add tracks
+  int rootNote = spec.rootMidiNote;
+  
+  // Add tracks
   std::vector<std::string> trackNames;
   std::vector<int> trackIndices;
 
   for (const auto& track : spec.tracks) {
-    int trackIdx = midi.addTrack(track.role);
-    trackNames.push_back(track.role);
+    const char* roleName = trackRoleName(track.role);
+    int trackIdx = midi.addTrack(roleName);
+    trackNames.push_back(roleName);
     trackIndices.push_back(trackIdx);
 
-    // Set instrument
-    midi.addProgramChange(trackIdx, 0, 0, track.midiProgram);
-  }  // Generate musical content for each section
+    // Set instrument (except for drums)
+    if (track.role != TrackRole::DRUMS) {
+      midi.addProgramChange(trackIdx, 0, track.midiChannel, track.program);
+    }
+  }
+
+  // Generate musical content for each section
   int currentTick = 0;
   int ticksPerBeat = 480;
   int ticksPerBar = ticksPerBeat * 4;
@@ -443,95 +603,110 @@ std::map<std::string, std::string> composeSongToStems(
       int trackIdx = trackIndices[i];
 
       // Different patterns based on track role
-      if (track.role == "drums" || track.role == "kick" ||
-          track.role == "snare") {
-        // Drum pattern (simplified)
-        for (int bar = 0; bar < section.bars; ++bar) {
-          int barStart = currentTick + bar * ticksPerBar;
+      switch (track.role) {
+        case TrackRole::DRUMS:
+          // Drum pattern (simplified)
+          for (int bar = 0; bar < section.bars; ++bar) {
+            int barStart = currentTick + bar * ticksPerBar;
 
-          // Kick on beats 1 and 3
-          midi.addNoteOn(trackIdx, barStart, 9, 36, 100);
-          midi.addNoteOff(trackIdx, barStart + ticksPerBeat / 2, 9, 36);
+            // Kick on beats 1 and 3
+            midi.addNoteOn(trackIdx, barStart, 9, 36, 100);
+            midi.addNoteOff(trackIdx, barStart + ticksPerBeat / 2, 9, 36);
 
-          midi.addNoteOn(trackIdx, barStart + ticksPerBeat * 2, 9, 36, 100);
-          midi.addNoteOff(
-              trackIdx, barStart + ticksPerBeat * 2 + ticksPerBeat / 2, 9, 36);
+            midi.addNoteOn(trackIdx, barStart + ticksPerBeat * 2, 9, 36, 100);
+            midi.addNoteOff(
+                trackIdx, barStart + ticksPerBeat * 2 + ticksPerBeat / 2, 9, 36);
 
-          // Snare on beats 2 and 4
-          midi.addNoteOn(trackIdx, barStart + ticksPerBeat, 9, 38, 90);
-          midi.addNoteOff(trackIdx, barStart + ticksPerBeat + ticksPerBeat / 2,
-                          9, 38);
+            // Snare on beats 2 and 4
+            midi.addNoteOn(trackIdx, barStart + ticksPerBeat, 9, 38, 90);
+            midi.addNoteOff(trackIdx, barStart + ticksPerBeat + ticksPerBeat / 2,
+                            9, 38);
 
-          midi.addNoteOn(trackIdx, barStart + ticksPerBeat * 3, 9, 38, 90);
-          midi.addNoteOff(
-              trackIdx, barStart + ticksPerBeat * 3 + ticksPerBeat / 2, 9, 38);
-        }
-      } else if (track.role == "bass") {
-        // Bass line - root note pattern
-        for (int bar = 0; bar < section.bars; ++bar) {
-          int barStart = currentTick + bar * ticksPerBar;
-          int bassNote = rootNote - 12;  // One octave below root
-
-          midi.addNoteOn(trackIdx, barStart, 0, bassNote, 80);
-          midi.addNoteOff(trackIdx, barStart + ticksPerBeat * 2, 0, bassNote);
-
-          midi.addNoteOn(trackIdx, barStart + ticksPerBeat * 2, 0, bassNote,
-                         80);
-          midi.addNoteOff(trackIdx, barStart + ticksPerBeat * 4, 0, bassNote);
-        }
-      } else if (track.role == "chords") {
-        // Chord progression
-        std::vector<ChordProgression> progs = getProgressions(spec.scaleType);
-        const auto& prog = progs[0];
-
-        for (int bar = 0; bar < section.bars; ++bar) {
-          int barStart = currentTick + bar * ticksPerBar;
-          int chordIdx = bar % prog.degrees.size();
-          int degree = prog.degrees[chordIdx];
-          int chordRoot = rootNote + scale[degree];
-
-          // Triad
-          std::vector<int> chord = {chordRoot, chordRoot + scale[2],
-                                    chordRoot + scale[4]};
-
-          for (int note : chord) {
-            midi.addNoteOn(trackIdx, barStart, 0, note, 70);
-            midi.addNoteOff(trackIdx, barStart + ticksPerBar, 0, note);
+            midi.addNoteOn(trackIdx, barStart + ticksPerBeat * 3, 9, 38, 90);
+            midi.addNoteOff(
+                trackIdx, barStart + ticksPerBeat * 3 + ticksPerBeat / 2, 9, 38);
           }
-        }
-      } else if (track.role == "melody" || track.role == "lead") {
-        // Melody line
-        std::mt19937 rng(42);
-        std::uniform_int_distribution<> noteDist(0, scale.size() - 1);
+          break;
+          
+        case TrackRole::BASS:
+          // Bass line - root note pattern
+          for (int bar = 0; bar < section.bars; ++bar) {
+            int barStart = currentTick + bar * ticksPerBar;
+            int bassNote = rootNote - 12;  // One octave below root
 
-        for (int bar = 0; bar < section.bars; ++bar) {
-          int barStart = currentTick + bar * ticksPerBar;
+            midi.addNoteOn(trackIdx, barStart, track.midiChannel, bassNote, 80);
+            midi.addNoteOff(trackIdx, barStart + ticksPerBeat * 2, track.midiChannel, bassNote);
 
-          for (int beat = 0; beat < 4; ++beat) {
-            int noteStart = barStart + beat * ticksPerBeat;
-            int scaleIdx = noteDist(rng);
-            int note = rootNote + 12 + scale[scaleIdx];  // One octave up
-
-            midi.addNoteOn(trackIdx, noteStart, 0, note, 75);
-            midi.addNoteOff(trackIdx, noteStart + ticksPerBeat * 3 / 4, 0,
-                            note);
+            midi.addNoteOn(trackIdx, barStart + ticksPerBeat * 2, track.midiChannel, bassNote, 80);
+            midi.addNoteOff(trackIdx, barStart + ticksPerBeat * 4, track.midiChannel, bassNote);
           }
-        }
-      } else if (track.role == "pad") {
-        // Sustained pad chords
-        for (int bar = 0; bar < section.bars; bar += 2) {
-          int barStart = currentTick + bar * ticksPerBar;
+          break;
+          
+        case TrackRole::CHORDS:
+          // Chord progression
+          {
+            std::vector<ChordProgression> progs = getProgressions(spec.scaleType);
+            const auto& prog = progs[0];
 
-          // Sustained chord
-          std::vector<int> padChord = {rootNote, rootNote + scale[2],
-                                       rootNote + scale[4],
-                                       rootNote + 12 + scale[1]};
+            for (int bar = 0; bar < section.bars; ++bar) {
+              int barStart = currentTick + bar * ticksPerBar;
+              int chordIdx = bar % prog.degrees.size();
+              int degree = prog.degrees[chordIdx];
+              int chordRoot = rootNote + scale[degree];
 
-          for (int note : padChord) {
-            midi.addNoteOn(trackIdx, barStart, 0, note, 60);
-            midi.addNoteOff(trackIdx, barStart + ticksPerBar * 2, 0, note);
+              // Triad
+              std::vector<int> chord = {chordRoot, chordRoot + scale[2],
+                                        chordRoot + scale[4]};
+
+              for (int note : chord) {
+                midi.addNoteOn(trackIdx, barStart, track.midiChannel, note, 70);
+                midi.addNoteOff(trackIdx, barStart + ticksPerBar, track.midiChannel, note);
+              }
+            }
           }
-        }
+          break;
+          
+        case TrackRole::LEAD:
+          // Melody line
+          {
+            std::mt19937 rng(42);
+            std::uniform_int_distribution<> noteDist(0, scale.size() - 1);
+
+            for (int bar = 0; bar < section.bars; ++bar) {
+              int barStart = currentTick + bar * ticksPerBar;
+
+              for (int beat = 0; beat < 4; ++beat) {
+                int noteStart = barStart + beat * ticksPerBeat;
+                int scaleIdx = noteDist(rng);
+                int note = rootNote + 12 + scale[scaleIdx];  // One octave up
+
+                midi.addNoteOn(trackIdx, noteStart, track.midiChannel, note, 75);
+                midi.addNoteOff(trackIdx, noteStart + ticksPerBeat * 3 / 4, track.midiChannel, note);
+              }
+            }
+          }
+          break;
+          
+        case TrackRole::PAD:
+          // Sustained pad chords
+          for (int bar = 0; bar < section.bars; bar += 2) {
+            int barStart = currentTick + bar * ticksPerBar;
+
+            // Sustained chord
+            std::vector<int> padChord = {rootNote, rootNote + scale[2],
+                                         rootNote + scale[4],
+                                         rootNote + 12 + scale[1]};
+
+            for (int note : padChord) {
+              midi.addNoteOn(trackIdx, barStart, track.midiChannel, note, 60);
+              midi.addNoteOff(trackIdx, barStart + ticksPerBar * 2, track.midiChannel, note);
+            }
+          }
+          break;
+          
+        case TrackRole::FX:
+          // TODO: FX track implementation
+          break;
       }
     }
 

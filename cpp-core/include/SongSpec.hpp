@@ -31,18 +31,28 @@ enum class GrooveType {
     DRIVING = 2      // More rhythmic, energetic patterns
 };
 
+// Phase 8: Track role classification for composition engine
+enum class TrackRole {
+    DRUMS = 0,       // Percussion (kick, snare, hats)
+    BASS = 1,        // Low-end foundation
+    CHORDS = 2,      // Harmonic content (pads, keys)
+    LEAD = 3,        // Melodic hooks
+    PAD = 4,         // Atmospheric layer
+    FX = 5           // Sound effects / ambience
+};
+
 struct TrackSpec {
-    std::string role;         // "drums", "bass", "chords", "melody", "pad"
-    InstrumentPreset preset;  // Which instrument type to use
-    int midiProgram;          // General MIDI program number (0-127)
-    float volume;             // 0-1, controls MIDI velocity scaling
+    TrackRole role;           // Track function in arrangement
+    float baseVolume;         // 0-1, base mix level
     float complexity;         // 0-1, affects note density/variation
+    int midiChannel;          // MIDI channel (0-15, channel 9 = drums)
+    int program;              // General MIDI program number (0-127)
 };
 
 struct SectionSpec {
-    std::string name;         // "intro", "A", "B", "outro"
+    std::string name;         // "intro", "build", "drop", "break", "outro"
     int bars;                 // Number of bars in this section
-    float energy;             // 0-1, section-specific energy level
+    float targetEnergy;       // 0-1, target energy for this section
 };
 
 struct SongSpec {
@@ -87,3 +97,8 @@ const char* instrumentPresetName(InstrumentPreset preset);
  * Utility: Get human-readable name for groove type
  */
 const char* grooveTypeName(GrooveType type);
+
+/**
+ * Utility: Get human-readable name for track role
+ */
+const char* trackRoleName(TrackRole role);

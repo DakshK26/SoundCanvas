@@ -102,12 +102,12 @@ SongSpec songPlanToSpec(const SongPlan& plan) {
         SectionSpec sec;
         sec.name = sectionTypeName(plannedSec.type);
         sec.bars = plannedSec.bars;
-        sec.energy = plannedSec.energy;
+        sec.targetEnergy = plannedSec.energy;
         spec.sections.push_back(sec);
     }
     
     // Create tracks from active instruments
-    // Map instrument roles to MIDI programs (simplified for now)
+    // Map instrument roles to MIDI programs and channels (simplified for now)
     std::map<std::string, int> instrumentPrograms = {
         {"kick", 36},
         {"snare", 38},
@@ -125,27 +125,46 @@ SongSpec songPlanToSpec(const SongPlan& plan) {
         {"perc", 47}     // Timpani
     };
     
+    // Map string role names to TrackRole enum
+    std::map<std::string, TrackRole> roleMap = {
+        {"kick", TrackRole::DRUMS},
+        {"snare", TrackRole::DRUMS},
+        {"hihat", TrackRole::DRUMS},
+        {"perc", TrackRole::DRUMS},
+        {"bass", TrackRole::BASS},
+        {"lead", TrackRole::LEAD},
+        {"pad", TrackRole::PAD},
+        {"arp", TrackRole::LEAD},
+        {"pluck", TrackRole::CHORDS},
+        {"fx", TrackRole::FX},
+        {"strings", TrackRole::CHORDS},
+        {"brass", TrackRole::CHORDS},
+        {"choir", TrackRole::PAD},
+        {"piano", TrackRole::CHORDS}
+    };
+    
+    int nextChannel = 0;
     for (const auto& instRole : plan.activeInstruments) {
         TrackSpec track;
-        track.role = instRole;
+        
+        // Convert string role to TrackRole enum
+        auto roleIt = roleMap.find(instRole);
+        track.role = (roleIt != roleMap.end()) ? roleIt->second : TrackRole::FX;
+        
+        // Set MIDI channel (drums get channel 9, others sequential)
+        if (track.role == TrackRole::DRUMS) {
+            track.midiChannel = 9;
+        } else {
+            track.midiChannel = nextChannel++;
+            if (nextChannel == 9) nextChannel++;  // Skip drum channel
+        }
         
         // Set MIDI program
         auto it = instrumentPrograms.find(instRole);
-        track.midiProgram = (it != instrumentPrograms.end()) ? it->second : 0;
-        
-        // Set preset based on role
-        if (instRole == "pad" || instRole == "fx") {
-            track.preset = InstrumentPreset::SOFT_PAD;
-        } else if (instRole == "lead" || instRole == "arp") {
-            track.preset = InstrumentPreset::KEYS;
-        } else if (instRole == "pluck" || instRole == "strings") {
-            track.preset = InstrumentPreset::PLUCK;
-        } else {
-            track.preset = InstrumentPreset::KEYS;
-        }
+        track.program = (it != instrumentPrograms.end()) ? it->second : 0;
         
         // Set volume and complexity
-        track.volume = 0.7f;
+        track.baseVolume = 0.7f;
         track.complexity = 0.5f;
         
         spec.tracks.push_back(track);
