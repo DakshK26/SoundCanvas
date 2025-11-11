@@ -12,6 +12,8 @@
 #include "MusicalStyle.hpp"  // Phase 7: Extended style controls
 #include "SongSpec.hpp"       // Phase 7: Song composition
 #include "Composer.hpp"       // Phase 7: MIDI generation
+#include "GenreTemplate.hpp"  // Phase 8: Genre templates
+#include "SectionPlanner.hpp" // Phase 8: Structured composition
 
 enum class Mode {
     Heuristic,
@@ -233,23 +235,38 @@ int main(int argc, char** argv) {
                   << "  moodScore         = " << style.moodScore << " (lushness)"
                   << std::endl;
 
-        // Phase 7: Create SongSpec from features and parameters
-        SongSpec songSpec = makeSongSpec(features, params);
+        // Phase 8: Select genre and create structured song plan
+        GenreType genre = selectGenreFromImage(features, params.energy);
+        const GenreTemplate& genreTemplate = getGenreTemplate(genre);
         
-        std::cout << "Song structure:\n"
-                  << "  Tempo: " << songSpec.tempoBpm << " BPM\n"
-                  << "  Key: MIDI " << songSpec.rootMidiNote << " (" << scaleName << ")\n"
-                  << "  Sections: " << songSpec.sections.size() << "\n"
-                  << "  Tracks: " << songSpec.tracks.size() << "\n"
-                  << "  Total bars: " << songSpec.totalBars << "\n"
-                  << "  Groove: " << grooveTypeName(songSpec.groove) << "\n"
-                  << "  Ambience: " << ambienceTypeName(songSpec.ambience) << "\n"
-                  << "  Mood: " << songSpec.moodScore << std::endl;
+        std::cout << "\n=== Phase 8: Genre-Based Composition ===\n"
+                  << "Selected genre: " << genreTypeName(genre) << "\n"
+                  << "Tempo range: " << genreTemplate.minTempo << "-" << genreTemplate.maxTempo << " BPM"
+                  << std::endl;
+        
+        SongPlan plan = planSong(features, params, genreTemplate);
+        
+        std::cout << "\nSong Plan:\n"
+                  << "  Genre: " << genreTypeName(plan.genre) << "\n"
+                  << "  Tempo: " << plan.tempoBpm << " BPM\n"
+                  << "  Key: MIDI " << plan.rootNote << " (" << scaleName << ")\n"
+                  << "  Total bars: " << plan.totalBars << "\n"
+                  << "  Sections: " << plan.sections.size() << "\n"
+                  << "  Active instruments: " << plan.activeInstruments.size() << std::endl;
+        
+        std::cout << "\nSection Timeline:\n";
+        for (const auto& sec : plan.sections) {
+            std::cout << "  " << sectionTypeName(sec.type) 
+                      << ": bars " << sec.startBar << "-" << (sec.startBar + sec.bars)
+                      << " (energy: " << sec.energy << ")";
+            if (sec.hasDrop) std::cout << " [DROP!]";
+            std::cout << std::endl;
+        }
 
         // Generate intermediate MIDI file
         std::string tempMidi = outputWav + ".tmp.mid";
-        std::cout << "Composing MIDI to: " << tempMidi << std::endl;
-        composeSongToMidi(songSpec, tempMidi);
+        std::cout << "\nComposing MIDI to: " << tempMidi << std::endl;
+        composeGenreSongToMidi(plan, tempMidi);
 
         // Render MIDI to WAV using FluidSynth
         std::string soundfont = "/usr/share/sounds/sf2/FluidR3_GM.sf2";

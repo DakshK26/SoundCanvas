@@ -1,11 +1,14 @@
 #include "Composer.hpp"
 #include "MidiWriter.hpp"
 #include "SongSpec.hpp"
+#include "SectionPlanner.hpp"
+#include "GenreTemplate.hpp"
 #include <vector>
 #include <cmath>
 #include <algorithm>
 #include <random>
 #include <map>
+#include <iostream>
 
 namespace {
 
@@ -346,3 +349,27 @@ void composeSongToMidi(const SongSpec& spec, const std::string& midiPath) {
     // Write MIDI file
     midi.write(midiPath);
 }
+
+// ============================================================================
+// PHASE 8: GENRE-AWARE COMPOSITION
+// ============================================================================
+
+void composeGenreSongToMidi(const SongPlan& plan, const std::string& midiPath) {
+    // For now, convert SongPlan to SongSpec and use existing composer
+    // TODO: Later implement full pattern-based composition with automation
+    SongSpec spec = songPlanToSpec(plan);
+    
+    // Add genre information to output
+    std::cout << "[Genre Composition] " << genreTypeName(plan.genre) << std::endl;
+    std::cout << "[Sections] ";
+    for (const auto& sec : plan.sections) {
+        std::cout << sectionTypeName(sec.type);
+        if (sec.hasDrop) std::cout << "*";
+        std::cout << "(" << sec.bars << ") ";
+    }
+    std::cout << std::endl;
+    
+    // Use the existing composition engine
+    composeSongToMidi(spec, midiPath);
+}
+
