@@ -15,6 +15,7 @@ set(SOURCES
     src/ModelClient.cpp
     src/HttpServer.cpp
     src/MusicalStyle.cpp
+    src/AudioRendererClient.cpp
 )
 
 add_executable(soundcanvas_core ${SOURCES})
