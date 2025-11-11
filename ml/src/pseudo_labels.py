@@ -10,7 +10,7 @@ class MusicParameters:
     
     All parameters are designed to stay within musically pleasant ranges.
     """
-    tempo_bpm: float         # 40-90 BPM (slow ambient)
+    tempo_bpm: float         # 40-180 BPM (ambient → EDM → drum&bass)
     base_frequency: float    # 100-400 Hz (bass to mid range)
     energy: float            # 0.0-1.0 (how busy/dense the texture)
     brightness: float        # 0.0-1.0 (filter cutoff, waveform choice)
@@ -53,12 +53,13 @@ def map_features_to_music(features: np.ndarray) -> MusicParameters:
     contrast = clamp01(contrast)
     
     # === TEMPO: darker images → slower, brighter → faster ===
-    # Range: 40-90 BPM (ambient/downtempo)
-    tempo_bpm = 40.0 + brightness * 50.0  # Dark: ~40, Bright: ~90
+    # Range: 40-180 BPM (ambient → house → EDM → drum&bass)
+    tempo_bpm = 40.0 + brightness * 100.0  # Dark: ~40, Bright: ~140
     
-    # Add subtle variation from contrast (high contrast → slight tempo increase)
-    tempo_bpm += contrast * 10.0
-    tempo_bpm = clamp(tempo_bpm, 40.0, 90.0)
+    # Add variation from saturation and contrast (colorful/high contrast → faster)
+    tempo_bpm += saturation * 30.0  # Colorful = energetic
+    tempo_bpm += contrast * 15.0    # High contrast → faster
+    tempo_bpm = clamp(tempo_bpm, 40.0, 180.0)
     
     # === BASE FREQUENCY: influenced by color temperature ===
     # Blue-ish (cool) → lower frequencies

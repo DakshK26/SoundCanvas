@@ -19,7 +19,7 @@ INPUT (8 floats):
 
 OUTPUT (7 floats):
 ------------------
-[0] tempo_bpm      : 40.0 - 90.0   (ambient range)
+[0] tempo_bpm      : 40.0 - 180.0  (ambient → EDM → drum&bass)
 [1] base_frequency : 110.0 - 440.0 (Hz, A2-A4 range)
 [2] energy         : 0.0 - 1.0     (note density / activity)
 [3] brightness     : 0.0 - 1.0     (filter cutoff / timbre)
@@ -87,7 +87,7 @@ INPUT_RANGES = {
 }
 
 OUTPUT_RANGES = {
-    "tempo_bpm": (40.0, 90.0),
+    "tempo_bpm": (40.0, 180.0),
     "base_frequency": (110.0, 440.0),
     "energy": (0.0, 1.0),
     "brightness": (0.0, 1.0),

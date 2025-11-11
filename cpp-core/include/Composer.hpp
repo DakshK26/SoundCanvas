@@ -1,8 +1,10 @@
 #pragma once
 
-#include "SongSpec.hpp"
-#include "SectionPlanner.hpp"
+#include <map>
 #include <string>
+
+#include "SectionPlanner.hpp"
+#include "SongSpec.hpp"
 
 /**
  * Phase 7: MIDI composition engine
@@ -20,3 +22,12 @@ void composeSongToMidi(const SongSpec& spec, const std::string& midiPath);
  * Uses SongPlan to create EDM-style tracks with build/drop/break structure
  */
 void composeGenreSongToMidi(const SongPlan& plan, const std::string& midiPath);
+
+/**
+ * Compose and export separate MIDI stems for multi-track production
+ * @param spec Song specification
+ * @param outputDir Directory to write individual stem MIDI files
+ * @return Map of stem name -> filepath
+ */
+std::map<std::string, std::string> composeSongToStems(
+    const SongSpec& spec, const std::string& outputDir);

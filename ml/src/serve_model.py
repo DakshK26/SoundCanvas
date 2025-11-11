@@ -7,8 +7,8 @@ import numpy as np
 import tensorflow as tf
 from flask import Flask, request, jsonify
 
-# Use relative path from this file to the exported model
-MODEL_PATH = Path(__file__).parent.parent / "models" / "exported_model_versioned" / "1"
+# Model path - when running in Docker, models are in /app/models
+MODEL_PATH = Path("/app/models/exported_model_versioned/1")
 
 # Load model at startup using TFSMLayer for Keras 3 compatibility
 print(f"Loading model from {MODEL_PATH}...")

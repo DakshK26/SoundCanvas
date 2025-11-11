@@ -10,8 +10,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the serving script
 COPY src/serve_model.py .
 
-# Copy the model
-COPY models/exported_model_versioned /models/soundcanvas
+# Copy the entire models directory to preserve structure
+COPY models /app/models
 
 # Expose TF Serving compatible ports
 EXPOSE 8501
