@@ -10,3 +10,8 @@ MusicParameters mapFeaturesToMusicHeuristic(const ImageFeatures& features);
 // Model-based mapping - calls TF Serving, falls back to heuristic on error
 MusicParameters mapFeaturesToMusicModel(const ImageFeatures& features,
                                         const ModelClient& client);
+
+// Phase 7: Derive rich style parameters from image features and music
+// parameters
+StyleParameters deriveStyle(const ImageFeatures& features,
+                            const MusicParameters& params);
