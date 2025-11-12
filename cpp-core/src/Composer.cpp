@@ -14,6 +14,48 @@
 
 namespace {
 
+// Phase 9: Drum pattern data structures
+struct DrumHit {
+  int step;        // Position in 16th notes (0-15 for one bar in 4/4)
+  int note;        // MIDI drum note number
+  int velocity;    // Base velocity
+};
+
+struct DrumPattern {
+  std::string name;
+  std::vector<DrumHit> hits;
+};
+
+// Phase 9: Swing timing helper
+// Returns adjusted tick position for swing feel
+int applySwing(int tick, int ticksPerBeat, bool useSwing, float swingAmount) {
+  if (!useSwing || swingAmount <= 0.0f) {
+    return tick;
+  }
+  
+  // Check if this is an off-beat (8th note subdivision)
+  int ticksPerEighth = ticksPerBeat / 2;
+  int positionInEighth = tick % ticksPerEighth;
+  int eighthBeatIndex = (tick / ticksPerEighth) % 2;
+  
+  // Apply swing to off-beats (odd 8th notes: the "and" of each beat)
+  if (eighthBeatIndex == 1 && positionInEighth == 0) {
+    // Delay the off-beat by swingAmount
+    int swingDelay = static_cast<int>(ticksPerEighth * swingAmount);
+    return tick + swingDelay;
+  }
+  
+  return tick;
+}
+
+// Check if a tick position is on an off-beat
+bool isOffBeat(int tick, int ticksPerBeat) {
+  int ticksPerEighth = ticksPerBeat / 2;
+  int positionInEighth = tick % ticksPerEighth;
+  int eighthBeatIndex = (tick / ticksPerEighth) % 2;
+  return (eighthBeatIndex == 1 && positionInEighth == 0);
+}
+
 // Musical scale intervals in semitones
 std::vector<int> getScaleIntervals(int scaleType) {
   switch (scaleType) {
@@ -58,7 +100,41 @@ struct ChordProgression {
   std::string name;
 };
 
-std::vector<ChordProgression> getProgressions(int scaleType) {
+// Phase 9: Get chord progressions based on scale type and genre
+std::vector<ChordProgression> getProgressions(int scaleType, Genre genre = Genre::EDM_DROP) {
+  if (genre == Genre::RAP) {
+    // Rap/Trap: Simple 2-4 chord loops, often minor
+    if (scaleType == 1 || scaleType == 2) {  // Minor or Dorian
+      return {{{0, 5, 2, 6}, "i-VI-III-VII"},
+              {{0, 6, 5, 6}, "i-VII-VI-VII"},
+              {{0, 3, 5, 5}, "i-iv-VI-VI"}};
+    } else {
+      return {{{0, 4, 3, 4}, "I-V-IV-V"},
+              {{0, 5, 3, 3}, "I-vi-IV-IV"}};
+    }
+  } else if (genre == Genre::RNB) {
+    // R&B: Extended chords, jazzy progressions
+    if (scaleType == 0 || scaleType == 3) {  // Major or Lydian
+      return {{{1, 4, 0, 0}, "ii7-V7-Imaj7-Imaj7"},
+              {{3, 2, 1, 4}, "IVmaj7-iii7-ii7-V7"},
+              {{0, 4, 5, 3}, "I-V-vi-IV"}};  // Pop progression but works well
+    } else {  // Minor or Dorian
+      return {{{0, 3, 6, 5}, "i7-iv7-VII-VI"},
+              {{0, 5, 3, 4}, "i-VI-iv-v7"}};
+    }
+  } else if (genre == Genre::HOUSE) {
+    // House: Uplifting, repetitive progressions
+    if (scaleType == 0 || scaleType == 3) {  // Major or Lydian
+      return {{{0, 5, 3, 4}, "I-vi-IV-V"},  // Classic pop
+              {{3, 4, 0, 5}, "IV-V-I-vi"},  // Uplifting
+              {{0, 4, 5, 3}, "I-V-vi-IV"}};  // Modern house
+    } else {
+      return {{{0, 6, 3, 4}, "i-VII-iv-v"},
+              {{0, 3, 5, 5}, "i-iv-VI-VI"}};
+    }
+  }
+  
+  // Original progressions for EDM genres
   if (scaleType == 0 || scaleType == 3) {
     // Major / Lydian progressions
     return {{{0, 5, 3, 4}, "I-vi-IV-V"},
@@ -70,6 +146,11 @@ std::vector<ChordProgression> getProgressions(int scaleType) {
             {{0, 4, 3, 5}, "i-v-iv-VI"},
             {{0, 5, 3, 3}, "i-VI-iv-iv"}};
   }
+}
+
+// Overload for backward compatibility
+std::vector<ChordProgression> getProgressions(int scaleType) {
+  return getProgressions(scaleType, Genre::EDM_DROP);
 }
 
 // Random number generator for humanization
@@ -88,43 +169,235 @@ int randomInt(int min, int max) {
   return dist(getRng());
 }
 
-// Generate drums for one bar
+// Phase 9: Genre-specific drum pattern data
+// General MIDI drum map constants
+const int KICK = 36;
+const int SNARE = 38;
+const int CLAP = 39;
+const int CLOSED_HAT = 42;
+const int OPEN_HAT = 46;
+const int CRASH = 49;
+const int RIDE = 51;
+const int TOM_LOW = 41;
+const int TOM_MID = 47;
+const int TOM_HIGH = 50;
+
+// Phase 9: House drum patterns
+DrumPattern getHousePattern(float energy) {
+  DrumPattern pattern;
+  pattern.name = "house_basic";
+  
+  // Four-on-the-floor kick (every beat)
+  for (int beat = 0; beat < 4; ++beat) {
+    pattern.hits.push_back({beat * 4, KICK, 100});
+  }
+  
+  // Snare/clap on 2 and 4
+  pattern.hits.push_back({4, SNARE, 95});   // Beat 2
+  pattern.hits.push_back({12, SNARE, 95});  // Beat 4
+  
+  // Off-beat hi-hats (8th notes on the "and")
+  for (int i = 0; i < 4; ++i) {
+    pattern.hits.push_back({i * 4 + 2, CLOSED_HAT, 75});  // Off-beats
+  }
+  
+  // Add 16th hats for higher energy
+  if (energy > 0.6f) {
+    for (int i = 0; i < 16; i += 2) {
+      if (i % 4 != 0 && i % 4 != 2) {  // Fill in gaps
+        pattern.hits.push_back({i, CLOSED_HAT, 60});
+      }
+    }
+  }
+  
+  return pattern;
+}
+
+// Phase 9: Rap/Trap drum patterns
+DrumPattern getTrapPattern(float energy) {
+  DrumPattern pattern;
+  pattern.name = "trap_808";
+  
+  // Syncopated kick pattern
+  pattern.hits.push_back({0, KICK, 100});    // Beat 1
+  pattern.hits.push_back({6, KICK, 85});     // "& of 2" (syncopated)
+  pattern.hits.push_back({8, KICK, 95});     // Beat 3
+  
+  if (energy > 0.5f) {
+    pattern.hits.push_back({14, KICK, 80});  // "a of 3" (syncopated)
+  }
+  
+  // Snare on 2 & 4 (or just 3 for half-time feel)
+  if (energy > 0.4f) {
+    pattern.hits.push_back({4, SNARE, 100});   // Beat 2
+    pattern.hits.push_back({12, SNARE, 100});  // Beat 4
+  } else {
+    pattern.hits.push_back({8, SNARE, 100});   // Beat 3 only (half-time)
+  }
+  
+  // Ghost snares before backbeat
+  if (energy > 0.5f) {
+    pattern.hits.push_back({3, SNARE, 50});    // Ghost before beat 2
+    pattern.hits.push_back({11, SNARE, 50});   // Ghost before beat 4
+  }
+  
+  // Triplet hi-hat rolls
+  for (int i = 0; i < 16; i += 2) {
+    int vel = (i % 4 == 0) ? 70 : 55;  // Accent on beats
+    pattern.hits.push_back({i, CLOSED_HAT, vel});
+  }
+  
+  // Add occasional open hat
+  if (energy > 0.6f) {
+    pattern.hits.push_back({7, OPEN_HAT, 65});
+    pattern.hits.push_back({15, OPEN_HAT, 65});
+  }
+  
+  return pattern;
+}
+
+// Phase 9: R&B drum patterns
+DrumPattern getRnBPattern(float energy) {
+  DrumPattern pattern;
+  pattern.name = "rnb_groove";
+  
+  // Softer kick pattern
+  pattern.hits.push_back({0, KICK, 80});     // Beat 1
+  pattern.hits.push_back({8, KICK, 75});     // Beat 3
+  
+  if (energy > 0.5f) {
+    pattern.hits.push_back({6, KICK, 65});   // Syncopated kick
+  }
+  
+  // Snare with ghost notes
+  pattern.hits.push_back({4, SNARE, 85});    // Beat 2
+  pattern.hits.push_back({12, SNARE, 85});   // Beat 4
+  
+  // Ghost snares (softer, creating groove)
+  pattern.hits.push_back({2, SNARE, 45});    // Ghost
+  pattern.hits.push_back({10, SNARE, 45});   // Ghost
+  
+  // Gentle hi-hats (sparse)
+  for (int beat = 0; beat < 4; ++beat) {
+    pattern.hits.push_back({beat * 4, CLOSED_HAT, 60});
+    if (energy > 0.4f) {
+      pattern.hits.push_back({beat * 4 + 2, CLOSED_HAT, 50});  // Off-beats
+    }
+  }
+  
+  // Ride cymbal for higher energy
+  if (energy > 0.7f) {
+    for (int i = 0; i < 16; i += 2) {
+      pattern.hits.push_back({i, RIDE, 55});
+    }
+  }
+  
+  return pattern;
+}
+
+// Phase 9: Generate drums using pattern data + swing
+void generateDrumsBarGenre(MidiWriter& midi, int trackIdx, int startTick,
+                           int ticksPerBar, const GenreProfile& genre, 
+                           float energy, float complexity, bool addFill = false) {
+  int ticksPerBeat = ticksPerBar / 4;
+  int ticksPer16th = ticksPerBeat / 4;
+  int channel = 9;  // MIDI channel 10 (drums)
+  
+  // Get appropriate pattern based on genre
+  DrumPattern pattern;
+  if (genre.genre == Genre::HOUSE) {
+    pattern = getHousePattern(energy);
+  } else if (genre.genre == Genre::RAP) {
+    pattern = getTrapPattern(energy);
+  } else if (genre.genre == Genre::RNB) {
+    pattern = getRnBPattern(energy);
+  } else {
+    // EDM patterns - use the existing logic via old function
+    // (fallback to prevent duplicate code)
+    return;  // Will use old generateDrumsBar
+  }
+  
+  // Play pattern hits
+  for (const auto& hit : pattern.hits) {
+    int hitTick = startTick + hit.step * ticksPer16th;
+    
+    // Apply swing if genre uses it
+    hitTick = applySwing(hitTick - startTick, ticksPerBeat, 
+                         genre.useSwing, genre.swingAmount) + startTick;
+    
+    // Humanization
+    int vel = hit.velocity + randomInt(-5, 5);
+    vel = std::clamp(vel, 40, 127);
+    
+    // Add slight timing variation (except for kicks in house - keep those tight)
+    int timingVar = 0;
+    if (genre.genre != Genre::HOUSE || hit.note != KICK) {
+      timingVar = randomInt(-3, 3);
+    }
+    
+    midi.addNoteOn(trackIdx, hitTick + timingVar, channel, hit.note, vel);
+    midi.addNoteOff(trackIdx, hitTick + timingVar + ticksPer16th, channel, hit.note);
+  }
+  
+  // Add fills at section transitions
+  if (addFill && energy > 0.3f) {
+    int fillStart = startTick + ticksPerBar - ticksPerBeat;
+    
+    if (genre.genre == Genre::HOUSE) {
+      // House: Snare roll
+      for (int i = 0; i < 4; ++i) {
+        int vel = 70 + i * 8;  // Crescendo
+        midi.addNoteOn(trackIdx, fillStart + i * ticksPer16th, channel, SNARE, vel);
+        midi.addNoteOff(trackIdx, fillStart + i * ticksPer16th + ticksPer16th/2, channel, SNARE);
+      }
+    } else if (genre.genre == Genre::RAP) {
+      // Rap: Hi-hat roll
+      for (int i = 0; i < 8; ++i) {
+        int vel = 65 + i * 4;
+        midi.addNoteOn(trackIdx, fillStart + i * (ticksPer16th/2), channel, CLOSED_HAT, vel);
+        midi.addNoteOff(trackIdx, fillStart + i * (ticksPer16th/2) + 20, channel, CLOSED_HAT);
+      }
+    } else if (genre.genre == Genre::RNB) {
+      // R&B: Tom fill (melodic)
+      int toms[] = {TOM_HIGH, TOM_MID, TOM_LOW, TOM_LOW};
+      for (int i = 0; i < 4; ++i) {
+        int vel = 75 + i * 5;
+        midi.addNoteOn(trackIdx, fillStart + i * ticksPer16th, channel, toms[i], vel);
+        midi.addNoteOff(trackIdx, fillStart + i * ticksPer16th + ticksPer16th, channel, toms[i]);
+      }
+    }
+  }
+}
+
+// Original drum generator (for EDM genres)
 void generateDrumsBar(MidiWriter& midi, int trackIdx, int startTick,
                       int ticksPerBar, GrooveType groove, float energy,
                       float complexity, bool addFill = false) {
   int ticksPerBeat = ticksPerBar / 4;
   int channel = 9;  // MIDI channel 10 (9 in 0-indexed) = drums
 
-  // General MIDI drum map
-  const int kick = 36;
-  const int snare = 38;
-  const int closedHat = 42;
-  const int openHat = 46;
-  const int crash = 49;
-  const int ride = 51;
-
   int baseVelocity = 80 + static_cast<int>(energy * 30);
 
   if (groove == GrooveType::CHILL) {
     // Sparse, laid-back pattern
     // Kick on 1 and 3
-    midi.addNoteOn(trackIdx, startTick, channel, kick, baseVelocity);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBeat / 2, channel, kick);
+    midi.addNoteOn(trackIdx, startTick, channel, KICK, baseVelocity);
+    midi.addNoteOff(trackIdx, startTick + ticksPerBeat / 2, channel, KICK);
 
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, kick,
+    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, KICK,
                    baseVelocity - 10);
     midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 + ticksPerBeat / 2,
-                    channel, kick);
+                    channel, KICK);
 
     // Sparse hi-hats
     if (complexity > 0.3f) {
       for (int beat = 0; beat < 4; ++beat) {
         int vel = baseVelocity - 20 + randomInt(-5, 5);
         midi.addNoteOn(trackIdx, startTick + beat * ticksPerBeat, channel,
-                       closedHat, vel);
+                       CLOSED_HAT, vel);
         midi.addNoteOff(trackIdx,
                         startTick + beat * ticksPerBeat + ticksPerBeat / 4,
-                        channel, closedHat);
+                        channel, CLOSED_HAT);
       }
     }
 
@@ -133,28 +406,28 @@ void generateDrumsBar(MidiWriter& midi, int trackIdx, int startTick,
     // Kick on every beat
     for (int beat = 0; beat < 4; ++beat) {
       int vel = baseVelocity + randomInt(-5, 5);
-      midi.addNoteOn(trackIdx, startTick + beat * ticksPerBeat, channel, kick,
+      midi.addNoteOn(trackIdx, startTick + beat * ticksPerBeat, channel, KICK,
                      vel);
       midi.addNoteOff(trackIdx,
                       startTick + beat * ticksPerBeat + ticksPerBeat / 2,
-                      channel, kick);
+                      channel, KICK);
     }
 
     // Snare on 2 and 4
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat, channel, snare,
+    midi.addNoteOn(trackIdx, startTick + ticksPerBeat, channel, SNARE,
                    baseVelocity);
     midi.addNoteOff(trackIdx, startTick + ticksPerBeat + ticksPerBeat / 2,
-                    channel, snare);
+                    channel, SNARE);
 
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3, channel, snare,
+    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3, channel, SNARE,
                    baseVelocity);
     midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 3 + ticksPerBeat / 2,
-                    channel, snare);
+                    channel, SNARE);
 
     // 8th note hi-hats
     for (int i = 0; i < 8; ++i) {
       int vel = baseVelocity - 10 + randomInt(-5, 5);
-      int hat = (i % 4 == 3 && complexity > 0.6f) ? openHat : closedHat;
+      int hat = (i % 4 == 3 && complexity > 0.6f) ? OPEN_HAT : CLOSED_HAT;
       midi.addNoteOn(trackIdx, startTick + i * (ticksPerBeat / 2), channel, hat,
                      vel);
       midi.addNoteOff(trackIdx,
@@ -165,33 +438,33 @@ void generateDrumsBar(MidiWriter& midi, int trackIdx, int startTick,
   } else {
     // STRAIGHT: Standard rock/pop beat
     // Kick on 1 and 3
-    midi.addNoteOn(trackIdx, startTick, channel, kick, baseVelocity);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBeat / 2, channel, kick);
+    midi.addNoteOn(trackIdx, startTick, channel, KICK, baseVelocity);
+    midi.addNoteOff(trackIdx, startTick + ticksPerBeat / 2, channel, KICK);
 
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, kick,
+    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, KICK,
                    baseVelocity - 5);
     midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 + ticksPerBeat / 2,
-                    channel, kick);
+                    channel, KICK);
 
     // Snare on 2 and 4
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat, channel, snare,
+    midi.addNoteOn(trackIdx, startTick + ticksPerBeat, channel, SNARE,
                    baseVelocity);
     midi.addNoteOff(trackIdx, startTick + ticksPerBeat + ticksPerBeat / 2,
-                    channel, snare);
+                    channel, SNARE);
 
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3, channel, snare,
+    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3, channel, SNARE,
                    baseVelocity);
     midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 3 + ticksPerBeat / 2,
-                    channel, snare);
+                    channel, SNARE);
 
     // Quarter note hi-hats
     for (int beat = 0; beat < 4; ++beat) {
       int vel = baseVelocity - 15 + randomInt(-5, 5);
       midi.addNoteOn(trackIdx, startTick + beat * ticksPerBeat, channel,
-                     closedHat, vel);
+                     CLOSED_HAT, vel);
       midi.addNoteOff(trackIdx,
                       startTick + beat * ticksPerBeat + ticksPerBeat / 4,
-                      channel, closedHat);
+                      channel, CLOSED_HAT);
     }
   }
   
@@ -203,8 +476,8 @@ void generateDrumsBar(MidiWriter& midi, int trackIdx, int startTick,
     
     for (int i = 0; i < 4; ++i) {
       int vel = baseVelocity - 10 + i * 5;  // Crescendo
-      midi.addNoteOn(trackIdx, fillStart + i * sixteenthNote, channel, snare, vel);
-      midi.addNoteOff(trackIdx, fillStart + i * sixteenthNote + sixteenthNote / 2, channel, snare);
+      midi.addNoteOn(trackIdx, fillStart + i * sixteenthNote, channel, SNARE, vel);
+      midi.addNoteOff(trackIdx, fillStart + i * sixteenthNote + sixteenthNote / 2, channel, SNARE);
     }
     
     // Crash on the downbeat of next section (added by next bar generation)
@@ -276,6 +549,40 @@ void generateBassBar(MidiWriter& midi, int trackIdx, int startTick,
                    baseVelocity - 5);
     midi.addNoteOff(trackIdx, startTick + ticksPerBar - 5, channel, bassNote);
   }
+}
+
+// Phase 9: Build extended chord voicings for R&B/Jazz styles
+std::vector<int> buildExtendedChord(int rootNote, int chordDegree,
+                                     const std::vector<int>& scale,
+                                     Genre genre, float complexity) {
+  std::vector<int> chordNotes;
+  
+  // Always include root, third, fifth
+  chordNotes.push_back(rootNote + scale[chordDegree % scale.size()]);
+  chordNotes.push_back(rootNote + scale[(chordDegree + 2) % scale.size()]);
+  chordNotes.push_back(rootNote + scale[(chordDegree + 4) % scale.size()]);
+  
+  if (genre == Genre::RNB) {
+    // R&B: Add 7th and optionally 9th/11th
+    chordNotes.push_back(rootNote + scale[(chordDegree + 6) % scale.size()]);  // 7th
+    
+    if (complexity > 0.6f) {
+      // Add 9th (2nd an octave up)
+      chordNotes.push_back(rootNote + 12 + scale[(chordDegree + 1) % scale.size()]);
+    }
+    
+    if (complexity > 0.8f) {
+      // Add 11th (4th an octave up) for very lush sound
+      chordNotes.push_back(rootNote + 12 + scale[(chordDegree + 3) % scale.size()]);
+    }
+  } else {
+    // Other genres: Add 7th if complexity is high
+    if (complexity > 0.6f) {
+      chordNotes.push_back(rootNote + scale[(chordDegree + 6) % scale.size()]);
+    }
+  }
+  
+  return chordNotes;
 }
 
 // Generate chord voicing for one bar (Phase 8: Rhythmic variation based on energy)
@@ -434,8 +741,8 @@ void composeSongToMidi(const SongSpec& spec, const std::string& midiPath) {
   // Get scale intervals
   std::vector<int> scale = getScaleIntervals(spec.scaleType);
 
-  // Get chord progression
-  auto progressions = getProgressions(spec.scaleType);
+  // Phase 9: Get genre-aware chord progression
+  auto progressions = getProgressions(spec.scaleType, spec.genreProfile.genre);
   auto progression =
       progressions[0];  // Use first progression (can be randomized)
 
@@ -464,17 +771,14 @@ void composeSongToMidi(const SongSpec& spec, const std::string& midiPath) {
     const auto& section = spec.sections[secIdx];
     float sectionEnergy = section.targetEnergy;
     
+    // Phase 9: Get section activity based on genre
+    SectionActivity activity = getSectionActivity(spec.genreProfile, section, spec.moodScore);
+    
     // Determine if this is the last section
     bool isLastSection = (secIdx == spec.sections.size() - 1);
     
     // Phase 8: Determine if lead should be active in this section
-    bool leadActive = false;
-    if (section.name == "drop" || section.name == "outro") {
-      leadActive = true;  // Always active in drop and outro
-    } else if (section.name == "build" || section.name == "build2") {
-      // Active in second half of build
-      leadActive = false;  // Will be enabled per-bar below
-    }
+    bool leadActive = activity.lead;
 
     // Generate bars for this section
     for (int bar = 0; bar < section.bars; ++bar) {
@@ -485,10 +789,10 @@ void composeSongToMidi(const SongSpec& spec, const std::string& midiPath) {
       // Check if this is the last bar of a section (for fills)
       bool isLastBarOfSection = (bar == section.bars - 1) && !isLastSection;
       
-      // Activate lead in second half of build sections
+      // Activate lead in second half of build sections (genre-specific override)
       bool leadActiveThisBar = leadActive;
       if (!leadActiveThisBar && (section.name == "build" || section.name == "build2")) {
-        leadActiveThisBar = (bar >= section.bars / 2);
+        leadActiveThisBar = (bar >= section.bars / 2) && activity.lead;
       }
 
       // Generate each track for this bar
@@ -498,35 +802,55 @@ void composeSongToMidi(const SongSpec& spec, const std::string& midiPath) {
 
         switch (trackSpec.role) {
           case TrackRole::DRUMS:
-            generateDrumsBar(midi, trackIdx, currentTick, ticksPerBar,
-                             spec.groove, sectionEnergy, trackSpec.complexity,
-                             isLastBarOfSection);
+            // Only generate if active in this section
+            if (activity.drums) {
+              // Phase 9: Use genre-specific drum generator for Rap/House/RnB
+              if (spec.genreProfile.genre == Genre::HOUSE ||
+                  spec.genreProfile.genre == Genre::RAP ||
+                  spec.genreProfile.genre == Genre::RNB) {
+                generateDrumsBarGenre(midi, trackIdx, currentTick, ticksPerBar,
+                                      spec.genreProfile, sectionEnergy, 
+                                      trackSpec.complexity, isLastBarOfSection);
+              } else {
+                // EDM genres use original generator
+                generateDrumsBar(midi, trackIdx, currentTick, ticksPerBar,
+                                 spec.groove, sectionEnergy, trackSpec.complexity,
+                                 isLastBarOfSection);
+              }
+            }
             break;
           case TrackRole::BASS:
-            generateBassBar(midi, trackIdx, currentTick, ticksPerBar,
-                            spec.rootMidiNote, chordDegree, scale, channel,
-                            sectionEnergy, trackSpec.complexity);
+            if (activity.bass) {
+              generateBassBar(midi, trackIdx, currentTick, ticksPerBar,
+                              spec.rootMidiNote, chordDegree, scale, channel,
+                              sectionEnergy, trackSpec.complexity);
+            }
             break;
           case TrackRole::CHORDS:
-            generateChordBar(midi, trackIdx, currentTick, ticksPerBar,
-                             spec.rootMidiNote, chordDegree, scale, channel,
-                             sectionEnergy, trackSpec.complexity);
+            if (activity.chords) {
+              generateChordBar(midi, trackIdx, currentTick, ticksPerBar,
+                               spec.rootMidiNote, chordDegree, scale, channel,
+                               sectionEnergy, trackSpec.complexity);
+            }
             break;
           case TrackRole::LEAD:
             // Only generate lead if active in this section/bar
-            if (leadActiveThisBar) {
+            if (leadActiveThisBar && activity.lead) {
               generateMelodyBar(midi, trackIdx, currentTick, ticksPerBar,
                                 spec.rootMidiNote, chordDegree, scale, channel,
                                 spec.moodScore, melodicState);
             }
             break;
           case TrackRole::PAD:
-            generatePadBar(midi, trackIdx, currentTick, ticksPerBar,
-                           spec.rootMidiNote, chordDegree, scale, channel,
-                           spec.moodScore);
+            if (activity.pad) {
+              generatePadBar(midi, trackIdx, currentTick, ticksPerBar,
+                             spec.rootMidiNote, chordDegree, scale, channel,
+                             spec.moodScore);
+            }
             break;
           case TrackRole::FX:
-            // TODO: FX track implementation
+            // Phase 9: FX triggers for transitions
+            // TODO: Add reverse cymbals, impacts, sweeps at section boundaries
             break;
         }
       }

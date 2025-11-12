@@ -31,6 +31,52 @@ enum class GrooveType {
     DRIVING = 2      // More rhythmic, energetic patterns
 };
 
+// Phase 9: Genre classification for style diversity
+enum class Genre {
+    EDM_CHILL = 0,   // Ambient/downtempo EDM
+    EDM_DROP = 1,    // High-energy EDM with drops
+    HOUSE = 2,       // 4-on-the-floor house music
+    RAP = 3,         // Hip-hop/trap beats
+    RNB = 4          // R&B/neo-soul
+};
+
+// Phase 9: Genre-specific musical characteristics
+struct GenreProfile {
+    Genre genre;
+    std::string name;
+    
+    // Musical ranges
+    float minTempo;
+    float maxTempo;
+    std::vector<int> preferredScaleTypes;  // Indices: 0=Major, 1=Minor, 2=Dorian, 3=Lydian
+    
+    // Groove & feel
+    bool useSwing;           // Apply swing to off-beat notes
+    float swingAmount;       // 0.0-0.3 (swing ratio)
+    bool heavySidechain;     // Strong pumping effect
+    
+    // Pattern selection hints
+    std::vector<std::string> drumPatternSets;
+    std::vector<std::string> chordProgressionSets;
+    std::vector<std::string> bassPatternSets;
+    std::vector<std::string> leadPatternSets;
+    
+    // Arrangement tendencies
+    int minBars;
+    int maxBars;
+    bool hasBigDrop;
+    bool hasBridge;
+};
+
+// Phase 9: Section activity - which tracks are active in which sections
+struct SectionActivity {
+    bool drums;
+    bool bass;
+    bool chords;
+    bool lead;
+    bool pad;
+};
+
 // Phase 8: Track role classification for composition engine
 enum class TrackRole {
     DRUMS = 0,       // Percussion (kick, snare, hats)
@@ -67,6 +113,9 @@ struct SongSpec {
     AmbienceType ambience;    // Background atmosphere type
     float moodScore;          // 0-1: how lush/pleasant (affects layering)
     
+    // Phase 9: Genre-specific profile
+    GenreProfile genreProfile;  // Genre characteristics and preferences
+    
     // Song structure
     std::vector<SectionSpec> sections;  // Intro, A, B, Outro, etc.
     std::vector<TrackSpec> tracks;      // All instrument tracks
@@ -102,3 +151,18 @@ const char* grooveTypeName(GrooveType type);
  * Utility: Get human-readable name for track role
  */
 const char* trackRoleName(TrackRole role);
+
+/**
+ * Phase 9: Pick genre profile based on image features and music parameters
+ */
+GenreProfile pickGenre(const ImageFeatures& features, const MusicParameters& params);
+
+/**
+ * Phase 9: Get section activity (which tracks are active) for a given genre and section
+ */
+SectionActivity getSectionActivity(const GenreProfile& genre, const SectionSpec& section, float moodScore);
+
+/**
+ * Phase 9: Get human-readable name for genre
+ */
+const char* genreName(Genre genre);

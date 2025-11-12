@@ -97,6 +97,7 @@ int main(int argc, char** argv) {
 
       // Display song structure
       std::cout << "\nSong Specification:\n";
+      std::cout << "  Genre: " << genreName(songSpec.genreProfile.genre) << "\n";
       std::cout << "  Tempo: " << songSpec.tempoBpm << " BPM\n";
       std::cout << "  Key: MIDI " << songSpec.rootMidiNote << "\n";
       std::cout << "  Scale: "
@@ -106,7 +107,11 @@ int main(int argc, char** argv) {
                                               : "Lydian")
                 << "\n";
       std::cout << "  Total bars: " << songSpec.totalBars << "\n";
-      std::cout << "  Groove: " << grooveTypeName(songSpec.groove) << "\n";
+      std::cout << "  Groove: " << grooveTypeName(songSpec.groove);
+      if (songSpec.genreProfile.useSwing) {
+        std::cout << " (swing: " << (int)(songSpec.genreProfile.swingAmount * 100) << "%)";
+      }
+      std::cout << "\n";
       std::cout << "  Ambience: " << ambienceTypeName(songSpec.ambience)
                 << "\n";
       std::cout << "  Mood: " << songSpec.moodScore << "\n";
@@ -173,6 +178,7 @@ int main(int argc, char** argv) {
       // Create song spec
       SongSpec songSpec = makeSongSpec(features, params);
 
+      std::cout << "  Genre: " << genreName(songSpec.genreProfile.genre) << "\n";
       std::cout << "  Tempo: " << songSpec.tempoBpm << " BPM\n";
       std::cout << "  Key: " << songSpec.rootMidiNote << "\n";
       std::cout << "  Mood: " << songSpec.moodScore << "\n";
