@@ -57,13 +57,13 @@ export class OrchestratorService {
                 tempo_bpm: cppResponse.tempoBpm,
                 scale_type: cppResponse.scaleType,
             };
-            
+
             // If cpp-core decided a genre (not "auto"), update it
             if (cppResponse.decidedGenre && cppResponse.decidedGenre !== 'auto') {
                 updateData.genre = cppResponse.decidedGenre;
                 console.log(`[Orchestrator] Genre decided by cpp-core: ${cppResponse.decidedGenre}`);
             }
-            
+
             await updateGenerationStatus(jobId, 'RUNNING', updateData);
 
             // Step 3: Call audio-producer service
@@ -73,11 +73,11 @@ export class OrchestratorService {
             // Phase 12 A1.3: Validate audio file before S3 upload
             const audioStats = await fs.promises.stat(audioPath);
             console.log(`[Orchestrator] Local audio file: ${audioStats.size} bytes`);
-            
+
             if (audioStats.size === 0) {
                 throw new Error('Generated audio file is zero bytes');
             }
-            
+
             if (audioStats.size < 1000) {
                 console.warn(`[Orchestrator] Warning: Audio file suspiciously small (${audioStats.size} bytes)`);
             }
@@ -86,7 +86,7 @@ export class OrchestratorService {
             const audioKey = `audio/${generation.user_id}/${jobId}/output.wav`;
             console.log(`[Orchestrator] Uploading audio to S3: ${audioKey}`);
             await this.uploadToS3(audioPath, audioKey, 'audio/wav');
-            
+
             // Phase 12 A1.3: Verify S3 upload succeeded
             console.log(`[Orchestrator] Uploaded ${audioStats.size} bytes to S3: ${audioKey}`);
 
@@ -165,9 +165,9 @@ export class OrchestratorService {
         decidedGenre?: string;  // Phase 12 A2.2: Capture decided genre
     }> {
         const cppCoreUrl = process.env.CPP_CORE_URL || 'http://localhost:8080';
-        
+
         console.log(`[Orchestrator] Calling cpp-core service at ${cppCoreUrl}/generate`);
-        
+
         try {
             const response = await fetch(`${cppCoreUrl}/generate`, {
                 method: 'POST',
@@ -186,9 +186,9 @@ export class OrchestratorService {
             }
 
             const data = await response.json();
-            
+
             console.log(`[Orchestrator] cpp-core response:`, data);
-            
+
             return {
                 midiPath: data.midi_path,
                 tempoBpm: data.tempo_bpm || 120,
@@ -206,9 +206,9 @@ export class OrchestratorService {
      */
     private async callAudioProducer(midiPath: string, outputPath: string): Promise<void> {
         const audioProducerUrl = process.env.AUDIO_PRODUCER_URL || 'http://localhost:5000';
-        
+
         console.log(`[Orchestrator] Calling audio-producer service at ${audioProducerUrl}/produce`);
-        
+
         try {
             const response = await fetch(`${audioProducerUrl}/produce`, {
                 method: 'POST',
@@ -229,14 +229,14 @@ export class OrchestratorService {
             }
 
             const data = await response.json();
-            
+
             console.log(`[Orchestrator] audio-producer response:`, data);
-            
+
             // Phase 12 A1.4: Check validation status
             if (data.validation_passed === false) {
                 console.warn(`[Orchestrator] Audio validation warning: ${data.validation_error}`);
             }
-            
+
             if (data.duration_sec && data.duration_sec < 2.0) {
                 console.warn(`[Orchestrator] Audio suspiciously short: ${data.duration_sec}s`);
             }
