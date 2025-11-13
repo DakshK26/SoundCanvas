@@ -4,12 +4,12 @@ import path from 'path';
 import os from 'os';
 import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { Readable } from 'stream';
-import { getGenerationById, updateGenerationStatus } from '../db';
+import { getGenerationById, updateGenerationStatus, updateGenerationFields } from '../db';
 import { StorageService } from './storage';
 import Logger, { LogEvent } from '../utils/logger';
 
 const CPP_CORE_URL = process.env.CPP_CORE_URL || 'http://localhost:8080';
-const AUDIO_PRODUCER_URL = process.env.AUDIO_PRODUCER_URL || 'http://localhost:5001';
+const AUDIO_PRODUCER_URL = process.env.SC_AUDIO_PRODUCER_URL || process.env.AUDIO_PRODUCER_URL || 'http://localhost:9001';
 const AWS_REGION = process.env.AWS_REGION || 'us-east-2';
 const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME || '';
 
@@ -45,7 +45,11 @@ export class OrchestratorService {
             throw new Error(`Generation ${jobId} not found`);
         }
 
-        const tempDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'soundcanvas-'));
+        // Use shared volume instead of temp directory
+        const dataRoot = process.env.SC_DATA_ROOT || '/data';
+        const tempDir = path.join(dataRoot, 'temp', jobId);
+        await fs.promises.mkdir(tempDir, { recursive: true });
+
         const imagePath = path.join(tempDir, 'input.jpg');
         const midiPath = path.join(tempDir, 'composition.mid');
         const audioPath = path.join(tempDir, 'output.wav');
@@ -60,22 +64,20 @@ export class OrchestratorService {
             const cppResponse = await this.callCppCore(imagePath, generation.genre, generation.mode);
 
             // Phase 12 A2.2: Update tempo, scale, AND decided genre in DB
-            const updateData: any = {
+            // Don't change status (already RUNNING), just update fields
+            await updateGenerationFields(jobId, {
                 tempo_bpm: cppResponse.tempoBpm,
                 scale_type: cppResponse.scaleType,
-            };
+                genre: cppResponse.decidedGenre || generation.genre
+            });
 
-            // If cpp-core decided a genre (not "auto"), update it
             if (cppResponse.decidedGenre && cppResponse.decidedGenre !== 'auto') {
-                updateData.genre = cppResponse.decidedGenre;
                 console.log(`[Orchestrator] Genre decided by cpp-core: ${cppResponse.decidedGenre}`);
             }
 
-            await updateGenerationStatus(jobId, 'RUNNING', updateData);
-
             // Step 3: Call audio-producer service
             console.log(`[Orchestrator] [${jobId}] Calling audio-producer service...`);
-            await this.callAudioProducer(cppResponse.midiPath || midiPath, audioPath);
+            await this.callAudioProducer(cppResponse.midiPath || midiPath, audioPath, cppResponse.decidedGenre || generation.genre);
 
             // Phase 12 A1.3: Validate audio file before S3 upload
             const audioStats = await fs.promises.stat(audioPath);
@@ -176,6 +178,12 @@ export class OrchestratorService {
             Key: key,
             Body: fileContent,
             ContentType: contentType,
+            // Add CORS headers for browser access
+            CacheControl: 'max-age=31536000',
+            Metadata: {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, HEAD',
+            },
         });
 
         await s3Client.send(command);
@@ -190,9 +198,9 @@ export class OrchestratorService {
         scaleType: string;
         decidedGenre?: string;  // Phase 12 A2.2: Capture decided genre
     }> {
-        const cppCoreUrl = process.env.CPP_CORE_URL || 'http://localhost:8080';
+        const cppCoreUrl = process.env.CPP_SERVICE_URL || process.env.CPP_CORE_URL || 'http://localhost:8080';
 
-        console.log(`[Orchestrator] Calling cpp-core service at ${cppCoreUrl}/generate`);
+        console.log(`[Orchestrator] Calling cpp-core service at ${cppCoreUrl}`);
 
         try {
             const response = await fetch(`${cppCoreUrl}/generate`, {
@@ -230,12 +238,40 @@ export class OrchestratorService {
     /**
      * Call audio-producer service for WAV rendering
      */
-    private async callAudioProducer(midiPath: string, outputPath: string): Promise<void> {
-        // For now, just create a placeholder file
-        // TODO: Implement actual HTTP call to audio-producer
-        console.log(`[Orchestrator] audio-producer would render: ${midiPath} -> ${outputPath}`);
+    private async callAudioProducer(midiPath: string, outputPath: string, genre: string = 'EDM_DROP'): Promise<void> {
+        const audioProducerUrl = AUDIO_PRODUCER_URL;
 
-        // Create empty WAV file as placeholder
-        await fs.promises.writeFile(outputPath, Buffer.alloc(44)); // WAV header
+        console.log(`[Orchestrator] Calling audio-producer at ${audioProducerUrl}/produce`);
+        console.log(`[Orchestrator] MIDI path: ${midiPath}, Output path: ${outputPath}, Genre: ${genre}`);
+
+        try {
+            const response = await axios.post(`${audioProducerUrl}/produce`, {
+                midi_path: midiPath,
+                output_path: outputPath,
+                genre: genre,
+                apply_mastering: true,
+                use_sample_drums: true,
+                render_fx: true,
+            }, {
+                timeout: 120000, // 2 minutes timeout for audio rendering
+            });
+
+            if (response.status !== 200) {
+                throw new Error(`Audio producer returned status ${response.status}: ${response.statusText}`);
+            }
+
+            console.log(`[Orchestrator] Audio rendering completed:`, response.data);
+
+            // Verify the output file exists and has content
+            const stats = await fs.promises.stat(outputPath);
+            if (stats.size < 1000) {
+                throw new Error(`Audio producer created file but it's too small: ${stats.size} bytes`);
+            }
+
+            console.log(`[Orchestrator] Rendered audio file: ${stats.size} bytes`);
+        } catch (error: any) {
+            console.error(`[Orchestrator] Audio producer error:`, error.message);
+            throw new Error(`Failed to render audio: ${error.message}`);
+        }
     }
 }

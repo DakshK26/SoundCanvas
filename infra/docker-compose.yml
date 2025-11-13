@@ -24,13 +24,20 @@ services:
     build: ../gateway
     environment:
       - PORT=4000
-      - CPP_SERVICE_URL=http://cpp-core:8080/generate
+      - CPP_SERVICE_URL=http://cpp-core:8080
+      - SC_AUDIO_PRODUCER_URL=http://audio-producer:9001
       - SC_DATA_ROOT=/data
       - DB_HOST=db
       - DB_PORT=3306
       - DB_USER=soundcanvas
       - DB_PASSWORD=soundcanvas
       - DB_NAME=soundcanvas
+      # AWS S3 Configuration
+      - USE_S3=true
+      - AWS_REGION=${AWS_REGION:-us-east-2}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-soundcanvas-uploads-dk}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
     depends_on:
       db:
         condition: service_healthy  # ← Add this!
