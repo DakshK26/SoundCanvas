@@ -1,0 +1,15 @@
+groups:
+  uplifters:
+    tags: ["riser", "uplifter"]
+    limits: 20
+  downlifters:
+    tags: ["downlifter", "sweep down"]
+    limits: 20
+  impacts:
+    tags: ["impact", "hit", "slam"]
+    limits: 20
+license: ["Creative Commons 0", "Attribution"]
+constraints:
+  type: "wav"
+  max_duration_s: 8.0
+  min_samplerate_hz: 44100

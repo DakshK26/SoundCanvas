@@ -144,6 +144,25 @@ ImageFeatures extractImageFeatures(const std::string& imagePath) {
 
     float contrast = std::sqrt(varianceGray);  // Already normalized to [0, 1] range
 
+    // === Phase 9: Warmth calculation ===
+    // Warmth: ratio of warm colors (red/orange: hue 0-60 deg) vs cool (blue/cyan: 180-240 deg)
+    // Higher warmth = more red/orange tones
+    float warmth = 0.5f;  // Default neutral
+    if (saturation > 0.1f) {  // Only consider colored pixels
+        // Hue in [0, 1] maps to [0, 360] degrees
+        float hueDeg = hue * 360.0f;
+        
+        // Warm: 0-60 (red-orange-yellow) and 300-360 (red-magenta)
+        // Cool: 180-240 (cyan-blue)
+        if ((hueDeg >= 0.0f && hueDeg <= 60.0f) || (hueDeg >= 300.0f && hueDeg <= 360.0f)) {
+            warmth = 0.7f + (avgR * 0.3f);  // Warm side (0.7-1.0)
+        } else if (hueDeg >= 180.0f && hueDeg <= 240.0f) {
+            warmth = 0.3f - (avgB * 0.3f);  // Cool side (0.0-0.3)
+        } else {
+            warmth = 0.5f;  // Neutral (green/yellow-green)
+        }
+    }
+
     return ImageFeatures{
         avgR, 
         avgG, 
@@ -152,6 +171,7 @@ ImageFeatures extractImageFeatures(const std::string& imagePath) {
         hue,
         saturation,
         colorfulness,
-        contrast
+        contrast,
+        warmth
     };
 }

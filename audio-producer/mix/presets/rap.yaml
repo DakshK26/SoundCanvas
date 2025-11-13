@@ -1,0 +1,34 @@
+name: rap_basic
+drum_kit: trap_808
+target_lufs: -9.5
+bus:
+  sidechain_amount: 0.25
+  stereo_widen: 0.10
+  reverb_send: 0.06
+  compressor: 
+    threshold_db: -10
+    ratio: 3.0
+    attack_ms: 8
+    release_ms: 120
+  limiter: 
+    ceiling_db: -0.8
+instruments:
+  bass:   
+    sound: "sf2://FluidR3/38"
+    hp_hz: 30
+    lp_hz: 180
+  chords: 
+    sound: "sf2://FluidR3/91"
+    hp_hz: 180
+    lp_hz: 8000
+    reverb_send: 0.12
+  lead:   
+    sound: "sf2://FluidR3/81"
+    hp_hz: 250
+    lp_hz: 11000
+    delay_send: 0.10
+  pad:    
+    sound: "sf2://FluidR3/89"
+    hp_hz: 120
+    lp_hz: 7000
+    reverb_send: 0.18

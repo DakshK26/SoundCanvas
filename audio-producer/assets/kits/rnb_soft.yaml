@@ -1,0 +1,22 @@
+name: rnb_soft
+tags:
+  kick:   ["soft", "warm", "kick"]
+  snare:  ["rimshot", "snare", "brush"]
+  shaker: ["shaker"]
+  hat:    ["hihat", "closed", "soft"]
+  perc:   ["perc", "wood", "conga", "bongo"]
+license: ["Creative Commons 0", "Attribution"]
+limits:
+  kick: 16
+  snare: 16
+  shaker: 16
+  hat: 16
+  perc: 20
+mapping:
+  "36": "kick"
+  "38": "snare"
+  "37": "snare"
+  "42": "hat"
+  "46": "hat"
+  "70": "shaker"
+  "48": "perc"

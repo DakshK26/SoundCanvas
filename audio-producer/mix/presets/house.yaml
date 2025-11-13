@@ -1,0 +1,34 @@
+name: house_basic
+drum_kit: house
+target_lufs: -9.0
+bus:
+  sidechain_amount: 0.55
+  stereo_widen: 0.25
+  reverb_send: 0.18
+  compressor: 
+    threshold_db: -12
+    ratio: 3.0
+    attack_ms: 10
+    release_ms: 120
+  limiter: 
+    ceiling_db: -0.8
+instruments:
+  bass:   
+    sound: "sf2://FluidR3/34"
+    hp_hz: 40
+    lp_hz: 180
+  chords: 
+    sound: "sf2://FluidR3/89"
+    hp_hz: 180
+    lp_hz: 9000
+    reverb_send: 0.16
+  lead:   
+    sound: "sf2://FluidR3/81"
+    hp_hz: 250
+    lp_hz: 11000
+    delay_send: 0.12
+  pad:    
+    sound: "sf2://FluidR3/91"
+    hp_hz: 120
+    lp_hz: 7000
+    reverb_send: 0.25

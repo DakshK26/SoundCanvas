@@ -1,0 +1,23 @@
+name: house
+tags:
+  kick:   ["house", "kick"]
+  snare:  ["house", "snare", "clap"]
+  clap:   ["house", "clap"]
+  hat:    ["house", "hihat", "closed"]
+  ride:   ["ride", "cymbal"]
+  perc:   ["perc", "shake", "tom"]
+license: ["Creative Commons 0", "Attribution"]
+limits:
+  kick: 20
+  snare: 20
+  clap: 12
+  hat: 24
+  ride: 10
+  perc: 20
+mapping:
+  "36": "kick"
+  "38": "snare"
+  "39": "clap"
+  "42": "hat"
+  "51": "ride"
+  "48": "perc"

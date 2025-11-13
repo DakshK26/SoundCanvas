@@ -1,0 +1,34 @@
+name: rnb_soft
+drum_kit: rnb_soft
+target_lufs: -11.5
+bus:
+  sidechain_amount: 0.18
+  stereo_widen: 0.20
+  reverb_send: 0.22
+  compressor: 
+    threshold_db: -14
+    ratio: 2.2
+    attack_ms: 12
+    release_ms: 180
+  limiter: 
+    ceiling_db: -1.0
+instruments:
+  bass:   
+    sound: "sf2://FluidR3/34"
+    hp_hz: 35
+    lp_hz: 160
+  chords: 
+    sound: "sf2://FluidR3/5"
+    hp_hz: 150
+    lp_hz: 9000
+    reverb_send: 0.22
+  lead:   
+    sound: "sf2://FluidR3/80"
+    hp_hz: 250
+    lp_hz: 10000
+    delay_send: 0.14
+  pad:    
+    sound: "sf2://FluidR3/89"
+    hp_hz: 120
+    lp_hz: 6500
+    reverb_send: 0.28

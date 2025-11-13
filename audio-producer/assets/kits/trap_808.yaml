@@ -1,0 +1,26 @@
+name: trap_808
+tags:
+  kick:   ["808", "kick"]
+  snare:  ["808", "snare"]
+  clap:   ["clap"]
+  hat:    ["hihat", "closed"]
+  ohat:   ["hihat", "open"]
+  perc:   ["perc", "rim", "click"]
+license: ["Creative Commons 0", "Attribution"]
+limits:
+  kick: 20
+  snare: 20
+  clap: 12
+  hat: 24
+  ohat: 12
+  perc: 20
+mapping:          # MIDI notes -> category
+  "35": "kick"
+  "36": "kick"
+  "38": "snare"
+  "39": "clap"
+  "42": "hat"
+  "46": "ohat"
+  "37": "snare"
+  "40": "snare"
+  "48": "perc"

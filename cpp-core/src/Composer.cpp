@@ -969,7 +969,7 @@ std::map<std::string, std::string> composeSongToStems(
         case TrackRole::CHORDS:
           // Chord progression
           {
-            std::vector<ChordProgression> progs = getProgressions(spec.scaleType);
+            std::vector<ChordProgression> progs = getProgressions(spec.scaleType, spec.genreProfile.genre);
             const auto& prog = progs[0];
 
             for (int bar = 0; bar < section.bars; ++bar) {

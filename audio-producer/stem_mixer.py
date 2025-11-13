@@ -5,6 +5,142 @@ import numpy as np
 from scipy.io import wavfile
 import os
 from typing import List, Dict, Tuple, Optional
+import mido
+
+
+def parse_kick_events_from_midi(midi_path: str, tempo_bpm: float = 120.0) -> List[float]:
+    """
+    Phase 9: Parse kick drum events from MIDI file
+    
+    Args:
+        midi_path: Path to MIDI file
+        tempo_bpm: Tempo in BPM (if not found in MIDI)
+    
+    Returns:
+        List of kick event times in seconds
+    """
+    try:
+        midi = mido.MidiFile(midi_path)
+        
+        # Get tempo from MIDI
+        tempo_microseconds = 500000  # Default 120 BPM
+        for track in midi.tracks:
+            for msg in track:
+                if msg.type == 'set_tempo':
+                    tempo_microseconds = msg.tempo
+                    break
+        
+        # Convert to seconds per tick
+        ticks_per_beat = midi.ticks_per_beat
+        seconds_per_tick = (tempo_microseconds / 1_000_000.0) / ticks_per_beat
+        
+        # Parse kick events (MIDI note 35 and 36 on channel 9 = drums)
+        kick_times = []
+        
+        for track in midi.tracks:
+            current_time = 0.0
+            for msg in track:
+                current_time += msg.time * seconds_per_tick
+                
+                # Check for kick drum notes
+                if (msg.type == 'note_on' and 
+                    msg.channel == 9 and 
+                    msg.note in [35, 36] and 
+                    msg.velocity > 0):
+                    kick_times.append(current_time)
+        
+        return kick_times
+    
+    except Exception as e:
+        print(f"Warning: Failed to parse MIDI kicks: {e}")
+        return []
+
+
+def create_sidechain_envelope_from_midi(midi_path: str, 
+                                        duration_seconds: float,
+                                        sample_rate: int,
+                                        sidechain_amount: float = 0.5,
+                                        attack_ms: float = 5.0,
+                                        hold_ms: float = 50.0,
+                                        release_ms: float = 250.0) -> np.ndarray:
+    """
+    Phase 9: Create sidechain ducking envelope from MIDI kick events
+    
+    Args:
+        midi_path: Path to MIDI file
+        duration_seconds: Total duration of track
+        sample_rate: Audio sample rate
+        sidechain_amount: Amount of ducking (0-1)
+        attack_ms: Attack time in milliseconds
+        hold_ms: Hold time in milliseconds
+        release_ms: Release time in milliseconds
+    
+    Returns:
+        Envelope array (values 0-1) where kicks cause dips
+    """
+    # Parse kick events
+    kick_times = parse_kick_events_from_midi(midi_path)
+    
+    if not kick_times:
+        print("  No kick events found in MIDI, sidechain disabled")
+        return np.ones(int(duration_seconds * sample_rate))
+    
+    print(f"  Found {len(kick_times)} kick events for sidechain")
+    
+    # Create envelope
+    total_samples = int(duration_seconds * sample_rate)
+    envelope = np.ones(total_samples)
+    
+    # Convert times to samples
+    attack_samples = int((attack_ms / 1000.0) * sample_rate)
+    hold_samples = int((hold_ms / 1000.0) * sample_rate)
+    release_samples = int((release_ms / 1000.0) * sample_rate)
+    
+    # For each kick, create a ducking curve
+    for kick_time in kick_times:
+        start_sample = int(kick_time * sample_rate)
+        
+        if start_sample >= total_samples:
+            continue
+        
+        # Attack phase: rapid duck down
+        for i in range(attack_samples):
+            sample_idx = start_sample + i
+            if sample_idx >= total_samples:
+                break
+            
+            # Linear ramp down
+            duck_amount = (i / attack_samples) * sidechain_amount
+            new_value = 1.0 - duck_amount
+            
+            # Take minimum (allow overlapping kicks to stack)
+            envelope[sample_idx] = min(envelope[sample_idx], new_value)
+        
+        # Hold phase: stay ducked
+        hold_start = start_sample + attack_samples
+        for i in range(hold_samples):
+            sample_idx = hold_start + i
+            if sample_idx >= total_samples:
+                break
+            
+            new_value = 1.0 - sidechain_amount
+            envelope[sample_idx] = min(envelope[sample_idx], new_value)
+        
+        # Release phase: gradual return to normal
+        release_start = hold_start + hold_samples
+        for i in range(release_samples):
+            sample_idx = release_start + i
+            if sample_idx >= total_samples:
+                break
+            
+            # Exponential release curve
+            progress = i / release_samples
+            duck_amount = sidechain_amount * (1.0 - progress)
+            new_value = 1.0 - duck_amount
+            
+            envelope[sample_idx] = min(envelope[sample_idx], new_value)
+    
+    return envelope
 
 
 def load_wav(path: str) -> Tuple[int, np.ndarray]:
@@ -122,9 +258,13 @@ def apply_sidechain(audio: np.ndarray, kick_envelope: np.ndarray) -> np.ndarray:
 
 def mix_stems(stems: Dict[str, str], output_path: str, 
               apply_sidechain_to: List[str] = ['bass', 'lead', 'pad'],
-              stem_gains: Optional[Dict[str, float]] = None) -> bool:
+              stem_gains: Optional[Dict[str, float]] = None,
+              midi_path: Optional[str] = None,
+              sidechain_amount: float = 0.5) -> bool:
     """
     Mix multiple instrument stems with optional sidechain compression
+    
+    Phase 9: Added MIDI-based sidechain for precise kick timing
     
     Args:
         stems: Dict mapping stem name -> WAV file path
@@ -132,6 +272,8 @@ def mix_stems(stems: Dict[str, str], output_path: str,
         output_path: Output mixed WAV path
         apply_sidechain_to: List of stem names to apply sidechain ducking
         stem_gains: Optional dict of gain multipliers per stem
+        midi_path: Optional path to MIDI file for precise kick timing sidechain
+        sidechain_amount: Amount of sidechain ducking (0-1), from mix preset
     
     Returns:
         True if successful
@@ -184,10 +326,24 @@ def mix_stems(stems: Dict[str, str], output_path: str,
             print("No valid stems loaded")
             return False
         
-        # Create kick envelope for sidechain (if kick exists)
+        # Phase 9: Create sidechain envelope from MIDI kick events (preferred)
+        # Fallback to audio-based envelope if MIDI not available
         kick_envelope = None
-        if 'kick' in stems and os.path.exists(stems['kick']):
+        
+        if midi_path and os.path.exists(midi_path):
+            print(f"Creating sidechain from MIDI: {midi_path}")
+            duration_seconds = max_length / sample_rate
+            kick_envelope = create_sidechain_envelope_from_midi(
+                midi_path, 
+                duration_seconds, 
+                sample_rate,
+                sidechain_amount=sidechain_amount
+            )
+        elif 'kick' in stems and os.path.exists(stems['kick']):
+            print("Creating sidechain from kick audio (fallback)")
             kick_envelope = create_kick_envelope(stems['kick'], sample_rate, max_length)
+        else:
+            print("No MIDI or kick stem found, sidechain disabled")
         
         # Mix all stems
         mixed = np.zeros((max_length, 2), dtype=np.float32)

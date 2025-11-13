@@ -1,3 +1,4 @@
+#define _USE_MATH_DEFINES
 #include "AudioEngine.hpp"
 #include "MusicalStyle.hpp"
 #include <cmath>
@@ -6,6 +7,10 @@
 #include <stdexcept>
 #include <vector>
 #include <algorithm>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 namespace {
 

@@ -10,6 +10,7 @@ struct ImageFeatures {
     float saturation;   // [5] 0–1 (HSV saturation)
     float colorfulness; // [6] 0–1 (Hasler & Süsstrunk metric)
     float contrast;     // [7] 0–1 (grayscale std dev, normalized)
+    float warmth;       // Phase 9: warm colors (red/orange) vs cool (blue/cyan)
 };
 
 ImageFeatures extractImageFeatures(const std::string& imagePath);

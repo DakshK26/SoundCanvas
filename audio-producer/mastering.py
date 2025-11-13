@@ -9,6 +9,16 @@ import numpy as np
 from scipy.io import wavfile
 
 
+# Find ffmpeg executable
+def get_ffmpeg_path():
+    """Get the path to ffmpeg executable"""
+    ffmpeg_paths = [
+        'C:/ffmpeg/ffmpeg-7.1-essentials_build/bin/ffmpeg.exe',
+        'ffmpeg'  # Try PATH
+    ]
+    return next((p for p in ffmpeg_paths if os.path.exists(p) or p == 'ffmpeg'), 'ffmpeg')
+
+
 def apply_mastering_chain(input_wav: str, output_wav: str, target_lufs: float = -14.0) -> bool:
     """
     Apply mastering chain using ffmpeg audio filters:
@@ -25,6 +35,8 @@ def apply_mastering_chain(input_wav: str, output_wav: str, target_lufs: float = 
         True if successful, False otherwise
     """
     try:
+        ffmpeg = get_ffmpeg_path()
+        
         # Multi-stage mastering chain
         temp_eq = tempfile.NamedTemporaryFile(suffix='.wav', delete=False).name
         temp_comp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False).name
@@ -40,7 +52,7 @@ def apply_mastering_chain(input_wav: str, output_wav: str, target_lufs: float = 
         )
         
         eq_cmd = [
-            'ffmpeg', '-y', '-i', input_wav,
+            ffmpeg, '-y', '-i', input_wav,
             '-af', eq_filter,
             '-ar', '44100', '-ac', '2',
             temp_eq
@@ -64,7 +76,7 @@ def apply_mastering_chain(input_wav: str, output_wav: str, target_lufs: float = 
         )
         
         comp_cmd = [
-            'ffmpeg', '-y', '-i', temp_eq,
+            ffmpeg, '-y', '-i', temp_eq,
             '-af', comp_filter,
             '-ar', '44100', '-ac', '2',
             temp_comp
@@ -81,7 +93,7 @@ def apply_mastering_chain(input_wav: str, output_wav: str, target_lufs: float = 
         )
         
         final_cmd = [
-            'ffmpeg', '-y', '-i', temp_comp,
+            ffmpeg, '-y', '-i', temp_comp,
             '-af', limiter_filter,
             '-ar', '44100', '-ac', '2',
             output_wav
