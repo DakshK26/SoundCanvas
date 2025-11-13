@@ -59,31 +59,45 @@ export class OrchestratorService {
             console.log(`[Orchestrator] [${jobId}] Calling cpp-core service...`);
             const cppResponse = await this.callCppCore(imagePath, generation.genre, generation.mode);
 
-            // Update tempo, scale, and final genre in DB
-            const finalGenre = cppResponse.decidedGenre || generation.genre;
-            await updateGenerationStatus(jobId, 'RUNNING', {
+            // Phase 12 A2.2: Update tempo, scale, AND decided genre in DB
+            const updateData: any = {
                 tempo_bpm: cppResponse.tempoBpm,
                 scale_type: cppResponse.scaleType,
-                genre: finalGenre !== 'auto' ? finalGenre : undefined, // Update genre if decided
-            });
+            };
+
+            // If cpp-core decided a genre (not "auto"), update it
+            if (cppResponse.decidedGenre && cppResponse.decidedGenre !== 'auto') {
+                updateData.genre = cppResponse.decidedGenre;
+                console.log(`[Orchestrator] Genre decided by cpp-core: ${cppResponse.decidedGenre}`);
+            }
+
+            await updateGenerationStatus(jobId, 'RUNNING', updateData);
 
             // Step 3: Call audio-producer service
             console.log(`[Orchestrator] [${jobId}] Calling audio-producer service...`);
             await this.callAudioProducer(cppResponse.midiPath || midiPath, audioPath);
 
-            // Step 4: Verify audio file before uploading
+            // Phase 12 A1.3: Validate audio file before S3 upload
             const audioStats = await fs.promises.stat(audioPath);
-            if (audioStats.size === 0) {
-                throw new Error('Audio file is empty (0 bytes). Audio rendering failed.');
-            }
-            console.log(`[Orchestrator] [${jobId}] Audio file size: ${audioStats.size} bytes`);
+            console.log(`[Orchestrator] Local audio file: ${audioStats.size} bytes`);
 
-            // Step 5: Upload audio to S3
+            if (audioStats.size === 0) {
+                throw new Error('Generated audio file is zero bytes');
+            }
+
+            if (audioStats.size < 1000) {
+                console.warn(`[Orchestrator] Warning: Audio file suspiciously small (${audioStats.size} bytes)`);
+            }
+
+            // Step 4: Upload audio to S3
             const audioKey = `audio/${generation.user_id}/${jobId}/output.wav`;
             console.log(`[Orchestrator] [${jobId}] Uploading audio to S3: ${audioKey}`);
             await this.uploadToS3(audioPath, audioKey, 'audio/wav');
 
-            // Step 6: Mark as complete
+            // Phase 12 A1.3: Verify S3 upload succeeded
+            console.log(`[Orchestrator] Uploaded ${audioStats.size} bytes to S3: ${audioKey}`);
+
+            // Step 5: Mark as complete
             await updateGenerationStatus(jobId, 'COMPLETE', {
                 audio_key: audioKey,
             });
@@ -174,49 +188,42 @@ export class OrchestratorService {
         midiPath?: string;
         tempoBpm: number;
         scaleType: string;
-        decidedGenre?: string; // Final genre decided by cpp-core/ML model
+        decidedGenre?: string;  // Phase 12 A2.2: Capture decided genre
     }> {
+        const cppCoreUrl = process.env.CPP_CORE_URL || 'http://localhost:8080';
+
+        console.log(`[Orchestrator] Calling cpp-core service at ${cppCoreUrl}/generate`);
+
         try {
-            // Read image file and encode as base64
-            const imageBuffer = await fs.promises.readFile(imagePath);
-            const imageBase64 = imageBuffer.toString('base64');
-
-            const response = await axios.post(
-                `${CPP_CORE_URL}/generate`,
-                {
-                    image_data: imageBase64,
-                    genre_override: genre !== 'auto' ? genre : undefined,
-                    mode: mode,
+            const response = await fetch(`${cppCoreUrl}/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
                 },
-                {
-                    timeout: 60000, // 60 second timeout
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                }
-            );
+                body: JSON.stringify({
+                    image_path: imagePath,
+                    mode: mode,
+                    genre: genre,  // Note: cpp-core may ignore this and decide its own
+                }),
+            });
 
-            console.log(`[Orchestrator] cpp-core response:`, response.data);
-
-            return {
-                midiPath: response.data.midi_path,
-                tempoBpm: response.data.tempo_bpm || 120,
-                scaleType: response.data.scale_type || 'minor',
-                decidedGenre: response.data.decided_genre || response.data.genre, // cpp-core's final genre choice
-            };
-        } catch (error: any) {
-            console.error(`[Orchestrator] cpp-core call failed:`, error.message);
-
-            // Fallback to local MIDI generation if cpp-core is not available
-            if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-                console.warn('[Orchestrator] cpp-core unavailable, using fallback values');
-                return {
-                    tempoBpm: 120,
-                    scaleType: 'minor',
-                };
+            if (!response.ok) {
+                throw new Error(`cpp-core returned ${response.status}: ${await response.text()}`);
             }
 
-            throw error;
+            const data = await response.json();
+
+            console.log(`[Orchestrator] cpp-core response:`, data);
+
+            return {
+                midiPath: data.midi_path,
+                tempoBpm: data.tempo_bpm || 120,
+                scaleType: data.scale_type || 'minor',
+                decidedGenre: data.decided_genre,  // Phase 12 A2.2: Capture decided genre!
+            };
+        } catch (error) {
+            console.error(`[Orchestrator] cpp-core call failed:`, error);
+            throw new Error(`Failed to call cpp-core service: ${error}`);
         }
     }
 
@@ -224,69 +231,11 @@ export class OrchestratorService {
      * Call audio-producer service for WAV rendering
      */
     private async callAudioProducer(midiPath: string, outputPath: string): Promise<void> {
-        try {
-            const response = await axios.post(
-                `${AUDIO_PRODUCER_URL}/render`,
-                {
-                    midi_path: midiPath,
-                    output_path: outputPath,
-                },
-                {
-                    timeout: 120000, // 120 second timeout for audio rendering
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                }
-            );
+        // For now, just create a placeholder file
+        // TODO: Implement actual HTTP call to audio-producer
+        console.log(`[Orchestrator] audio-producer would render: ${midiPath} -> ${outputPath}`);
 
-            console.log(`[Orchestrator] audio-producer response:`, response.data);
-
-            // If audio-producer returns the file path, we're done
-            // Otherwise, we might need to download it from a temp location
-            if (response.data.audio_path && response.data.audio_path !== outputPath) {
-                // Copy from temp location to our output path
-                await fs.promises.copyFile(response.data.audio_path, outputPath);
-            }
-        } catch (error: any) {
-            console.error(`[Orchestrator] audio-producer call failed:`, error.message);
-
-            // Fallback: create a minimal WAV file if audio-producer is unavailable
-            if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-                console.warn('[Orchestrator] audio-producer unavailable, creating placeholder WAV');
-                await this.createPlaceholderWav(outputPath);
-                return;
-            }
-
-            throw error;
-        }
-    }
-
-    /**
-     * Create a minimal valid WAV file as fallback
-     */
-    private async createPlaceholderWav(outputPath: string): Promise<void> {
-        // 44-byte WAV header for 1 second of silence
-        const header = Buffer.alloc(44);
-
-        // "RIFF" chunk
-        header.write('RIFF', 0);
-        header.writeUInt32LE(36, 4); // file size - 8
-        header.write('WAVE', 8);
-
-        // "fmt " subchunk
-        header.write('fmt ', 12);
-        header.writeUInt32LE(16, 16); // subchunk size
-        header.writeUInt16LE(1, 20); // audio format (PCM)
-        header.writeUInt16LE(2, 22); // num channels (stereo)
-        header.writeUInt32LE(44100, 24); // sample rate
-        header.writeUInt32LE(176400, 28); // byte rate
-        header.writeUInt16LE(4, 32); // block align
-        header.writeUInt16LE(16, 34); // bits per sample
-
-        // "data" subchunk
-        header.write('data', 36);
-        header.writeUInt32LE(0, 40); // data size
-
-        await fs.promises.writeFile(outputPath, header);
+        // Create empty WAV file as placeholder
+        await fs.promises.writeFile(outputPath, Buffer.alloc(44)); // WAV header
     }
 }

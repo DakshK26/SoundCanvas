@@ -8,6 +8,9 @@
 #include "ModelClient.hpp"
 #include "AudioEngine.hpp"
 #include "MusicalStyle.hpp"  // Phase 7
+#include "GenreTemplate.hpp"  // Phase 12: Genre selection
+#include "SectionPlanner.hpp" // Phase 12: Song planning
+#include "Composer.hpp"       // Phase 12: Genre-based composition
 
 #include <chrono>
 #include <cstdlib>
@@ -86,11 +89,37 @@ void runHttpServer(
             // Phase 7: Derive extended style parameters
             StyleParameters style = deriveStyle(features, params);
 
-            generateAmbientTrack(outPath.string(), params, &style);
+            // Phase 12 A2.2: Select genre from image and create MIDI
+            GenreType decidedGenre = selectGenreFromImage(features, params.energy);
+            const GenreTemplate& genreTemplate = getGenreTemplate(decidedGenre);
+            
+            std::cout << "[HTTP] Selected genre: " << genreTypeName(decidedGenre) 
+                      << " (tempo range: " << genreTemplate.minTempo << "-" 
+                      << genreTemplate.maxTempo << " BPM)" << std::endl;
 
-            // Build JSON response with new 7-dim parameters
+            // Plan song structure
+            SongPlan plan = planSong(features, params, genreTemplate);
+            
+            // Generate MIDI file
+            std::string midiFilename = "composition_" + std::to_string(millis) + ".mid";
+            fs::path midiPath = fs::path(outputDir) / midiFilename;
+            
+            std::cout << "[HTTP] Composing MIDI to: " << midiPath << std::endl;
+            composeGenreSongToMidi(plan, midiPath.string());
+            
+            // Scale type string
+            const char* scaleNames[] = {"Major", "Minor", "Dorian", "Lydian"};
+            const char* scaleTypeStr = (params.scaleType >= 0 && params.scaleType <= 3)
+                                        ? scaleNames[params.scaleType]
+                                        : "Unknown";
+
+            // Build JSON response with new 7-dim parameters + decided genre
             json resp;
-            resp["audio_path"] = outPath.string();
+            resp["midi_path"] = midiPath.string();  // Phase 12: Return MIDI path instead of WAV
+            resp["audio_path"] = outPath.string();  // Keep for backward compatibility
+            resp["decided_genre"] = genreTypeName(decidedGenre);  // Phase 12 A2.2: Return decided genre!
+            resp["tempo_bpm"] = plan.tempoBpm;
+            resp["scale_type"] = scaleTypeStr;
             resp["params"] = {
                 {"tempoBpm",      params.tempoBpm},
                 {"baseFrequency", params.baseFrequency},
