@@ -15,7 +15,7 @@ export const Query = {
     context: any
   ) => {
     const generation = await getGenerationById(args.jobId);
-    
+
     if (!generation) {
       throw new Error(`Generation ${args.jobId} not found`);
     }
@@ -28,7 +28,7 @@ export const Query = {
     if (generation.image_key) {
       imageUrl = await storage.getImageReadUrl(generation.image_key);
     }
-    
+
     if (generation.status === 'COMPLETE' && generation.audio_key) {
       audioUrl = await storage.getAudioReadUrl(generation.audio_key);
     }
@@ -55,7 +55,7 @@ export const Query = {
   ) => {
     const userId = context.user?.id || 'default-user';
     const limit = args.limit ?? 20;
-    
+
     const generations = await getUserGenerations(userId, limit);
     const storage = new StorageService();
 
@@ -63,7 +63,7 @@ export const Query = {
     return Promise.all(
       generations.map(async (gen) => {
         const imageUrl = await storage.getImageReadUrl(gen.image_key);
-        const audioUrl = gen.audio_key 
+        const audioUrl = gen.audio_key
           ? await storage.getAudioReadUrl(gen.audio_key)
           : null;
 

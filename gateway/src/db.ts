@@ -5,12 +5,12 @@ let pool: mysql.Pool;
 export async function initDb() {
   // Support both RDS and local MySQL
   const isRDS = process.env.RDS_ENDPOINT !== undefined;
-  
+
   if (isRDS) {
     // AWS RDS configuration
     const [host, portStr] = process.env.RDS_ENDPOINT!.split(':');
     const port = portStr ? parseInt(portStr) : 3306;
-    
+
     pool = mysql.createPool({
       host: host,
       port: port,
@@ -20,7 +20,7 @@ export async function initDb() {
       connectionLimit: 10,
       ssl: process.env.RDS_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
     });
-    
+
     console.log(`✓ Connected to RDS MySQL: ${host}:${port}`);
   } else {
     // Local MySQL configuration (backwards compatible)
@@ -32,7 +32,7 @@ export async function initDb() {
       database: process.env.DB_NAME || "soundcanvas",
       connectionLimit: 10,
     });
-    
+
     console.log(`✓ Connected to local MySQL: ${process.env.DB_HOST || 'localhost'}`);
   }
 
@@ -77,7 +77,7 @@ async function createTables() {
       INDEX idx_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
   `);
-  
+
   console.log('✓ Database tables created/verified');
 }
 
