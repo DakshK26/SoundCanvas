@@ -47,6 +47,8 @@ infra/terraform/.terraform/
 infra/terraform/*.tfstate
 infra/terraform/*.tfstate.backup
 infra/terraform/.terraform.lock.hcl
+infra/terraform/deploy.ps1
+infra/terraform/*.ps1
 
 # Kaggle credentials (NEVER commit this!)
 **/.kaggle/
