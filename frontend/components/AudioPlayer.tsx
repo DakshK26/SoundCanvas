@@ -6,6 +6,7 @@ import { Download, Music2 } from 'lucide-react';
 
 interface AudioPlayerProps {
     audioUrl: string;
+    imageUrl?: string | null;
     params?: {
         genre?: string;
         tempoBpm?: number;
@@ -14,7 +15,7 @@ interface AudioPlayerProps {
     };
 }
 
-export default function AudioPlayer({ audioUrl, params }: AudioPlayerProps) {
+export default function AudioPlayer({ audioUrl, params, imageUrl }: AudioPlayerProps) {
     const handleDownload = () => {
         const link = document.createElement('a');
         link.href = audioUrl;

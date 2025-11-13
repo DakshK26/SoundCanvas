@@ -60,3 +60,7 @@ export interface Generation {
     imageUrl?: string;
     audioUrl?: string;
 }
+
+export interface MutationResponse {
+    success: boolean;
+}

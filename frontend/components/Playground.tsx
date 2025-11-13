@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useMutation, useLazyQuery } from '@apollo/client';
 import { CREATE_GENERATION, START_GENERATION, GENERATION_STATUS } from '@/graphql/operations';
@@ -14,7 +14,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Genre, Mode, GenerationStatus as Status } from '@/types/graphql';
-import { Upload, Music, Loader2 } from 'lucide-react';
+import { Upload, Music, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import AudioPlayer from '@/components/AudioPlayer';
 
 export default function Playground() {
@@ -25,15 +25,27 @@ export default function Playground() {
     const [jobId, setJobId] = useState<string | null>(null);
     const [generationStatus, setGenerationStatus] = useState<Status | null>(null);
     const [audioUrl, setAudioUrl] = useState<string | null>(null);
+    const [imageUrl, setImageUrl] = useState<string | null>(null);
     const [params, setParams] = useState<any>(null);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
+    const [networkError, setNetworkError] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
+    const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
     const [createGeneration] = useMutation(CREATE_GENERATION);
     const [startGeneration] = useMutation(START_GENERATION);
     const [getGenerationStatus] = useLazyQuery(GENERATION_STATUS, {
         fetchPolicy: 'network-only',
     });
+
+    // Cleanup polling on unmount
+    useEffect(() => {
+        return () => {
+            if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+            }
+        };
+    }, []);
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         if (acceptedFiles.length > 0) {
@@ -44,8 +56,10 @@ export default function Playground() {
             setJobId(null);
             setGenerationStatus(null);
             setAudioUrl(null);
+            setImageUrl(null);
             setParams(null);
             setErrorMessage(null);
+            setNetworkError(null);
         }
     }, []);
 
@@ -59,7 +73,12 @@ export default function Playground() {
 
     const pollGenerationStatus = useCallback(
         async (currentJobId: string) => {
-            const pollInterval = setInterval(async () => {
+            // Clear any existing interval
+            if (pollIntervalRef.current) {
+                clearInterval(pollIntervalRef.current);
+            }
+
+            const poll = async () => {
                 try {
                     const { data } = await getGenerationStatus({
                         variables: { jobId: currentJobId },
@@ -68,37 +87,52 @@ export default function Playground() {
                     if (data?.generationStatus) {
                         const status = data.generationStatus.status;
                         setGenerationStatus(status);
+                        setImageUrl(data.generationStatus.imageUrl || null);
 
                         if (status === Status.COMPLETE) {
-                            clearInterval(pollInterval);
+                            if (pollIntervalRef.current) {
+                                clearInterval(pollIntervalRef.current);
+                            }
                             setAudioUrl(data.generationStatus.audioUrl);
                             setParams(data.generationStatus.params);
+                            setNetworkError(null);
                         } else if (status === Status.FAILED) {
-                            clearInterval(pollInterval);
+                            if (pollIntervalRef.current) {
+                                clearInterval(pollIntervalRef.current);
+                            }
                             setErrorMessage(data.generationStatus.errorMessage || 'Generation failed');
                         }
                     }
-                } catch (error) {
+                } catch (error: any) {
                     console.error('Error polling status:', error);
-                    clearInterval(pollInterval);
-                    setErrorMessage('Failed to check generation status');
+                    setNetworkError('Failed to check generation status. Retrying...');
+                    // Don't clear interval on network errors - keep polling
                 }
-            }, 2500); // Poll every 2.5 seconds
+            };
+
+            // Poll immediately, then every 2.5 seconds
+            await poll();
+            pollIntervalRef.current = setInterval(poll, 2500);
 
             // Auto-cleanup after 5 minutes
-            setTimeout(() => clearInterval(pollInterval), 5 * 60 * 1000);
+            setTimeout(() => {
+                if (pollIntervalRef.current) {
+                    clearInterval(pollIntervalRef.current);
+                }
+            }, 5 * 60 * 1000);
         },
         [getGenerationStatus]
     );
 
     const handleGenerate = async () => {
         if (!selectedImage) {
-            setErrorMessage('Please select an image first');
+            setNetworkError('Please select an image first');
             return;
         }
 
         setIsUploading(true);
         setErrorMessage(null);
+        setNetworkError(null);
         setGenerationStatus(Status.PENDING);
 
         try {
@@ -119,7 +153,7 @@ export default function Playground() {
             const { jobId: newJobId, imageUploadUrl } = data.createGeneration;
             setJobId(newJobId);
 
-            // Step 2: Upload image to S3
+            // Step 2: Upload image directly to S3 using pre-signed URL
             const uploadResponse = await fetch(imageUploadUrl, {
                 method: 'PUT',
                 body: selectedImage,
@@ -129,8 +163,10 @@ export default function Playground() {
             });
 
             if (!uploadResponse.ok) {
-                throw new Error('Failed to upload image');
+                throw new Error(`Failed to upload image: ${uploadResponse.statusText}`);
             }
+
+            setIsUploading(false);
 
             // Step 3: Start generation
             await startGeneration({
@@ -143,17 +179,38 @@ export default function Playground() {
             pollGenerationStatus(newJobId);
         } catch (error: any) {
             console.error('Generation error:', error);
-            setErrorMessage(error.message || 'Failed to generate track');
+            setNetworkError(error.message || 'Failed to generate track. Please try again.');
             setGenerationStatus(null);
-        } finally {
             setIsUploading(false);
         }
     };
 
+    const handleTryAgain = () => {
+        setErrorMessage(null);
+        setNetworkError(null);
+        setGenerationStatus(null);
+        setAudioUrl(null);
+        setImageUrl(null);
+        setParams(null);
+        setJobId(null);
+    };
+
     const isGenerating = generationStatus === Status.PENDING || generationStatus === Status.RUNNING;
+    const isDisabled = !selectedImage || isUploading || isGenerating;
 
     return (
         <div className="w-full max-w-4xl mx-auto space-y-6">
+            {/* Network Error Banner */}
+            {networkError && (
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 px-4 py-3 rounded-lg flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
+                    <div className="flex-1">
+                        <p className="font-medium">Network Error</p>
+                        <p className="text-sm">{networkError}</p>
+                    </div>
+                </div>
+            )}
+
             <Card>
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -169,8 +226,8 @@ export default function Playground() {
                     <div
                         {...getRootProps()}
                         className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${isDragActive
-                            ? 'border-primary bg-primary/5'
-                            : 'border-gray-300 hover:border-gray-400'
+                                ? 'border-primary bg-primary/5'
+                                : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
                             }`}
                     >
                         <input {...getInputProps()} />
@@ -181,7 +238,7 @@ export default function Playground() {
                                     alt="Preview"
                                     className="max-h-64 mx-auto rounded-lg shadow-lg"
                                 />
-                                <p className="text-sm text-gray-600">
+                                <p className="text-sm text-gray-600 dark:text-gray-400">
                                     {selectedImage?.name} • Click or drag to change
                                 </p>
                             </div>
@@ -190,7 +247,7 @@ export default function Playground() {
                                 <Upload className="w-12 h-12 mx-auto text-gray-400" />
                                 <div>
                                     <p className="text-lg font-medium">Drop an image here, or click to browse</p>
-                                    <p className="text-sm text-gray-500">PNG, JPG, JPEG, or WebP</p>
+                                    <p className="text-sm text-gray-500 dark:text-gray-400">PNG, JPG, JPEG, or WebP</p>
                                 </div>
                             </div>
                         )}
@@ -200,7 +257,7 @@ export default function Playground() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Genre</label>
-                            <Select value={genre} onValueChange={setGenre}>
+                            <Select value={genre} onValueChange={setGenre} disabled={isGenerating}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select genre" />
                                 </SelectTrigger>
@@ -208,7 +265,7 @@ export default function Playground() {
                                     <SelectItem value={Genre.AUTO}>Auto (AI decides)</SelectItem>
                                     <SelectItem value={Genre.RAP}>Rap</SelectItem>
                                     <SelectItem value={Genre.HOUSE}>House</SelectItem>
-                                    <SelectItem value={Genre.RNB}>R&B</SelectItem>
+                                    <SelectItem value={Genre.RNB}>R&amp;B</SelectItem>
                                     <SelectItem value={Genre.EDM_CHILL}>EDM Chill</SelectItem>
                                     <SelectItem value={Genre.EDM_DROP}>EDM Drop</SelectItem>
                                 </SelectContent>
@@ -217,7 +274,7 @@ export default function Playground() {
 
                         <div className="space-y-2">
                             <label className="text-sm font-medium">Mode</label>
-                            <Select value={mode} onValueChange={setMode}>
+                            <Select value={mode} onValueChange={setMode} disabled={isGenerating}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select mode" />
                                 </SelectTrigger>
@@ -229,17 +286,49 @@ export default function Playground() {
                         </div>
                     </div>
 
+                    {/* Status Display */}
+                    {generationStatus && (
+                        <div className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                            {isGenerating ? (
+                                <Loader2 className="w-5 h-5 animate-spin text-blue-600 dark:text-blue-400" />
+                            ) : generationStatus === Status.COMPLETE ? (
+                                <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400" />
+                            ) : (
+                                <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400" />
+                            )}
+                            <div className="flex-1">
+                                <p className="font-medium text-sm">
+                                    {generationStatus === Status.PENDING && 'Preparing...'}
+                                    {generationStatus === Status.RUNNING && 'Composing your track...'}
+                                    {generationStatus === Status.COMPLETE && 'Complete! Your track is ready'}
+                                    {generationStatus === Status.FAILED && 'Generation failed'}
+                                </p>
+                                {params && (
+                                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                        {params.genre} • {params.tempoBpm} BPM
+                                        {params.scaleType && ` • ${params.scaleType}`}
+                                    </p>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
                     {/* Generate Button */}
                     <Button
                         onClick={handleGenerate}
-                        disabled={!selectedImage || isUploading || isGenerating}
+                        disabled={isDisabled}
                         className="w-full"
                         size="lg"
                     >
-                        {isUploading || isGenerating ? (
+                        {isUploading ? (
                             <>
                                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                {isUploading ? 'Uploading image...' : 'Composing your track...'}
+                                Uploading image...
+                            </>
+                        ) : isGenerating ? (
+                            <>
+                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                Composing your track...
                             </>
                         ) : (
                             'Generate Track'
@@ -248,15 +337,23 @@ export default function Playground() {
 
                     {/* Error Message */}
                     {errorMessage && (
-                        <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-lg">
-                            <p className="font-medium">Error</p>
-                            <p className="text-sm">{errorMessage}</p>
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 px-4 py-3 rounded-lg">
+                            <p className="font-medium">Generation Failed</p>
+                            <p className="text-sm mb-3">{errorMessage}</p>
+                            <Button
+                                onClick={handleTryAgain}
+                                variant="outline"
+                                size="sm"
+                                className="border-red-300 dark:border-red-700"
+                            >
+                                Try Again
+                            </Button>
                         </div>
                     )}
 
                     {/* Audio Player */}
                     {generationStatus === Status.COMPLETE && audioUrl && (
-                        <AudioPlayer audioUrl={audioUrl} params={params} />
+                        <AudioPlayer audioUrl={audioUrl} params={params} imageUrl={imageUrl} />
                     )}
                 </CardContent>
             </Card>

@@ -13,10 +13,7 @@ export const CREATE_GENERATION = gql`
 export const START_GENERATION = gql`
   mutation StartGeneration($jobId: ID!) {
     startGeneration(jobId: $jobId) {
-      id
-      status
-      genre
-      tempoBpm
+      success
     }
   }
 `;
@@ -39,12 +36,17 @@ export const GENERATION_STATUS = gql`
 `;
 
 export const MY_GENERATIONS = gql`
-  query MyGenerations($limit: Int!, $offset: Int!) {
-    myGenerations(limit: $limit, offset: $offset) {
+  query MyGenerations($limit: Int) {
+    myGenerations(limit: $limit) {
       id
-      createdAt
+      userId
+      imageKey
+      audioKey
       genre
       tempoBpm
+      status
+      errorMessage
+      createdAt
       imageUrl
       audioUrl
     }
