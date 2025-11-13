@@ -2,6 +2,7 @@
 #include "ImageFeatures.hpp"
 #include <stdexcept>
 #include <cmath>
+#include <iostream>
 
 std::string SectionTemplate::name() const {
     return sectionTypeName(type);

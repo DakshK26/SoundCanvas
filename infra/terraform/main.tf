@@ -62,75 +62,28 @@ data "aws_s3_bucket" "uploads" {
   bucket = "soundcanvas-uploads-dk"
 }
 
-# VPC
-resource "aws_vpc" "main" {
-  cidr_block           = "10.0.0.0/16"
-  enable_dns_hostnames = true
-  enable_dns_support   = true
-  tags = {
-    Name        = "${var.app_name}-vpc"
-    Environment = var.environment
-  }
+# Data source - get existing default VPC (where RDS is)
+data "aws_vpc" "main" {
+  default = true
 }
 
-# Internet Gateway
-resource "aws_internet_gateway" "main" {
-  vpc_id = aws_vpc.main.id
-  tags = {
-    Name = "${var.app_name}-igw"
+# Data source - get existing public subnets
+data "aws_subnets" "public" {
+  filter {
+    name   = "vpc-id"
+    values = [data.aws_vpc.main.id]
   }
-}
-
-# Public Subnets (2 AZs for ALB)
-resource "aws_subnet" "public_a" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.1.0/24"
-  availability_zone       = "${var.aws_region}a"
-  map_public_ip_on_launch = true
-  tags = {
-    Name = "${var.app_name}-public-a"
+  filter {
+    name   = "map-public-ip-on-launch"
+    values = ["true"]
   }
-}
-
-resource "aws_subnet" "public_b" {
-  vpc_id                  = aws_vpc.main.id
-  cidr_block              = "10.0.2.0/24"
-  availability_zone       = "${var.aws_region}b"
-  map_public_ip_on_launch = true
-  tags = {
-    Name = "${var.app_name}-public-b"
-  }
-}
-
-# Route Table
-resource "aws_route_table" "public" {
-  vpc_id = aws_vpc.main.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.main.id
-  }
-
-  tags = {
-    Name = "${var.app_name}-public-rt"
-  }
-}
-
-resource "aws_route_table_association" "public_a" {
-  subnet_id      = aws_subnet.public_a.id
-  route_table_id = aws_route_table.public.id
-}
-
-resource "aws_route_table_association" "public_b" {
-  subnet_id      = aws_subnet.public_b.id
-  route_table_id = aws_route_table.public.id
 }
 
 # Security Group - ALB
 resource "aws_security_group" "alb" {
   name        = "${var.app_name}-alb-sg"
   description = "ALB security group"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.aws_vpc.main.id
 
   ingress {
     from_port   = 80
@@ -155,7 +108,7 @@ resource "aws_security_group" "alb" {
 resource "aws_security_group" "ecs_tasks" {
   name        = "${var.app_name}-ecs-tasks-sg"
   description = "ECS tasks security group"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.aws_vpc.main.id
 
   ingress {
     from_port       = 4000
@@ -190,13 +143,24 @@ resource "aws_security_group" "ecs_tasks" {
   }
 }
 
+# Security Group Rule - Allow ECS tasks to access RDS
+resource "aws_security_group_rule" "rds_from_ecs" {
+  type                     = "ingress"
+  from_port                = 3306
+  to_port                  = 3306
+  protocol                 = "tcp"
+  security_group_id        = "sg-0acd7b3ad5ab7271a"  # RDS security group
+  source_security_group_id = aws_security_group.ecs_tasks.id
+  description              = "Allow ECS tasks to access RDS"
+}
+
 # Application Load Balancer
 resource "aws_lb" "main" {
   name               = "${var.app_name}-alb"
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.alb.id]
-  subnets            = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+  subnets            = data.aws_subnets.public.ids
 
   tags = {
     Name = "${var.app_name}-alb"
@@ -208,7 +172,7 @@ resource "aws_lb_target_group" "gateway" {
   name        = "${var.app_name}-gateway-tg"
   port        = 4000
   protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.aws_vpc.main.id
   target_type = "ip"
 
   health_check {
@@ -225,7 +189,7 @@ resource "aws_lb_target_group" "cpp_core" {
   name        = "${var.app_name}-cpp-core-tg"
   port        = 8080
   protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.aws_vpc.main.id
   target_type = "ip"
 
   health_check {
@@ -241,7 +205,7 @@ resource "aws_lb_target_group" "audio_producer" {
   name        = "${var.app_name}-audio-tg"
   port        = 5000
   protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
+  vpc_id      = data.aws_vpc.main.id
   target_type = "ip"
 
   health_check {
@@ -262,6 +226,40 @@ resource "aws_lb_listener" "main" {
   default_action {
     type             = "forward"
     target_group_arn = aws_lb_target_group.gateway.arn
+  }
+}
+
+# Listener rules for cpp-core service
+resource "aws_lb_listener_rule" "cpp_core" {
+  listener_arn = aws_lb_listener.main.arn
+  priority     = 100
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.cpp_core.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/compose*"]
+    }
+  }
+}
+
+# Listener rules for audio-producer service
+resource "aws_lb_listener_rule" "audio_producer" {
+  listener_arn = aws_lb_listener.main.arn
+  priority     = 200
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.audio_producer.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/render*"]
+    }
   }
 }
 
@@ -462,7 +460,7 @@ resource "aws_ecs_service" "gateway" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+    subnets          = data.aws_subnets.public.ids
     security_groups  = [aws_security_group.ecs_tasks.id]
     assign_public_ip = true
   }
@@ -484,7 +482,7 @@ resource "aws_ecs_service" "cpp_core" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+    subnets          = data.aws_subnets.public.ids
     security_groups  = [aws_security_group.ecs_tasks.id]
     assign_public_ip = true
   }
@@ -506,7 +504,7 @@ resource "aws_ecs_service" "audio_producer" {
   launch_type     = "FARGATE"
 
   network_configuration {
-    subnets          = [aws_subnet.public_a.id, aws_subnet.public_b.id]
+    subnets          = data.aws_subnets.public.ids
     security_groups  = [aws_security_group.ecs_tasks.id]
     assign_public_ip = true
   }
