@@ -51,3 +51,4 @@ infra/terraform/.terraform.lock.hcl
 # Kaggle credentials (NEVER commit this!)
 **/.kaggle/
 kaggle.json
+.vercel
