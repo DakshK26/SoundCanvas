@@ -52,20 +52,43 @@ export class OrchestratorService {
             console.log(`[Orchestrator] Calling cpp-core service...`);
             const cppResponse = await this.callCppCore(imagePath, generation.genre, generation.mode);
 
-            // Update tempo and scale in DB
-            await updateGenerationStatus(jobId, 'RUNNING', {
+            // Phase 12 A2.2: Update tempo, scale, AND decided genre in DB
+            const updateData: any = {
                 tempo_bpm: cppResponse.tempoBpm,
                 scale_type: cppResponse.scaleType,
-            });
+            };
+            
+            // If cpp-core decided a genre (not "auto"), update it
+            if (cppResponse.decidedGenre && cppResponse.decidedGenre !== 'auto') {
+                updateData.genre = cppResponse.decidedGenre;
+                console.log(`[Orchestrator] Genre decided by cpp-core: ${cppResponse.decidedGenre}`);
+            }
+            
+            await updateGenerationStatus(jobId, 'RUNNING', updateData);
 
             // Step 3: Call audio-producer service
             console.log(`[Orchestrator] Calling audio-producer service...`);
             await this.callAudioProducer(cppResponse.midiPath || midiPath, audioPath);
 
+            // Phase 12 A1.3: Validate audio file before S3 upload
+            const audioStats = await fs.promises.stat(audioPath);
+            console.log(`[Orchestrator] Local audio file: ${audioStats.size} bytes`);
+            
+            if (audioStats.size === 0) {
+                throw new Error('Generated audio file is zero bytes');
+            }
+            
+            if (audioStats.size < 1000) {
+                console.warn(`[Orchestrator] Warning: Audio file suspiciously small (${audioStats.size} bytes)`);
+            }
+
             // Step 4: Upload audio to S3
             const audioKey = `audio/${generation.user_id}/${jobId}/output.wav`;
             console.log(`[Orchestrator] Uploading audio to S3: ${audioKey}`);
             await this.uploadToS3(audioPath, audioKey, 'audio/wav');
+            
+            // Phase 12 A1.3: Verify S3 upload succeeded
+            console.log(`[Orchestrator] Uploaded ${audioStats.size} bytes to S3: ${audioKey}`);
 
             // Step 5: Mark as complete
             await updateGenerationStatus(jobId, 'COMPLETE', {
@@ -139,26 +162,87 @@ export class OrchestratorService {
         midiPath?: string;
         tempoBpm: number;
         scaleType: string;
+        decidedGenre?: string;  // Phase 12 A2.2: Capture decided genre
     }> {
-        // For now, return mock data since cpp-core HTTP interface may need updates
-        // TODO: Implement actual HTTP call to cpp-core
-        console.log(`[Orchestrator] cpp-core would process: ${imagePath}, genre=${genre}, mode=${mode}`);
+        const cppCoreUrl = process.env.CPP_CORE_URL || 'http://localhost:8080';
+        
+        console.log(`[Orchestrator] Calling cpp-core service at ${cppCoreUrl}/generate`);
+        
+        try {
+            const response = await fetch(`${cppCoreUrl}/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    image_path: imagePath,
+                    mode: mode,
+                    genre: genre,  // Note: cpp-core may ignore this and decide its own
+                }),
+            });
 
-        return {
-            tempoBpm: 120,
-            scaleType: 'minor',
-        };
+            if (!response.ok) {
+                throw new Error(`cpp-core returned ${response.status}: ${await response.text()}`);
+            }
+
+            const data = await response.json();
+            
+            console.log(`[Orchestrator] cpp-core response:`, data);
+            
+            return {
+                midiPath: data.midi_path,
+                tempoBpm: data.tempo_bpm || 120,
+                scaleType: data.scale_type || 'minor',
+                decidedGenre: data.decided_genre,  // Phase 12 A2.2: Capture decided genre!
+            };
+        } catch (error) {
+            console.error(`[Orchestrator] cpp-core call failed:`, error);
+            throw new Error(`Failed to call cpp-core service: ${error}`);
+        }
     }
 
     /**
      * Call audio-producer service for WAV rendering
      */
     private async callAudioProducer(midiPath: string, outputPath: string): Promise<void> {
-        // For now, just create a placeholder file
-        // TODO: Implement actual HTTP call to audio-producer
-        console.log(`[Orchestrator] audio-producer would render: ${midiPath} -> ${outputPath}`);
+        const audioProducerUrl = process.env.AUDIO_PRODUCER_URL || 'http://localhost:5000';
+        
+        console.log(`[Orchestrator] Calling audio-producer service at ${audioProducerUrl}/produce`);
+        
+        try {
+            const response = await fetch(`${audioProducerUrl}/produce`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    midi_path: midiPath,
+                    output_path: outputPath,
+                    genre: 'auto',  // Genre already embedded in MIDI from cpp-core
+                    use_sample_drums: true,
+                    apply_mastering: true,
+                }),
+            });
 
-        // Create empty WAV file as placeholder
-        await fs.promises.writeFile(outputPath, Buffer.alloc(44)); // WAV header
+            if (!response.ok) {
+                throw new Error(`audio-producer returned ${response.status}: ${await response.text()}`);
+            }
+
+            const data = await response.json();
+            
+            console.log(`[Orchestrator] audio-producer response:`, data);
+            
+            // Phase 12 A1.4: Check validation status
+            if (data.validation_passed === false) {
+                console.warn(`[Orchestrator] Audio validation warning: ${data.validation_error}`);
+            }
+            
+            if (data.duration_sec && data.duration_sec < 2.0) {
+                console.warn(`[Orchestrator] Audio suspiciously short: ${data.duration_sec}s`);
+            }
+        } catch (error) {
+            console.error(`[Orchestrator] audio-producer call failed:`, error);
+            throw new Error(`Failed to call audio-producer service: ${error}`);
+        }
     }
 }

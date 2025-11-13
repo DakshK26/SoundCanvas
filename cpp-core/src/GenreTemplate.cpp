@@ -166,10 +166,37 @@ const GenreTemplate& getGenreTemplate(GenreType type) {
 }
 
 GenreType selectGenreFromImage(const ImageFeatures& features, float energy) {
+    // Phase 12 A3.3: Edge case handling for extreme images
+    
+    // Clamp energy to safe range
+    float safeEnergy = std::max(0.3f, std::min(0.9f, energy));
+    if (safeEnergy != energy) {
+        std::cout << "[Genre Selection] Clamped energy from " << energy 
+                  << " to " << safeEnergy << " (safety)" << std::endl;
+    }
+    
     // Heuristic mapping based on color and energy
     
+    // Edge case 1: Very dark image (brightness < 0.2) → Cinematic (safe, moody)
+    if (features.brightness < 0.2f) {
+        std::cout << "[Genre Selection] Very dark image → CINEMATIC" << std::endl;
+        return GenreType::CINEMATIC;
+    }
+    
+    // Edge case 2: Very bright image (brightness > 0.9) → Avoid crazy tempos
+    if (features.brightness > 0.9f && safeEnergy > 0.7f) {
+        std::cout << "[Genre Selection] Very bright + high energy → RETROWAVE (avoiding EDM_DROP)" << std::endl;
+        return GenreType::RETROWAVE;  // Safer tempo range than EDM_DROP
+    }
+    
+    // Edge case 3: Low saturation (grayscale-ish) → Cinematic
+    if (features.saturation < 0.15f && features.colorfulness < 0.2f) {
+        std::cout << "[Genre Selection] Grayscale image → CINEMATIC" << std::endl;
+        return GenreType::CINEMATIC;
+    }
+    
     // High energy + warm colors (red/orange) → EDM_Drop
-    if (energy > 0.6f && (features.hue < 0.15f || features.hue > 0.9f)) {
+    if (safeEnergy > 0.6f && (features.hue < 0.15f || features.hue > 0.9f)) {
         return GenreType::EDM_DROP;
     }
     
@@ -188,9 +215,9 @@ GenreType selectGenreFromImage(const ImageFeatures& features, float energy) {
         return GenreType::EDM_CHILL;
     }
     
-    // Default: pick based on energy
-    if (energy > 0.7f) return GenreType::EDM_DROP;
-    if (energy > 0.4f) return GenreType::RETROWAVE;
+    // Default: pick based on energy (using clamped safe energy)
+    if (safeEnergy > 0.7f) return GenreType::EDM_DROP;
+    if (safeEnergy > 0.4f) return GenreType::RETROWAVE;
     if (features.brightness < 0.4f) return GenreType::CINEMATIC;
     
     return GenreType::EDM_CHILL;

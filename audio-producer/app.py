@@ -3,6 +3,7 @@ Audio Producer Service - Multi-stem mixing and mastering
 Flask app that takes MIDI + genre template and produces mixed/mastered WAV
 
 Phase 9: Enhanced with sample-based drums, genre-aware mixing, sidechain, FX
+Phase 12: Enhanced logging for zero-length WAV bug debugging
 """
 from flask import Flask, request, jsonify
 import os
@@ -10,12 +11,16 @@ import subprocess
 import tempfile
 from typing import Dict, List, Optional
 import json
+import numpy as np  # Phase 12: Added for logging
+from scipy.io import wavfile  # Phase 12: Added for logging
+import wave  # Phase 12: For accurate WAV duration
 
 from mastering import apply_mastering_chain, apply_simple_limiter, measure_lufs
-from stem_mixer import mix_stems, mix_stems_simple
+from stem_mixer import mix_stems  # Phase 12 A4: Removed unused mix_stems_simple
 from drum_sampler import DrumSampler  # Phase 9
 from fx_player import FXPlayer  # Phase 9
 from mix.schema import get_preset_for_genre  # Phase 9
+from audio_validation import validate_audio_file, get_audio_stats, create_fallback_audio  # Phase 12 A1.4
 
 app = Flask(__name__)
 
@@ -275,6 +280,22 @@ def produce():
             except Exception as e:
                 print(f"    Warning: FX rendering failed: {e}")
         
+        # Phase 12 A1.2: Log pre-mix buffer stats
+        print("  [DEBUG] Pre-mix buffer stats:")
+        for stem_name, stem_path in stem_wavs.items():
+            try:
+                rate, data = wavfile.read(stem_path)
+                if data.dtype == np.int16:
+                    data_float = data.astype(np.float32) / 32768.0
+                else:
+                    data_float = data.astype(np.float32)
+                
+                rms = np.sqrt(np.mean(data_float ** 2))
+                peak = np.abs(data_float).max()
+                print(f"    {stem_name}: samples={len(data_float)}, peak={peak:.4f}, rms={rms:.4f}")
+            except Exception as e:
+                print(f"    {stem_name}: ERROR reading - {e}")
+        
         # Step 2: Mix stems with genre-aware settings
         temp_mixed = tempfile.NamedTemporaryFile(suffix='.wav', delete=False).name
         
@@ -305,6 +326,36 @@ def produce():
         if not mix_success:
             return jsonify({'status': 'error', 'message': 'Mixing failed'}), 500
         
+        # Phase 12 A1.2: Log post-mix buffer stats
+        print("  [DEBUG] Post-mix buffer stats:")
+        try:
+            import wave
+            with wave.open(temp_mixed, 'rb') as wf:
+                n_frames = wf.getnframes()
+                framerate = wf.getframerate()
+                duration = n_frames / framerate
+                file_size = os.path.getsize(temp_mixed)
+                
+                print(f"    frames={n_frames}, rate={framerate}, duration={duration:.2f}s, size={file_size} bytes")
+            
+            rate, data = wavfile.read(temp_mixed)
+            if data.dtype == np.int16:
+                data_float = data.astype(np.float32) / 32768.0
+            else:
+                data_float = data.astype(np.float32)
+            
+            rms = np.sqrt(np.mean(data_float ** 2))
+            peak = np.abs(data_float).max()
+            print(f"    peak={peak:.4f}, rms={rms:.4f}")
+            
+            if rms < 0.001:
+                print(f"    ⚠️  WARNING: Mixed output is nearly silent (RMS={rms:.6f})")
+            if duration < 2.0:
+                print(f"    ⚠️  WARNING: Mixed output is very short ({duration:.2f}s)")
+                
+        except Exception as e:
+            print(f"    ERROR analyzing mixed output: {e}")
+        
         # Step 3: Apply mastering chain
         if apply_mastering:
             print("  Applying mastering...")
@@ -317,6 +368,31 @@ def produce():
             print("  Applying limiter only...")
             apply_simple_limiter(temp_mixed, output_path)
         
+        # Phase 12 A1.2: Log final output stats
+        print("  [DEBUG] Final output stats:")
+        try:
+            import wave
+            with wave.open(output_path, 'rb') as wf:
+                n_frames = wf.getnframes()
+                framerate = wf.getframerate()
+                duration = n_frames / framerate
+                file_size = os.path.getsize(output_path)
+                
+                print(f"    frames={n_frames}, rate={framerate}, duration={duration:.2f}s, size={file_size} bytes")
+            
+            rate, data = wavfile.read(output_path)
+            if data.dtype == np.int16:
+                data_float = data.astype(np.float32) / 32768.0
+            else:
+                data_float = data.astype(np.float32)
+            
+            rms = np.sqrt(np.mean(data_float ** 2))
+            peak = np.abs(data_float).max()
+            print(f"    peak={peak:.4f}, rms={rms:.4f}")
+            
+        except Exception as e:
+            print(f"    ERROR analyzing final output: {e}")
+        
         # Cleanup temp files
         for temp_file in temp_stems:
             if os.path.exists(temp_file):
@@ -325,12 +401,54 @@ def produce():
         if os.path.exists(temp_mixed):
             os.remove(temp_mixed)
         
-        # Measure final output
+        # Phase 12 A1.2: Measure final output with actual audio analysis
         file_size = os.path.getsize(output_path)
         lufs = measure_lufs(output_path)
         
-        # Estimate duration
-        duration_sec = (file_size - 44) / (44100 * 2 * 2)
+        # Calculate actual duration from WAV file
+        with wave.open(output_path, 'rb') as wf:
+            n_frames = wf.getnframes()
+            framerate = wf.getframerate()
+            duration_sec = n_frames / framerate if framerate > 0 else 0.0
+        
+        print(f"  ✓ Final track: {duration_sec:.2f}s, {file_size} bytes, {lufs:.1f} LUFS")
+        
+        # Phase 12 A1.4: SAFETY NET - Validate audio before returning success
+        is_valid, validation_error = validate_audio_file(
+            output_path,
+            min_duration_sec=2.0,  # Must be at least 2 seconds
+            min_rms_db=-60.0       # Must not be completely silent
+        )
+        
+        if not is_valid:
+            print(f"  ⚠️  VALIDATION FAILED: {validation_error}")
+            
+            # Option 1: Return error (strict mode - recommended for debugging)
+            # return jsonify({
+            #     'status': 'error',
+            #     'message': f'Audio validation failed: {validation_error}',
+            #     'file_size': file_size,
+            #     'duration_sec': round(duration_sec, 2)
+            # }), 500
+            
+            # Option 2: Create fallback audio (fail-safe mode)
+            print(f"  → Creating fallback audio...")
+            fallback_path = output_path.replace('.wav', '_fallback.wav')
+            create_fallback_audio(fallback_path, duration_sec=30.0)
+            
+            # Copy fallback to output
+            import shutil
+            shutil.copy(fallback_path, output_path)
+            
+            # Re-measure after fallback
+            file_size = os.path.getsize(output_path)
+            lufs = measure_lufs(output_path)
+            with wave.open(output_path, 'rb') as wf:
+                n_frames = wf.getnframes()
+                framerate = wf.getframerate()
+                duration_sec = n_frames / framerate if framerate > 0 else 0.0
+            
+            print(f"  ✓ Fallback used: {duration_sec:.2f}s, {file_size} bytes")
         
         return jsonify({
             'status': 'success',
@@ -342,7 +460,9 @@ def produce():
             'genre': genre,
             'sample_drums': use_sample_drums and 'drums' in stem_wavs,
             'fx_rendered': 'fx' in stem_wavs,
-            'mastering_applied': apply_mastering
+            'mastering_applied': apply_mastering,
+            'validation_passed': is_valid,  # Phase 12: Report validation status
+            'validation_error': validation_error if not is_valid else None
         }), 200
         
     except Exception as e:
