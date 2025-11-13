@@ -1,17 +1,15 @@
 import "dotenv/config";
 import express from "express";
 import { ApolloServer } from "apollo-server-express";
-import { graphqlUploadExpress } from "graphql-upload-minimal";  // ← Changed this line
+import { graphqlUploadExpress } from "graphql-upload-minimal";
 import { typeDefs } from "./schema";
 import { resolvers } from "./resolvers";
 import { initDb } from "./db";
-import { ensureStorageDirs } from "./services/storage";
 
 const PORT = process.env.PORT || 4000;
 
 async function start() {
   await initDb();
-  ensureStorageDirs();
 
   const app = express();
 
@@ -26,8 +24,28 @@ async function start() {
   await server.start();
   server.applyMiddleware({ app, path: "/graphql" });
 
-  app.get("/health", (_req, res) => {
-    res.json({ status: "ok" });
+  app.get("/health", async (_req, res) => {
+    try {
+      // Check database connectivity
+      const { getGenerationById } = await import("./db");
+      await getGenerationById("health-check"); // Will return null but verifies DB connection
+
+      res.json({
+        status: "ok",
+        timestamp: new Date().toISOString(),
+        services: {
+          database: "connected",
+          graphql: "running"
+        }
+      });
+    } catch (error: any) {
+      res.status(503).json({
+        status: "error",
+        message: "Database connection failed",
+        error: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
   });
 
   app.listen(PORT, () => {

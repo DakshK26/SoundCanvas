@@ -1,42 +1,8 @@
-import path from "path";
-import fs from "fs";
 import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-const DATA_ROOT = process.env.SC_DATA_ROOT || "/data";
-const IMAGE_DIR = path.join(DATA_ROOT, "images");
-const AUDIO_DIR = path.join(DATA_ROOT, "audio");
-
 // ============================================================================
-// Phase 5: Legacy Local Storage Functions (Backward Compatible)
-// ============================================================================
-
-export function ensureStorageDirs() {
-  [IMAGE_DIR, AUDIO_DIR].forEach((dir) => {
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-  });
-}
-
-export function getImagePath(filename: string): string {
-  return path.join(IMAGE_DIR, filename);
-}
-
-export function getAudioPath(filename: string): string {
-  return path.join(AUDIO_DIR, filename);
-}
-
-export function relativeImagePathForDb(absPath: string): string {
-  return absPath;
-}
-
-export function relativeAudioPathForDb(absPath: string): string {
-  return absPath;
-}
-
-// ============================================================================
-// Phase 10: S3 Storage Service
+// Phase 10+: S3 Storage Service
 // ============================================================================
 
 const AWS_REGION = process.env.AWS_REGION || 'us-east-2';

@@ -1,14 +1,8 @@
-import { dbGetHistory, getGenerationById, getUserGenerations } from "../db";
+import { getGenerationById, getUserGenerations } from "../db";
 import { StorageService } from "../services/storage";
 
 export const Query = {
-  // Phase 5: Legacy query
-  history: async (_: unknown, args: { limit?: number }) => {
-    const limit = args.limit ?? 20;
-    return dbGetHistory(limit);
-  },
-
-  // Phase 10: Get generation status
+  // Phase 10+: Get generation status
   generationStatus: async (
     _: unknown,
     args: { jobId: string },
@@ -47,7 +41,7 @@ export const Query = {
     };
   },
 
-  // Phase 10: Get user's generation history
+  // Phase 10+: Get user's generation history
   myGenerations: async (
     _: unknown,
     args: { limit?: number },

@@ -154,8 +154,42 @@ export async function updateGenerationStatus(
     error_message?: string;
     tempo_bpm?: number;
     scale_type?: string;
+    genre?: string; // Add genre update for when backend decides final genre
   }
 ): Promise<void> {
+  // First, get the current status to enforce state machine
+  const current = await getGenerationById(id);
+  if (!current) {
+    throw new Error(`Generation ${id} not found`);
+  }
+
+  // Define allowed state transitions
+  const allowedTransitions: Record<string, string[]> = {
+    PENDING: ['RUNNING', 'FAILED'],
+    RUNNING: ['COMPLETE', 'FAILED'],
+    COMPLETE: [], // Terminal state - no transitions allowed
+    FAILED: [], // Terminal state - no transitions allowed
+  };
+
+  const allowed = allowedTransitions[current.status] || [];
+  if (!allowed.includes(status)) {
+    console.error(
+      `❌ Invalid state transition for job ${id}: ${current.status} -> ${status}. Allowed: [${allowed.join(', ')}]`
+    );
+    throw new Error(
+      `Invalid state transition: ${current.status} -> ${status}. Job ${id} is in terminal state or transition not allowed.`
+    );
+  }
+
+  // Enforce invariants for COMPLETE status
+  if (status === 'COMPLETE') {
+    if (!updates?.audio_key) {
+      throw new Error(
+        `Cannot mark job ${id} as COMPLETE without audio_key. This indicates a pipeline bug.`
+      );
+    }
+  }
+
   const params: any[] = [status];
   let sql = 'UPDATE generations SET status = ?';
 
@@ -175,100 +209,15 @@ export async function updateGenerationStatus(
     sql += ', scale_type = ?';
     params.push(updates.scale_type);
   }
+  if (updates?.genre) {
+    sql += ', genre = ?';
+    params.push(updates.genre);
+  }
 
   sql += ' WHERE id = ?';
   params.push(id);
 
   await pool.query(sql, params);
-}
 
-// ============================================================================
-// Phase 5: Legacy SoundGeneration CRUD (backwards compatible)
-// ============================================================================
-
-export type DbSoundGeneration = {
-  id: number;
-  imagePath: string;
-  audioPath: string;
-  mode: "heuristic" | "model";
-  params: {
-    tempoBpm: number;
-    baseFrequency: number;
-    brightness: number;
-    volume: number;
-    durationSeconds: number;
-  };
-  createdAt: string;
-};
-
-export async function dbInsertSoundGeneration(input: {
-  imagePath: string;
-  audioPath: string;
-  mode: "heuristic" | "model";
-  params: {
-    tempoBpm: number;
-    baseFrequency: number;
-    brightness: number;
-    volume: number;
-    durationSeconds: number;
-  };
-}): Promise<DbSoundGeneration> {
-  const [result] = await pool.execute<mysql.ResultSetHeader>(
-    `
-    INSERT INTO sound_generations
-      (image_path, audio_path, mode, tempo_bpm, base_frequency, brightness, volume, duration_seconds)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-    [
-      input.imagePath,
-      input.audioPath,
-      input.mode,
-      input.params.tempoBpm,
-      input.params.baseFrequency,
-      input.params.brightness,
-      input.params.volume,
-      input.params.durationSeconds,
-    ]
-  );
-
-  const insertedId = result.insertId;
-
-  const [rows] = await pool.execute<any[]>(
-    `SELECT * FROM sound_generations WHERE id = ?`,
-    [insertedId]
-  );
-
-  const row = rows[0];
-  return mapRow(row);
-}
-
-export async function dbGetHistory(limit: number): Promise<DbSoundGeneration[]> {
-  const [rows] = await pool.execute<any[]>(
-    `
-    SELECT * FROM sound_generations
-    ORDER BY created_at DESC
-    LIMIT ?
-    `,
-    [limit]
-  );
-  return rows.map(mapRow);
-}
-
-function mapRow(row: any): DbSoundGeneration {
-  return {
-    id: row.id,
-    imagePath: row.image_path,
-    audioPath: row.audio_path,
-    mode: row.mode,
-    params: {
-      tempoBpm: row.tempo_bpm,
-      baseFrequency: row.base_frequency,
-      brightness: row.brightness,
-      volume: row.volume,
-      durationSeconds: row.duration_seconds,
-    },
-    createdAt: row.created_at.toISOString
-      ? row.created_at.toISOString()
-      : String(row.created_at),
-  };
+  console.log(`✓ State transition for job ${id}: ${current.status} -> ${status}`);
 }

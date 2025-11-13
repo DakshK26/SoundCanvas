@@ -6,6 +6,7 @@ import { S3Client, GetObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3
 import { Readable } from 'stream';
 import { getGenerationById, updateGenerationStatus } from '../db';
 import { StorageService } from './storage';
+import Logger, { LogEvent } from '../utils/logger';
 
 const CPP_CORE_URL = process.env.CPP_CORE_URL || 'http://localhost:8080';
 const AUDIO_PRODUCER_URL = process.env.AUDIO_PRODUCER_URL || 'http://localhost:5001';
@@ -30,8 +31,14 @@ export class OrchestratorService {
      * 4. Upload WAV to S3
      * 5. Update DB with final status
      */
-    async processGeneration(jobId: string): Promise<void> {
-        console.log(`[Orchestrator] Starting generation ${jobId}`);
+    async processGeneration(jobId: string, userId?: string): Promise<void> {
+        const uid = userId || 'default-user';
+
+        Logger.info('Starting generation pipeline', {
+            jobId,
+            userId: uid,
+            event: LogEvent.JOB_STARTED,
+        });
 
         const generation = await getGenerationById(jobId);
         if (!generation) {
@@ -45,38 +52,66 @@ export class OrchestratorService {
 
         try {
             // Step 1: Download image from S3
-            console.log(`[Orchestrator] Downloading image from S3: ${generation.image_key}`);
+            console.log(`[Orchestrator] [${jobId}] Downloading image from S3: ${generation.image_key}`);
             await this.downloadFromS3(generation.image_key, imagePath);
 
             // Step 2: Call cpp-core service
-            console.log(`[Orchestrator] Calling cpp-core service...`);
+            console.log(`[Orchestrator] [${jobId}] Calling cpp-core service...`);
             const cppResponse = await this.callCppCore(imagePath, generation.genre, generation.mode);
 
-            // Update tempo and scale in DB
+            // Update tempo, scale, and final genre in DB
+            const finalGenre = cppResponse.decidedGenre || generation.genre;
             await updateGenerationStatus(jobId, 'RUNNING', {
                 tempo_bpm: cppResponse.tempoBpm,
                 scale_type: cppResponse.scaleType,
+                genre: finalGenre !== 'auto' ? finalGenre : undefined, // Update genre if decided
             });
 
             // Step 3: Call audio-producer service
-            console.log(`[Orchestrator] Calling audio-producer service...`);
+            console.log(`[Orchestrator] [${jobId}] Calling audio-producer service...`);
             await this.callAudioProducer(cppResponse.midiPath || midiPath, audioPath);
 
-            // Step 4: Upload audio to S3
+            // Step 4: Verify audio file before uploading
+            const audioStats = await fs.promises.stat(audioPath);
+            if (audioStats.size === 0) {
+                throw new Error('Audio file is empty (0 bytes). Audio rendering failed.');
+            }
+            console.log(`[Orchestrator] [${jobId}] Audio file size: ${audioStats.size} bytes`);
+
+            // Step 5: Upload audio to S3
             const audioKey = `audio/${generation.user_id}/${jobId}/output.wav`;
-            console.log(`[Orchestrator] Uploading audio to S3: ${audioKey}`);
+            console.log(`[Orchestrator] [${jobId}] Uploading audio to S3: ${audioKey}`);
             await this.uploadToS3(audioPath, audioKey, 'audio/wav');
 
-            // Step 5: Mark as complete
+            // Step 6: Mark as complete
             await updateGenerationStatus(jobId, 'COMPLETE', {
                 audio_key: audioKey,
             });
 
-            console.log(`[Orchestrator] Generation ${jobId} completed successfully`);
+            console.log(`[Orchestrator] [${jobId}] Generation completed successfully`);
         } catch (error: any) {
-            console.error(`[Orchestrator] Generation ${jobId} failed:`, error);
+            console.error(`[Orchestrator] [${jobId}] Generation failed:`, error);
+
+            // Provide user-friendly error messages
+            let userMessage = 'An unexpected error occurred during generation.';
+
+            if (error.code === 'ECONNREFUSED') {
+                userMessage = 'Service temporarily unavailable. Please try again in a moment.';
+            } else if (error.code === 'ETIMEDOUT') {
+                userMessage = 'Generation timed out. The image might be too complex. Please try a different image.';
+            } else if (error.message.includes('Audio file is empty')) {
+                userMessage = 'Audio rendering failed. Please try again with a different image or genre.';
+            } else if (error.message.includes('S3')) {
+                userMessage = 'Failed to upload results. Please check your connection and try again.';
+            } else if (error.message.includes('state transition')) {
+                userMessage = 'Generation already in progress or completed. Please refresh the page.';
+            } else {
+                // Use the original error message if it's descriptive
+                userMessage = error.message || userMessage;
+            }
+
             await updateGenerationStatus(jobId, 'FAILED', {
-                error_message: error.message || 'Unknown error',
+                error_message: userMessage,
             });
             throw error;
         } finally {
@@ -139,6 +174,7 @@ export class OrchestratorService {
         midiPath?: string;
         tempoBpm: number;
         scaleType: string;
+        decidedGenre?: string; // Final genre decided by cpp-core/ML model
     }> {
         try {
             // Read image file and encode as base64
@@ -166,6 +202,7 @@ export class OrchestratorService {
                 midiPath: response.data.midi_path,
                 tempoBpm: response.data.tempo_bpm || 120,
                 scaleType: response.data.scale_type || 'minor',
+                decidedGenre: response.data.decided_genre || response.data.genre, // cpp-core's final genre choice
             };
         } catch (error: any) {
             console.error(`[Orchestrator] cpp-core call failed:`, error.message);

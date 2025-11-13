@@ -226,8 +226,8 @@ export default function Playground() {
                     <div
                         {...getRootProps()}
                         className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors ${isDragActive
-                                ? 'border-primary bg-primary/5'
-                                : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
+                            ? 'border-primary bg-primary/5'
+                            : 'border-gray-300 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-600'
                             }`}
                     >
                         <input {...getInputProps()} />
@@ -305,7 +305,9 @@ export default function Playground() {
                                 </p>
                                 {params && (
                                     <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                        {params.genre} • {params.tempoBpm} BPM
+                                        {/* Show final genre from backend, not the user's "auto" selection */}
+                                        {params.genre && params.genre !== 'auto' ? params.genre : 'Deciding genre...'}
+                                        {params.tempoBpm && ` • ${params.tempoBpm} BPM`}
                                         {params.scaleType && ` • ${params.scaleType}`}
                                     </p>
                                 )}

@@ -183,7 +183,10 @@ export default function History() {
                                             </TableCell>
                                             <TableCell>
                                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-                                                    {gen.genre}
+                                                    {/* Show final genre or 'Processing...' if still auto */}
+                                                    {gen.genre === 'auto' || gen.genre === 'AUTO'
+                                                        ? (gen.status === GenerationStatus.COMPLETE ? 'Unknown' : 'Auto')
+                                                        : gen.genre}
                                                 </span>
                                             </TableCell>
                                             <TableCell className="text-sm">
