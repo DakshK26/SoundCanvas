@@ -1,6 +1,5 @@
 1. Genre change doesnt work
 2. Get rid of hearustic mode 
-3. Finish setting up server deployment
+3. Combine server deployment with fixed backend branch
 4. Put in hardwired examples
 5. Fix image classification 
-6. 
