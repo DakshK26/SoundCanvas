@@ -33,6 +33,20 @@ config/env.local
 # Environment variables (contains API keys!)
 .env
 *.env
+gateway/.env
+gateway/.env.*
+!gateway/.env.example
+
+# AWS credentials (NEVER commit this!)
+aws_credentials.txt
+freesound.json
+
+# Terraform sensitive files (NEVER commit credentials!)
+infra/terraform/*.tfvars
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.backup
+infra/terraform/.terraform.lock.hcl
 
 # Kaggle credentials (NEVER commit this!)
 **/.kaggle/

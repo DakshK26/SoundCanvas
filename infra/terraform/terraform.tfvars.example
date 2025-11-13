@@ -1,0 +1,21 @@
+# Terraform Variables Template
+# Copy this file to terraform.tfvars and fill in your actual values
+# IMPORTANT: terraform.tfvars is gitignored - never commit credentials!
+
+aws_region  = "us-east-2"
+environment = "prod"
+app_name    = "soundcanvas"
+
+# Database password (SENSITIVE - set your actual password)
+db_password = "YOUR_SECURE_PASSWORD_HERE"
+
+# ECR Repository URIs (get from AWS Console > ECR)
+ecr_gateway_uri        = "YOUR_ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com/soundcanvas/gateway"
+ecr_cpp_core_uri       = "YOUR_ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com/soundcanvas/cpp-core"
+ecr_audio_producer_uri = "YOUR_ACCOUNT_ID.dkr.ecr.us-east-2.amazonaws.com/soundcanvas/audio-producer"
+
+# S3 Uploads Bucket (get from AWS Console > S3)
+s3_uploads_bucket = "your-uploads-bucket-name"
+
+# RDS Endpoint (get from AWS Console > RDS)
+rds_endpoint = "your-rds-endpoint.rds.amazonaws.com:3306"
