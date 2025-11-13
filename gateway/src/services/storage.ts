@@ -37,6 +37,11 @@ export class StorageService {
       Bucket: S3_BUCKET_NAME,
       Key: key,
       ContentType: 'image/jpeg',
+      CacheControl: 'max-age=31536000',
+      Metadata: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD',
+      },
     });
 
     // URL expires in 1 hour
@@ -73,6 +78,11 @@ export class StorageService {
       Bucket: S3_BUCKET_NAME,
       Key: key,
       ContentType: 'audio/wav',
+      CacheControl: 'max-age=31536000',
+      Metadata: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD',
+      },
     });
 
     return await getSignedUrl(s3Client, command, { expiresIn: 3600 });

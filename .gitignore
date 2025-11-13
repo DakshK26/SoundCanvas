@@ -27,8 +27,13 @@ cmake-build-*/
 
 # Env files
 .env
+*.env
+!.env.example
 config/*.env
 config/env.local
+infra/.env
+infra/*.env
+!infra/.env.example
 
 # Environment variables (contains API keys!)
 .env

@@ -7,10 +7,12 @@ RUN apt-get update && apt-get install -y \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-# Download FluidR3_GM soundfont
+# Download FluidR3_GM soundfont (use archive.org mirror or skip if unavailable)
 RUN mkdir -p /sf && \
     cd /sf && \
-    wget -q https://member.keymusician.com/Member/FluidR3_GM/FluidR3_GM.sf2
+    (wget -q https://member.keymusician.com/Member/FluidR3_GM/FluidR3_GM.sf2 || \
+     wget -q https://archive.org/download/fluidr3-gm-gs/FluidR3_GM.sf2 || \
+     echo "SoundFont download failed, will need manual installation")
 
 WORKDIR /app
 
