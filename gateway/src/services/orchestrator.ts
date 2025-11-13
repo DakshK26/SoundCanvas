@@ -140,25 +140,116 @@ export class OrchestratorService {
         tempoBpm: number;
         scaleType: string;
     }> {
-        // For now, return mock data since cpp-core HTTP interface may need updates
-        // TODO: Implement actual HTTP call to cpp-core
-        console.log(`[Orchestrator] cpp-core would process: ${imagePath}, genre=${genre}, mode=${mode}`);
+        try {
+            // Read image file and encode as base64
+            const imageBuffer = await fs.promises.readFile(imagePath);
+            const imageBase64 = imageBuffer.toString('base64');
 
-        return {
-            tempoBpm: 120,
-            scaleType: 'minor',
-        };
+            const response = await axios.post(
+                `${CPP_CORE_URL}/generate`,
+                {
+                    image_data: imageBase64,
+                    genre_override: genre !== 'auto' ? genre : undefined,
+                    mode: mode,
+                },
+                {
+                    timeout: 60000, // 60 second timeout
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+
+            console.log(`[Orchestrator] cpp-core response:`, response.data);
+
+            return {
+                midiPath: response.data.midi_path,
+                tempoBpm: response.data.tempo_bpm || 120,
+                scaleType: response.data.scale_type || 'minor',
+            };
+        } catch (error: any) {
+            console.error(`[Orchestrator] cpp-core call failed:`, error.message);
+
+            // Fallback to local MIDI generation if cpp-core is not available
+            if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+                console.warn('[Orchestrator] cpp-core unavailable, using fallback values');
+                return {
+                    tempoBpm: 120,
+                    scaleType: 'minor',
+                };
+            }
+
+            throw error;
+        }
     }
 
     /**
      * Call audio-producer service for WAV rendering
      */
     private async callAudioProducer(midiPath: string, outputPath: string): Promise<void> {
-        // For now, just create a placeholder file
-        // TODO: Implement actual HTTP call to audio-producer
-        console.log(`[Orchestrator] audio-producer would render: ${midiPath} -> ${outputPath}`);
+        try {
+            const response = await axios.post(
+                `${AUDIO_PRODUCER_URL}/render`,
+                {
+                    midi_path: midiPath,
+                    output_path: outputPath,
+                },
+                {
+                    timeout: 120000, // 120 second timeout for audio rendering
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
 
-        // Create empty WAV file as placeholder
-        await fs.promises.writeFile(outputPath, Buffer.alloc(44)); // WAV header
+            console.log(`[Orchestrator] audio-producer response:`, response.data);
+
+            // If audio-producer returns the file path, we're done
+            // Otherwise, we might need to download it from a temp location
+            if (response.data.audio_path && response.data.audio_path !== outputPath) {
+                // Copy from temp location to our output path
+                await fs.promises.copyFile(response.data.audio_path, outputPath);
+            }
+        } catch (error: any) {
+            console.error(`[Orchestrator] audio-producer call failed:`, error.message);
+
+            // Fallback: create a minimal WAV file if audio-producer is unavailable
+            if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
+                console.warn('[Orchestrator] audio-producer unavailable, creating placeholder WAV');
+                await this.createPlaceholderWav(outputPath);
+                return;
+            }
+
+            throw error;
+        }
+    }
+
+    /**
+     * Create a minimal valid WAV file as fallback
+     */
+    private async createPlaceholderWav(outputPath: string): Promise<void> {
+        // 44-byte WAV header for 1 second of silence
+        const header = Buffer.alloc(44);
+
+        // "RIFF" chunk
+        header.write('RIFF', 0);
+        header.writeUInt32LE(36, 4); // file size - 8
+        header.write('WAVE', 8);
+
+        // "fmt " subchunk
+        header.write('fmt ', 12);
+        header.writeUInt32LE(16, 16); // subchunk size
+        header.writeUInt16LE(1, 20); // audio format (PCM)
+        header.writeUInt16LE(2, 22); // num channels (stereo)
+        header.writeUInt32LE(44100, 24); // sample rate
+        header.writeUInt32LE(176400, 28); // byte rate
+        header.writeUInt16LE(4, 32); // block align
+        header.writeUInt16LE(16, 34); // bits per sample
+
+        // "data" subchunk
+        header.write('data', 36);
+        header.writeUInt32LE(0, 40); // data size
+
+        await fs.promises.writeFile(outputPath, header);
     }
 }
