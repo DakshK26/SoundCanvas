@@ -88,7 +88,6 @@ soundcanvas/
  │ AWS S3 (Images) │       │ AWS S3 (Audio) │         │ AWS RDS PostgreSQL   │
  └─────────────────┘       └─────────────────┘         │ Job & user metadata │
                                                        └─────────────────────┘
-```
       Orchestrator (Node.js ECS Task)
                │
                ▼
@@ -99,6 +98,7 @@ soundcanvas/
  │  • C++ Composition Engine     │
  │  • Python Audio Producer      │
  └───────────────────────────────┘
+```
 
  Logs & Metrics:
    • CloudWatch Logs for all ECS tasks
