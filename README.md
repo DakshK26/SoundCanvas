@@ -27,63 +27,82 @@ The system analyzes visual features, predicts musical parameters using TensorFlo
 # Monorepo Layout
 soundcanvas/
 │
-├── cpp-core/                 # C++17 composition engine
+├── cpp-core/                      # C++17 composition engine
 │   ├── include/
 │   ├── src/
 │   └── build/
 │
-├── ml/                       # TensorFlow model + serving
+├── ml/                            # TensorFlow model + serving
 │   ├── src/
 │   ├── data/
 │   └── models/exported_model_versioned/
 │
-├── audio-producer/           # Python DSP microservice
+├── audio-producer/                # Python DSP microservice
 │   ├── drum_sampler.py
 │   ├── fx_player.py
 │   ├── stem_mixer.py
 │   ├── mastering.py
 │   └── assets/
 │
-├── gateway/                  # GraphQL API (Node.js)
+├── gateway/                       # GraphQL API (Node.js / TypeScript)
 │   ├── schema.ts
 │   ├── resolvers/
 │   └── orchestrator.ts
 │
-├── frontend/                 # Next.js web UI
+├── frontend/                      # Next.js UI
 │   ├── components/
 │   └── pages/
 │
-├── infra/
+├── infra/                         # Docker & Terraform infrastructure
 │   ├── docker-compose.yml
 │   ├── terraform/
 │   └── ecr_push.sh
+│
+└── docs/                          # Architecture & phase documentation
 
 # AWS Deployment Architecture
 
-  Browser
-     │
-     ▼
-Next.js → GraphQL API → ECS (Node.js Orchestrator)
-     │                 │
-     │                 ├── ECS (C++ Service)
-     │                 ├── ECS (Audio Producer)
-     │                 └── ECS (TF Model Server)
-     │
-     ├── Pre-signed PUT → S3 (image upload)
-     └── Pre-signed GET ← S3 (audio download)
+                     ┌─────────────────────────────┐
+                     │         Client Browser       │
+                     └──────────────┬───────────────┘
+                                    │ HTTPS
+                                    ▼
+                     ┌─────────────────────────────┐
+                     │    Frontend (Next.js App)    │
+                     │  (e.g., served via S3/CF)    │
+                     └──────────────┬───────────────┘
+                                    │ GraphQL HTTPS
+                                    ▼
+                     ┌─────────────────────────────┐
+                     │  API Gateway (ECS Service)   │
+                     │ Apollo GraphQL + TypeScript  │
+                     └──────────────┬───────────────┘
+                                    │
+         ┌──────────────────────────┼───────────────────────────┐
+         │                          │                           │
+         │                    Pre-signed S3 URLs                │
+         │                          │                           │
+         ▼                          ▼                           ▼
+ ┌─────────────────┐       ┌─────────────────┐         ┌─────────────────────┐
+ │ AWS S3 (Images) │       │ AWS S3 (Audio) │         │ AWS RDS PostgreSQL   │
+ └─────────────────┘       └─────────────────┘         │ Job & user metadata │
+                                                       └─────────────────────┘
 
-PostgreSQL RDS ← GraphQL API (job status/history)
-CloudWatch logs for all services
-ALB → ECS tasks (public routing)
+      Orchestrator (Node.js ECS Task)
+               │
+               ▼
+ ┌───────────────────────────────┐
+ │   Backend ECS Services        │
+ │                               │
+ │  • TensorFlow Inference       │
+ │  • C++ Composition Engine     │
+ │  • Python Audio Producer      │
+ └───────────────────────────────┘
 
+ Logs & Metrics:
+   • CloudWatch Logs for all ECS tasks
+   • Application-level logging from C++, Node.js, and Python
 
-# Core Components
-
-## 1. **Machine Learning (TensorFlow)**
-- Model predicts 7-dimensional musical parameters from 8 image features  
-- Trained on a 3,000-image pseudo-labeled dataset  
-- Exported to TensorFlow Serving format  
-- Runs inside a Docker container on AWS ECS  
 
 **Inputs:**  
 `[avgR, avgG, avgB, brightness, hue, saturation, colorfulness, contrast]`  
