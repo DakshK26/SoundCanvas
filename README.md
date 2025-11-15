@@ -24,32 +24,33 @@ The system analyzes visual features, predicts musical parameters using TensorFlo
 
 ---
 
-# Monorepo Layout
+## Monorepo Layout
+
+```text
 soundcanvas/
-│
 ├── cpp-core/                      # C++17 composition engine
 │   ├── include/
 │   ├── src/
 │   └── build/
 │
-├── ml/                            # TensorFlow model + serving
+├── ml/                            # TensorFlow model + training/serving
 │   ├── src/
 │   ├── data/
 │   └── models/exported_model_versioned/
 │
-├── audio-producer/                # Python DSP microservice
+├── audio-producer/                # Python DSP / audio rendering microservice
 │   ├── drum_sampler.py
 │   ├── fx_player.py
 │   ├── stem_mixer.py
 │   ├── mastering.py
 │   └── assets/
 │
-├── gateway/                       # GraphQL API (Node.js / TypeScript)
+├── gateway/                       # GraphQL API + orchestration (Node.js / TS)
 │   ├── schema.ts
 │   ├── resolvers/
 │   └── orchestrator.ts
 │
-├── frontend/                      # Next.js UI
+├── frontend/                      # Next.js + Tailwind frontend
 │   ├── components/
 │   └── pages/
 │
@@ -58,10 +59,10 @@ soundcanvas/
 │   ├── terraform/
 │   └── ecr_push.sh
 │
-└── docs/                          # Architecture & phase documentation
-
+└── docs/                          # Phase reports & architecture docs
+```
 # AWS Deployment Architecture
-
+```
                      ┌─────────────────────────────┐
                      │         Client Browser       │
                      └──────────────┬───────────────┘
@@ -87,7 +88,7 @@ soundcanvas/
  │ AWS S3 (Images) │       │ AWS S3 (Audio) │         │ AWS RDS PostgreSQL   │
  └─────────────────┘       └─────────────────┘         │ Job & user metadata │
                                                        └─────────────────────┘
-
+```
       Orchestrator (Node.js ECS Task)
                │
                ▼
