@@ -8,17 +8,19 @@ RUN apt-get update && apt-get install -y \
     libsndfile1 \
     curl \
     wget \
+    unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Create directories
 RUN mkdir -p /app /sf /data/stems /data/midi /data/audio /data/patterns
 
-# Download FluidR3_GM soundfont (with fallback URLs)
-RUN (wget -q https://keymusician.com/FluidR3_GM.zip -O /tmp/FluidR3_GM.zip || \
-     wget -q https://member.keymusician.com/Member/FluidR3_GM/FluidR3_GM.sf2 -O /sf/FluidR3_GM.sf2) \
-    && if [ -f /tmp/FluidR3_GM.zip ]; then \
-         cd /tmp && unzip -q FluidR3_GM.zip && mv FluidR3_GM.sf2 /sf/ && rm FluidR3_GM.zip; \
-       fi || echo "SoundFont download failed, will need manual installation"
+# Download FluidR3_GM soundfont from alternative source
+RUN wget --no-check-certificate -O /tmp/FluidR3_GM.zip \
+    "https://member.keymusician.com/Member/FluidR3_GM/FluidR3_GM.zip" \
+    && cd /tmp \
+    && unzip -q FluidR3_GM.zip \
+    && mv FluidR3_GM.sf2 /sf/ \
+    && rm FluidR3_GM.zip
 
 WORKDIR /app
 
@@ -28,10 +30,16 @@ COPY requirements.txt .
 # Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy application files
-COPY *.py .
-COPY mix ./mix
-COPY assets ./assets
+# Copy all Python modules
+COPY app.py .
+COPY mastering.py .
+COPY stem_mixer.py .
+COPY drum_sampler.py .
+COPY fx_player.py .
+COPY audio_validation.py .
+COPY synth_drums.py .
+COPY mix/ ./mix/
+COPY assets/ ./assets/
 
 # Expose port
 EXPOSE 9001

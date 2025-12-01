@@ -35,24 +35,30 @@ infra/.env
 infra/*.env
 !infra/.env.example
 
-# Environment variables (contains API keys!)
+# Environment variables 
 .env
 *.env
 gateway/.env
 gateway/.env.*
 !gateway/.env.example
 
-# AWS credentials (NEVER commit this!)
+# AWS credentials
 aws_credentials.txt
 freesound.json
 
-# Terraform sensitive files (NEVER commit credentials!)
+# Terraform sensitive files
 infra/terraform/*.tfvars
 infra/terraform/.terraform/
 infra/terraform/*.tfstate
 infra/terraform/*.tfstate.backup
 infra/terraform/.terraform.lock.hcl
+infra/terraform/deploy.ps1
+infra/terraform/*.ps1
 
-# Kaggle credentials (NEVER commit this!)
+# Kaggle credentials
 **/.kaggle/
 kaggle.json
+.vercel
+
+# Personal notes and todos
+fix.txt

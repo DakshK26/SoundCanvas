@@ -27,10 +27,11 @@ WORKDIR /app
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     curl \
+    libstdc++6 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the newer libstdc++ from GCC 13 builder
-COPY --from=builder /usr/local/lib64/libstdc++.so.6 /usr/lib/aarch64-linux-gnu/
+COPY --from=builder /usr/local/lib64/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6
 
 # Copy binary from builder
 COPY --from=builder /build/build/soundcanvas_core .
