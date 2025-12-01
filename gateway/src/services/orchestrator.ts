@@ -45,6 +45,10 @@ export class OrchestratorService {
             throw new Error(`Generation ${jobId} not found`);
         }
 
+        if (process.env.SERVERLESS_MODE === 'true') {
+            return this.processGenerationServerless(jobId, generation);
+        }
+
         // Use shared volume instead of temp directory
         const dataRoot = process.env.SC_DATA_ROOT || '/data';
         const tempDir = path.join(dataRoot, 'temp', jobId);
@@ -274,4 +278,116 @@ export class OrchestratorService {
             throw new Error(`Failed to render audio: ${error.message}`);
         }
     }
+
+    // ============================================================================
+    // Serverless Adapters (Vercel Support)
+    // ============================================================================
+
+    private async processGenerationServerless(jobId: string, generation: any): Promise<void> {
+        console.log(`[Orchestrator] [${jobId}] Running in SERVERLESS MODE`);
+
+        try {
+            // 1. Get Image from S3 as Buffer
+            const imageBuffer = await this.downloadFromS3ToBuffer(generation.image_key);
+            const imageBase64 = imageBuffer.toString('base64');
+
+            // 2. Call Cpp Core (Mock/Adapter)
+            const cppResponse = await this.callCppCoreServerless(imageBase64, generation.genre, generation.mode);
+
+            // Update DB fields
+            await updateGenerationFields(jobId, {
+                tempo_bpm: cppResponse.tempoBpm,
+                scale_type: cppResponse.scaleType,
+                genre: cppResponse.decidedGenre || generation.genre
+            });
+
+            // 3. Call Audio Producer (Mock/Adapter)
+            const audioBase64 = await this.callAudioProducerServerless(cppResponse.midiBase64, generation.genre);
+
+            // 4. Upload to S3
+            const audioKey = `audio/${generation.user_id}/${jobId}/output.wav`;
+            const audioBuffer = Buffer.from(audioBase64, 'base64');
+
+            await this.uploadBufferToS3(audioBuffer, audioKey, 'audio/wav');
+
+            // 5. Complete
+            await updateGenerationStatus(jobId, 'COMPLETE', {
+                audio_key: audioKey,
+            });
+
+            console.log(`[Orchestrator] [${jobId}] Serverless generation completed successfully`);
+
+        } catch (error: any) {
+            console.error(`[Orchestrator] Serverless generation failed:`, error);
+            await updateGenerationStatus(jobId, 'FAILED', {
+                error_message: error.message,
+            });
+        }
+    }
+
+    private async downloadFromS3ToBuffer(key: string): Promise<Buffer> {
+        const command = new GetObjectCommand({
+            Bucket: S3_BUCKET_NAME,
+            Key: key,
+        });
+        const response = await s3Client.send(command);
+        if (!response.Body) throw new Error('No body in S3 response');
+
+        const stream = response.Body as Readable;
+        const chunks: Buffer[] = [];
+        return new Promise((resolve, reject) => {
+            stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+            stream.on('error', (err) => reject(err));
+            stream.on('end', () => resolve(Buffer.concat(chunks)));
+        });
+    }
+
+    private async uploadBufferToS3(buffer: Buffer, key: string, contentType: string): Promise<void> {
+        const command = new PutObjectCommand({
+            Bucket: S3_BUCKET_NAME,
+            Key: key,
+            Body: buffer,
+            ContentType: contentType,
+            CacheControl: 'max-age=31536000',
+            Metadata: {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Methods': 'GET, HEAD',
+            },
+        });
+        await s3Client.send(command);
+    }
+
+    private async callCppCoreServerless(imageBase64: string, genre: string, mode: string): Promise<any> {
+        const cppCoreUrl = process.env.CPP_SERVICE_URL || 'http://localhost:8080';
+        // Use /api/compose endpoint for serverless
+        const url = cppCoreUrl.includes('localhost') ? cppCoreUrl : `${cppCoreUrl}/generate`;
+        // Actually, vercel.json maps /core/generate -> api/compose.py
+        // But if CPP_SERVICE_URL is set to https://app.vercel.app/core, then /generate is correct.
+
+        const response = await axios.post(url, {
+            image_base64: imageBase64,
+            mode: mode,
+            genre: genre
+        });
+
+        return {
+            midiBase64: response.data.midi_base64,
+            tempoBpm: response.data.tempo_bpm || 120,
+            scaleType: response.data.scale_type || 'minor',
+            decidedGenre: response.data.decided_genre
+        };
+    }
+
+    private async callAudioProducerServerless(midiBase64: string, genre: string): Promise<string> {
+        const audioProducerUrl = AUDIO_PRODUCER_URL;
+        // Use /produce endpoint
+        const response = await axios.post(`${audioProducerUrl}/produce`, {
+            midi_base64: midiBase64,
+            genre: genre,
+            serverless: true
+        });
+
+        return response.data.audio_base64;
+    }
+
 }
