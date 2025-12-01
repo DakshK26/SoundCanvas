@@ -38,11 +38,11 @@ export default async function handler(req: any, res: any) {
 
   if (!dbInitialized) {
     try {
-        await initDb();
-        dbInitialized = true;
+      await initDb();
+      dbInitialized = true;
     } catch (e) {
-        console.error("DB Init failed", e);
-        // Continue, as some resolvers might not need DB or will fail gracefully
+      console.error("DB Init failed", e);
+      // Continue, as some resolvers might not need DB or will fail gracefully
     }
   }
 
