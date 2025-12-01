@@ -4,3 +4,4 @@
 4. Put in hardwired examples
 5. Fix image classification 
 6. Link vercel deployment to main domain
+7. Train the tensorflow model to classify images based on best genre
