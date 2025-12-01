@@ -43,17 +43,12 @@ FX_CONFIG_PATH = os.path.join(ASSETS_DIR, 'fx', 'fx_config.yaml')
 os.makedirs(STEMS_DIR, exist_ok=True)
 
 # Phase 9: Initialize drum sampler and FX player
-drum_sampler = None
+# Note: DrumSampler requires a kit_name at init, but we'll initialize per-request instead
+drum_sampler_enabled = True  # Flag to indicate drum sampling is available
 fx_player = None
 
-try:
-    drum_sampler = DrumSampler(
-        kits_dir=os.path.join(ASSETS_DIR, 'kits'),
-        samples_dir=os.path.join(ASSETS_DIR, 'samples')
-    )
-    print("✓ Drum sampler initialized")
-except Exception as e:
-    print(f"Warning: Drum sampler failed to initialize: {e}")
+# Don't initialize DrumSampler here - it needs a kit_name which varies by genre
+# We'll create instances in the produce() function as needed
 
 try:
     fx_player = FXPlayer(
@@ -208,7 +203,7 @@ def produce():
         temp_stems = []
         
         # Phase 9: Use sample-based drums if enabled
-        if use_sample_drums and drum_sampler and midi_path:
+        if use_sample_drums and drum_sampler_enabled and midi_path:
             print("  Rendering drums with samples...")
             
             drums_wav = os.path.join(STEMS_DIR, f"drums_{os.getpid()}.wav")
@@ -220,11 +215,14 @@ def produce():
                 'HOUSE': 'house',
                 'RNB': 'rnb_soft',
                 'EDM_DROP': 'house',  # Use house kit for EDM
-                'EDM_CHILL': 'rnb_soft'  # Softer drums for chill
+                'EDM_CHILL': 'rnb_soft',  # Softer drums for chill
+                'RetroWave': 'house'  # RetroWave uses house kit
             }.get(genre, 'house')
             
             try:
-                drum_sampler.render_midi(midi_path, drums_wav, kit_name=kit_name)
+                # Create a DrumSampler instance for this kit
+                drum_sampler = DrumSampler(kit_name=kit_name, assets_dir=ASSETS_DIR)
+                drum_sampler.render_midi(midi_path, drums_wav)
                 stem_wavs['drums'] = drums_wav
                 print(f"    ✓ Drums rendered with {kit_name} kit")
             except Exception as e:
@@ -299,17 +297,17 @@ def produce():
         # Step 2: Mix stems with genre-aware settings
         temp_mixed = tempfile.NamedTemporaryFile(suffix='.wav', delete=False).name
         
-        # Apply stem gains from mix preset
+        # Apply stem gains from mix preset instruments
         stem_gains = {}
-        if mix_preset:
-            for bus_name, bus_preset in mix_preset.buses.items():
-                stem_gains[bus_name] = bus_preset.gain
+        if mix_preset and mix_preset.instruments:
+            for instrument_name, instrument_preset in mix_preset.instruments.items():
+                stem_gains[instrument_name] = instrument_preset.gain_db
         
         # Apply sidechain with MIDI-based timing
         sidechain_amount = 0.5
         sidechain_targets = ['bass', 'lead', 'pad', 'arp']
         
-        if mix_preset and mix_preset.bus.sidechain_amount > 0:
+        if mix_preset and mix_preset.bus and mix_preset.bus.sidechain_amount > 0:
             sidechain_amount = mix_preset.bus.sidechain_amount
             print(f"  Sidechain amount: {sidechain_amount}")
         

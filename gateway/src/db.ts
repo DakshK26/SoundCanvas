@@ -221,3 +221,37 @@ export async function updateGenerationStatus(
 
   console.log(`✓ State transition for job ${id}: ${current.status} -> ${status}`);
 }
+
+/**
+ * Update generation fields without changing status
+ * Use this when you want to update tempo, genre, scale etc. while job is still RUNNING
+ */
+export async function updateGenerationFields(
+  id: string,
+  updates: {
+    tempo_bpm?: number;
+    scale_type?: string;
+    genre?: string;
+  }
+): Promise<void> {
+  const params: any[] = [];
+  let sql = 'UPDATE generations SET updated_at = CURRENT_TIMESTAMP';
+
+  if (updates.tempo_bpm !== undefined) {
+    sql += ', tempo_bpm = ?';
+    params.push(updates.tempo_bpm);
+  }
+  if (updates.scale_type !== undefined) {
+    sql += ', scale_type = ?';
+    params.push(updates.scale_type);
+  }
+  if (updates.genre !== undefined) {
+    sql += ', genre = ?';
+    params.push(updates.genre);
+  }
+
+  sql += ' WHERE id = ?';
+  params.push(id);
+
+  await pool.query(sql, params);
+}

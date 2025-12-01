@@ -1,5 +1,5 @@
 import { StorageService } from "../services/storage";
-import { insertGeneration, updateGenerationStatus } from "../db";
+import { insertGeneration, updateGenerationStatus, getGenerationById } from "../db";
 import { OrchestratorService } from "../services/orchestrator";
 import { v4 as uuidv4 } from "uuid";
 import Logger, { LogEvent } from "../utils/logger";
@@ -77,9 +77,14 @@ export const Mutation = {
         event: LogEvent.JOB_FAILED,
         metadata: { error: err.stack },
       });
-      await updateGenerationStatus(jobId, 'FAILED', {
-        error_message: err.message || 'Unknown error',
-      });
+
+      // Check if already marked as FAILED (orchestrator may have already done this)
+      const gen = await getGenerationById(jobId);
+      if (gen && gen.status !== 'FAILED') {
+        await updateGenerationStatus(jobId, 'FAILED', {
+          error_message: err.message || 'Unknown error',
+        });
+      }
     });
 
     return { success: true };
