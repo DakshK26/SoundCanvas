@@ -12,7 +12,7 @@ const server = new ApolloServer({
   typeDefs,
   resolvers,
   introspection: true,
-  context: ({ req }) => ({
+  context: ({ req }: { req: any }) => ({
     // Pass headers or auth tokens here
     headers: req.headers
   })
@@ -26,7 +26,7 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
+export default async function handler(req: any, res: any) {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
@@ -38,11 +38,11 @@ export default async function handler(req, res) {
 
   if (!dbInitialized) {
     try {
-        await initDb();
-        dbInitialized = true;
+      await initDb();
+      dbInitialized = true;
     } catch (e) {
-        console.error("DB Init failed", e);
-        // Continue, as some resolvers might not need DB or will fail gracefully
+      console.error("DB Init failed", e);
+      // Continue, as some resolvers might not need DB or will fail gracefully
     }
   }
 
