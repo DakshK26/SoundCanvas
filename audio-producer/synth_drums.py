@@ -249,9 +249,42 @@ class DrumSynthesizer:
         # Load MIDI
         midi = mido.MidiFile(midi_path)
         
-        # Calculate duration
-        total_time = midi.length
-        duration = total_time + 2  # Add 2s tail
+        # Get ticks per beat and find tempo
+        ticks_per_beat = midi.ticks_per_beat
+        tempo = 500000  # Default: 120 BPM (500000 microseconds per beat)
+        
+        # Find tempo from MIDI meta messages (usually in first track)
+        for track in midi.tracks:
+            for msg in track:
+                if msg.type == 'set_tempo':
+                    tempo = msg.tempo
+                    print(f"  Found tempo in MIDI: {tempo} microseconds/beat ({60000000/tempo:.1f} BPM)")
+                    break
+            if tempo != 500000:
+                break
+        
+        # Calculate seconds per tick
+        seconds_per_tick = tempo / 1000000.0 / ticks_per_beat
+        
+        # Calculate duration by finding the maximum tick across all tracks
+        max_tick = 0
+        for track in midi.tracks:
+            current_tick = 0
+            for msg in track:
+                current_tick += msg.time
+            if current_tick > max_tick:
+                max_tick = current_tick
+        
+        # Calculate duration from ticks
+        calculated_duration = max_tick * seconds_per_tick
+        midi_length = midi.length  # mido's built-in calculation
+        
+        # Use the larger of the two as a safety measure
+        duration = max(calculated_duration, midi_length, 10.0) + 2  # At least 10 seconds, plus 2s tail
+        
+        print(f"  MIDI duration: calculated={calculated_duration:.2f}s, mido.length={midi_length:.2f}s, using={duration:.2f}s")
+        print(f"  MIDI timing: {ticks_per_beat} ticks/beat, max_tick={max_tick}, sec/tick={seconds_per_tick:.6f}")
+        
         output = np.zeros(int(self.sr * duration), dtype=np.float32)
         
         # Genre-specific drum sounds with better variation
@@ -365,23 +398,9 @@ class DrumSynthesizer:
             hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=8500, decay=0.06)
             hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=8000, decay=0.18)
         
-        # Process MIDI events - convert ticks to seconds properly
-        # Get ticks per beat and calculate tempo
-        ticks_per_beat = midi.ticks_per_beat
-        tempo = 500000  # Default: 120 BPM (500000 microseconds per beat)
-        
-        # Find tempo from MIDI meta messages
-        for track in midi.tracks:
-            for msg in track:
-                if msg.type == 'set_tempo':
-                    tempo = msg.tempo
-                    break
-        
-        # Calculate seconds per tick
-        seconds_per_tick = tempo / 1000000.0 / ticks_per_beat
-        print(f"  MIDI timing: {ticks_per_beat} ticks/beat, tempo={tempo}, sec/tick={seconds_per_tick:.6f}")
-        
+        # Process MIDI events
         note_count = 0
+        max_time_sec = 0.0  # Track the latest note time
         
         for track in midi.tracks:
             current_tick = 0
@@ -393,7 +412,11 @@ class DrumSynthesizer:
                     note = msg.note
                     velocity = msg.velocity / 127.0
                     
-                    # Map MIDI notes to drum sounds
+                    # Track max time for debugging
+                    if current_time_sec > max_time_sec:
+                        max_time_sec = current_time_sec
+                    
+                    # Map MIDI notes to drum sounds (drums typically use notes 35-81)
                     if note in [35, 36]:  # Kick
                         drum_sound = kick_gen(velocity)
                     elif note in [38, 40]:  # Snare
@@ -419,6 +442,8 @@ class DrumSynthesizer:
                     if start_sample < len(output):
                         output[start_sample:end_sample] += drum_sound[:end_sample - start_sample]
                         note_count += 1
+        
+        print(f"  Drum notes placed from 0s to {max_time_sec:.2f}s (buffer duration: {duration:.2f}s)")
         
         # Normalize and save
         if np.max(np.abs(output)) > 0:
