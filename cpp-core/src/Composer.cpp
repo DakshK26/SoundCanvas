@@ -488,66 +488,188 @@ void generateDrumsBar(MidiWriter& midi, int trackIdx, int startTick,
 void generateBassBar(MidiWriter& midi, int trackIdx, int startTick,
                      int ticksPerBar, int rootNote, int chordDegree,
                      const std::vector<int>& scale, int channel, float energy,
-                     float complexity) {
+                     float complexity, Genre genre = Genre::EDM_CHILL) {
   int ticksPerBeat = ticksPerBar / 4;
+  int ticksPer16th = ticksPerBeat / 4;
+  int eighthNote = ticksPerBeat / 2;
   int baseVelocity = 70 + static_cast<int>(energy * 25);
 
-  // Bass plays root of current chord, octave down
+  // Bass notes
   int bassNote = rootNote - 12 + scale[chordDegree % scale.size()];
   int fifthNote = rootNote - 12 + scale[(chordDegree + 4) % scale.size()];
+  int thirdNote = rootNote - 12 + scale[(chordDegree + 2) % scale.size()];
   int octaveUp = bassNote + 12;
+  int subBass = bassNote - 12;  // For 808-style sub bass
 
-  if (energy < 0.3f) {
-    // Low energy: simple whole notes or half notes
-    midi.addNoteOn(trackIdx, startTick, channel, bassNote, baseVelocity);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, bassNote);
-  } else if (energy < 0.6f) {
-    // Medium energy: root on 1 and 3 with octave variation
-    midi.addNoteOn(trackIdx, startTick, channel, bassNote, baseVelocity);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 - 10, channel,
-                    bassNote);
-
-    // Octave jump on beat 3
-    int note2 = (complexity > 0.4f) ? octaveUp : bassNote;
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, note2,
-                   baseVelocity - 5);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, note2);
+  // Genre-specific bass patterns
+  if (genre == Genre::RAP) {
+    // 808-style bass: Long sustained notes with glides, emphasizing root
+    // Trap bass is sparse but powerful with occasional slides
+    
+    if (energy > 0.7f) {
+      // High energy: 808 pattern with hits on 1 and syncopated hits
+      // Main 808 hit on beat 1 - long sustain
+      midi.addNoteOn(trackIdx, startTick, channel, subBass, baseVelocity + 15);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 - 10, channel, subBass);
+      
+      // Syncopated hit before beat 3 (trap characteristic)
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2 + ticksPer16th * 2, 
+                     channel, subBass, baseVelocity + 10);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, subBass);
+    } else if (energy > 0.4f) {
+      // Medium energy: Simple 808 on beat 1, sustained
+      midi.addNoteOn(trackIdx, startTick, channel, subBass, baseVelocity + 10);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 3 - 10, channel, subBass);
+      
+      // Short stab before next bar
+      if (randomFloat() > 0.5f) {
+        midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3 + eighthNote, 
+                       channel, octaveUp, baseVelocity - 5);
+        midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, octaveUp);
+      }
+    } else {
+      // Low energy: Sparse 808, mostly sustain
+      midi.addNoteOn(trackIdx, startTick, channel, subBass, baseVelocity);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, subBass);
+    }
+    
+  } else if (genre == Genre::RNB) {
+    // R&B bass: Smooth, melodic, often plays fills and chromatic runs
+    // Typically uses more notes and smoother transitions
+    
+    if (energy > 0.6f) {
+      // Melodic R&B bass line with chromatic approach notes
+      midi.addNoteOn(trackIdx, startTick, channel, bassNote, baseVelocity);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat - 5, channel, bassNote);
+      
+      // Chromatic approach to third
+      int approach = thirdNote - 1;  // Half step below target
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat + eighthNote, channel, 
+                     approach, baseVelocity - 15);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 - 5, channel, approach);
+      
+      // Third
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, thirdNote, 
+                     baseVelocity - 5);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 3 - 5, channel, thirdNote);
+      
+      // Walk back to root with fill
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3, channel, fifthNote, 
+                     baseVelocity - 10);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 3 + eighthNote - 5, 
+                      channel, fifthNote);
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3 + eighthNote, channel, 
+                     thirdNote, baseVelocity - 12);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBar - 5, channel, thirdNote);
+      
+    } else {
+      // Smooth sustained bass with occasional octave jumps
+      midi.addNoteOn(trackIdx, startTick, channel, bassNote, baseVelocity - 5);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 + eighthNote - 5, 
+                      channel, bassNote);
+      
+      // Smooth transition to fifth or octave
+      int targetNote = (randomFloat() > 0.5f) ? fifthNote : octaveUp;
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3, channel, targetNote, 
+                     baseVelocity - 10);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBar - 5, channel, targetNote);
+    }
+    
+  } else if (genre == Genre::HOUSE) {
+    // House bass: Pumping, syncopated, often offbeat patterns
+    // Classic house uses octave jumps and driving 8th note patterns
+    
+    if (energy > 0.7f) {
+      // Driving house bass - offbeat emphasis
+      // Beat 1: root (on beat)
+      midi.addNoteOn(trackIdx, startTick, channel, bassNote, baseVelocity);
+      midi.addNoteOff(trackIdx, startTick + eighthNote - 5, channel, bassNote);
+      
+      // Beat 1.5: octave up (offbeat - characteristic house pump)
+      midi.addNoteOn(trackIdx, startTick + eighthNote, channel, octaveUp, 
+                     baseVelocity + 5);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat - 5, channel, octaveUp);
+      
+      // Beat 2: rest (creates space for kick)
+      
+      // Beat 2.5: root (offbeat)
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat + eighthNote, channel, 
+                     bassNote, baseVelocity - 5);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 - 5, channel, bassNote);
+      
+      // Beat 3: root
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, bassNote, 
+                     baseVelocity);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 + eighthNote - 5, 
+                      channel, bassNote);
+      
+      // Beat 3.5: fifth (offbeat)
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2 + eighthNote, channel, 
+                     fifthNote, baseVelocity - 5);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 3 - 5, channel, fifthNote);
+      
+      // Beat 4.5: octave up (offbeat lead-in to next bar)
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3 + eighthNote, channel, 
+                     octaveUp, baseVelocity);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBar - 5, channel, octaveUp);
+      
+    } else {
+      // Simpler house pattern - root and octave
+      midi.addNoteOn(trackIdx, startTick, channel, bassNote, baseVelocity);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat - 5, channel, bassNote);
+      
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, octaveUp, 
+                     baseVelocity - 5);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 3 - 5, channel, octaveUp);
+      
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3 + eighthNote, channel, 
+                     bassNote, baseVelocity - 10);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBar - 5, channel, bassNote);
+    }
+    
   } else {
-    // High energy: Walking bass with 8th notes (EDM-style)
-    // Pattern: root - fifth - octave - fifth (creates movement)
-    int eighthNote = ticksPerBeat / 2;
-    
-    // Beat 1: root
-    midi.addNoteOn(trackIdx, startTick, channel, bassNote, baseVelocity);
-    midi.addNoteOff(trackIdx, startTick + eighthNote - 5, channel, bassNote);
-    
-    // Beat 1.5: fifth
-    midi.addNoteOn(trackIdx, startTick + eighthNote, channel, fifthNote,
-                   baseVelocity - 10);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBeat - 5, channel, fifthNote);
-    
-    // Beat 2: root (accented)
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat, channel, bassNote,
-                   baseVelocity - 5);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBeat + eighthNote - 5, channel,
-                    bassNote);
-    
-    // Beat 3: octave up (creates lift)
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, octaveUp,
-                   baseVelocity);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 + eighthNote - 5,
-                    channel, octaveUp);
-    
-    // Beat 3.5: fifth
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2 + eighthNote, channel,
-                   fifthNote, baseVelocity - 10);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 3 - 5, channel,
-                    fifthNote);
-    
-    // Beat 4: root (leads back to next bar)
-    midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3, channel, bassNote,
-                   baseVelocity - 5);
-    midi.addNoteOff(trackIdx, startTick + ticksPerBar - 5, channel, bassNote);
+    // Default EDM bass behavior (original code)
+    if (energy < 0.3f) {
+      // Low energy: simple whole notes or half notes
+      midi.addNoteOn(trackIdx, startTick, channel, bassNote, baseVelocity);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, bassNote);
+    } else if (energy < 0.6f) {
+      // Medium energy: root on 1 and 3 with octave variation
+      midi.addNoteOn(trackIdx, startTick, channel, bassNote, baseVelocity);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 - 10, channel, bassNote);
+
+      // Octave jump on beat 3
+      int note2 = (complexity > 0.4f) ? octaveUp : bassNote;
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, note2,
+                     baseVelocity - 5);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, note2);
+    } else {
+      // High energy: Walking bass with 8th notes
+      midi.addNoteOn(trackIdx, startTick, channel, bassNote, baseVelocity);
+      midi.addNoteOff(trackIdx, startTick + eighthNote - 5, channel, bassNote);
+      
+      midi.addNoteOn(trackIdx, startTick + eighthNote, channel, fifthNote,
+                     baseVelocity - 10);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat - 5, channel, fifthNote);
+      
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat, channel, bassNote,
+                     baseVelocity - 5);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat + eighthNote - 5, channel,
+                      bassNote);
+      
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, octaveUp,
+                     baseVelocity);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 + eighthNote - 5,
+                      channel, octaveUp);
+      
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2 + eighthNote, channel,
+                     fifthNote, baseVelocity - 10);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 3 - 5, channel, fifthNote);
+      
+      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3, channel, bassNote,
+                     baseVelocity - 5);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBar - 5, channel, bassNote);
+    }
   }
 }
 
@@ -589,8 +711,10 @@ std::vector<int> buildExtendedChord(int rootNote, int chordDegree,
 void generateChordBar(MidiWriter& midi, int trackIdx, int startTick,
                       int ticksPerBar, int rootNote, int chordDegree,
                       const std::vector<int>& scale, int channel, float energy,
-                      float complexity) {
+                      float complexity, Genre genre = Genre::EDM_CHILL) {
   int ticksPerBeat = ticksPerBar / 4;
+  int ticksPer16th = ticksPerBeat / 4;
+  int eighthNote = ticksPerBeat / 2;
   int baseVelocity = 60 + static_cast<int>(energy * 20);
 
   // Build triad: root, third, fifth
@@ -599,71 +723,215 @@ void generateChordBar(MidiWriter& midi, int trackIdx, int startTick,
   chordNotes.push_back(rootNote + scale[(chordDegree + 2) % scale.size()]);
   chordNotes.push_back(rootNote + scale[(chordDegree + 4) % scale.size()]);
   
-  // Add 7th for complexity
-  if (complexity > 0.6f) {
+  // Add 7th for complexity or genre-appropriate styles
+  if (complexity > 0.6f || genre == Genre::RNB) {
     chordNotes.push_back(rootNote + scale[(chordDegree + 6) % scale.size()]);
   }
+  
+  // R&B: Add 9th for lush sound
+  if (genre == Genre::RNB && complexity > 0.4f) {
+    chordNotes.push_back(rootNote + 12 + scale[(chordDegree + 1) % scale.size()]);
+  }
 
-  if (energy < 0.3f) {
-    // Intro/break: long sustained chords (2 bars worth of sustain)
-    for (int note : chordNotes) {
-      midi.addNoteOn(trackIdx, startTick, channel, note, baseVelocity - 10);
-      midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, note);
+  if (genre == Genre::RAP) {
+    // Trap/Hip-hop: Dark pads, often just sustained with filter sweeps implied
+    // Simple sustained chords, sometimes just root + fifth for darkness
+    std::vector<int> trapChord;
+    trapChord.push_back(rootNote + scale[chordDegree % scale.size()]);
+    trapChord.push_back(rootNote + scale[(chordDegree + 4) % scale.size()]);  // Fifth
+    if (energy > 0.5f) {
+      trapChord.push_back(rootNote + scale[(chordDegree + 6) % scale.size()]);  // Minor 7th for darkness
     }
-  } else if (energy < 0.7f) {
-    // Build: half-note chords (on beats 1 and 3)
-    for (int note : chordNotes) {
-      midi.addNoteOn(trackIdx, startTick, channel, note, baseVelocity);
-      midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 - 10, channel, note);
-
-      midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, note,
-                     baseVelocity - 5);
-      midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, note);
-    }
-  } else {
-    // Drop: rhythmic quarter-note stabs (EDM-style)
-    // Pattern: 1, 1.5, 2, 2.5, 3, 4 (syncopated)
-    int eighthNote = ticksPerBeat / 2;
-    int stabs[] = {0, eighthNote, ticksPerBeat, ticksPerBeat + eighthNote,
-                   ticksPerBeat * 2, ticksPerBeat * 3};
-    int stabbedVel = baseVelocity + 5;  // Accented for drop
     
-    for (int stab : stabs) {
+    // Sustained pad style
+    for (int note : trapChord) {
+      midi.addNoteOn(trackIdx, startTick, channel, note, baseVelocity - 5);
+      midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, note);
+    }
+    
+  } else if (genre == Genre::RNB) {
+    // R&B: Rich voicings, smooth rhythmic patterns, gospel-influenced
+    // Use all notes including extensions
+    
+    if (energy < 0.4f) {
+      // Smooth sustained chords
       for (int note : chordNotes) {
-        midi.addNoteOn(trackIdx, startTick + stab, channel, note, stabbedVel);
-        midi.addNoteOff(trackIdx, startTick + stab + eighthNote - 10, channel, note);
+        midi.addNoteOn(trackIdx, startTick, channel, note, baseVelocity - 10);
+        midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, note);
       }
-      stabbedVel -= 3;  // Slight velocity variation
+    } else {
+      // Rhythmic R&B pattern - syncopated but smooth
+      // Hit on 1, anticipation on 2.5, hit on 3
+      for (int note : chordNotes) {
+        // Beat 1 - full duration
+        midi.addNoteOn(trackIdx, startTick, channel, note, baseVelocity);
+        midi.addNoteOff(trackIdx, startTick + ticksPerBeat + eighthNote - 5, channel, note);
+      }
+      
+      // Anticipation before beat 3
+      for (int note : chordNotes) {
+        midi.addNoteOn(trackIdx, startTick + ticksPerBeat + eighthNote + ticksPer16th, 
+                       channel, note, baseVelocity - 8);
+        midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 - 5, channel, note);
+      }
+      
+      // Beat 3
+      for (int note : chordNotes) {
+        midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, note, 
+                       baseVelocity - 5);
+        midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, note);
+      }
+    }
+    
+  } else if (genre == Genre::HOUSE) {
+    // House: Piano stabs, offbeat patterns, classic house chords
+    // Often uses inversions and rhythmic patterns
+    
+    if (energy > 0.6f) {
+      // Classic house piano stab pattern - offbeat emphasis
+      // Stabs on: 1, &1, &2, 3, &4 (creates groove)
+      int stabPositions[] = {0, eighthNote, ticksPerBeat + eighthNote, 
+                             ticksPerBeat * 2, ticksPerBeat * 3 + eighthNote};
+      int velocities[] = {baseVelocity + 5, baseVelocity - 5, baseVelocity, 
+                          baseVelocity, baseVelocity - 3};
+      
+      for (int i = 0; i < 5; i++) {
+        for (int note : chordNotes) {
+          midi.addNoteOn(trackIdx, startTick + stabPositions[i], channel, note, 
+                         velocities[i]);
+          midi.addNoteOff(trackIdx, startTick + stabPositions[i] + ticksPer16th * 3 - 5, 
+                          channel, note);
+        }
+      }
+    } else {
+      // Simple house chord pattern
+      for (int note : chordNotes) {
+        midi.addNoteOn(trackIdx, startTick, channel, note, baseVelocity);
+        midi.addNoteOff(trackIdx, startTick + ticksPerBeat - 5, channel, note);
+      }
+      
+      for (int note : chordNotes) {
+        midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, note, 
+                       baseVelocity - 5);
+        midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 3 - 5, channel, note);
+      }
+    }
+    
+  } else {
+    // Default EDM behavior
+    if (energy < 0.3f) {
+      // Intro/break: long sustained chords
+      for (int note : chordNotes) {
+        midi.addNoteOn(trackIdx, startTick, channel, note, baseVelocity - 10);
+        midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, note);
+      }
+    } else if (energy < 0.7f) {
+      // Build: half-note chords (on beats 1 and 3)
+      for (int note : chordNotes) {
+        midi.addNoteOn(trackIdx, startTick, channel, note, baseVelocity);
+        midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 2 - 10, channel, note);
+
+        midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 2, channel, note,
+                       baseVelocity - 5);
+        midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, note);
+      }
+    } else {
+      // Drop: rhythmic quarter-note stabs (EDM-style)
+      int stabs[] = {0, eighthNote, ticksPerBeat, ticksPerBeat + eighthNote,
+                     ticksPerBeat * 2, ticksPerBeat * 3};
+      int stabbedVel = baseVelocity + 5;
+      
+      for (int stab : stabs) {
+        for (int note : chordNotes) {
+          midi.addNoteOn(trackIdx, startTick + stab, channel, note, stabbedVel);
+          midi.addNoteOff(trackIdx, startTick + stab + eighthNote - 10, channel, note);
+        }
+        stabbedVel -= 3;
+      }
     }
   }
 }
 
-// Phase 8: Motif-based lead/hook generator
+// Phase 8: Motif-based lead/hook generator - ENHANCED Phase 13
 void generateMelodyBar(MidiWriter& midi, int trackIdx, int startTick,
                        int ticksPerBar, int rootNote, int chordDegree,
                        const std::vector<int>& scale, int channel,
                        float moodScore, int& melodicState) {
   int ticksPerBeat = ticksPerBar / 4;
+  int ticksPer16th = ticksPerBeat / 4;
   int baseVelocity = 75 + static_cast<int>(moodScore * 20);
 
-  // Create a 4-note motif from scale degrees 0, 2, 4 (root, third, fifth)
-  // This creates a memorable, singable hook
+  // Phase 13: More varied and musical motif patterns
+  // Each motif type creates different emotional feel
   std::vector<int> motifDegrees;
+  std::vector<int> rhythmPattern;  // Note durations in 16th notes
   
-  if (moodScore > 0.6f) {
-    // Happy/bright: ascending motif (0-2-4-5 or similar)
-    motifDegrees = {0, 2, 4, 5, 4, 2};  // Up and back down
-  } else if (moodScore > 0.4f) {
-    // Neutral: stepwise with repetition
-    motifDegrees = {0, 2, 2, 4, 4, 2};  // Repetitive hook
+  // Use melodic state to cycle through different patterns for variety
+  int patternType = std::abs(melodicState) % 6;
+  
+  if (moodScore > 0.7f) {
+    // High energy: arpeggiated patterns
+    switch (patternType) {
+      case 0:
+        motifDegrees = {0, 2, 4, 7, 4, 2, 0, 2};  // Octave arpeggio
+        rhythmPattern = {2, 2, 2, 2, 2, 2, 2, 2};  // Straight 8ths
+        break;
+      case 1:
+        motifDegrees = {0, 4, 2, 5, 4, 2, 0, 4};  // Broken chord with color tone
+        rhythmPattern = {2, 2, 2, 2, 2, 2, 2, 2};
+        break;
+      case 2:
+        motifDegrees = {4, 2, 0, 2, 4, 5, 4, 2};  // Descending then ascending
+        rhythmPattern = {1, 1, 2, 2, 1, 1, 2, 2};  // Syncopated
+        break;
+      default:
+        motifDegrees = {0, 0, 2, 4, 4, 5, 4, 2};  // Repeated notes for hook
+        rhythmPattern = {2, 2, 2, 2, 2, 2, 2, 2};
+    }
+  } else if (moodScore > 0.5f) {
+    // Medium energy: melodic phrases
+    switch (patternType) {
+      case 0:
+        motifDegrees = {0, 2, 4, 2};  // Simple up-down
+        rhythmPattern = {4, 4, 4, 4};  // Quarter notes
+        break;
+      case 1:
+        motifDegrees = {4, 2, 0, 4, 2};  // Descending phrase
+        rhythmPattern = {3, 3, 4, 3, 3};  // Dotted rhythm
+        break;
+      case 2:
+        motifDegrees = {0, 0, 2, 4, 5, 4};  // Call with resolution
+        rhythmPattern = {2, 2, 4, 2, 2, 4};  // Short-short-long
+        break;
+      default:
+        motifDegrees = {2, 4, 5, 4, 2, 0};  // Arch shape
+        rhythmPattern = {2, 2, 4, 2, 2, 4};
+    }
+  } else if (moodScore > 0.3f) {
+    // Low-medium: sparse melodic hints
+    switch (patternType) {
+      case 0:
+        motifDegrees = {0, 4, 2};  // Wide intervals
+        rhythmPattern = {6, 6, 4};  // Long notes
+        break;
+      case 1:
+        motifDegrees = {4, 2, 0};  // Descending
+        rhythmPattern = {4, 4, 8};  // End on long note
+        break;
+      default:
+        motifDegrees = {0, 2, 4};  // Simple triad
+        rhythmPattern = {4, 4, 8};
+    }
   } else {
-    // Dark/moody: descending or sparse
-    motifDegrees = {4, 2, 0, 2};  // Descending
+    // Very low energy: minimal, ambient
+    motifDegrees = {0, 4};  // Just two notes
+    rhythmPattern = {8, 8};  // Half notes
   }
   
-  // Rhythm: use 8th notes for energetic feel, quarter notes for chill
-  bool use16ths = (moodScore > 0.7f);
-  int noteDuration = use16ths ? (ticksPerBeat / 4) : (ticksPerBeat / 2);
+  // Ensure rhythm pattern matches motif length
+  while (rhythmPattern.size() < motifDegrees.size()) {
+    rhythmPattern.push_back(4);
+  }
   
   int tick = startTick;
   for (size_t i = 0; i < motifDegrees.size() && tick < startTick + ticksPerBar; ++i) {
@@ -671,38 +939,44 @@ void generateMelodyBar(MidiWriter& midi, int trackIdx, int startTick,
     int degree = (chordDegree + motifDegrees[i]) % scale.size();
     int note = rootNote + 12 + scale[degree];  // Octave up from root
     
-    // Add slight transposition based on melodic state (creates variation)
+    // Octave variation based on melodic state
     if (melodicState > 3) {
-      note += 12;  // Jump up an octave for variation
+      note += 12;
+    } else if (melodicState > 1 && i % 2 == 1) {
+      note += 12;  // Alternate octaves
     } else if (melodicState < -2) {
-      note -= 12;  // Down for contrast
+      note -= 12;
     }
     
-    // Ensure note stays in reasonable range
-    note = std::max(60, std::min(84, note));
+    // Keep in playable range
+    while (note > 90) note -= 12;
+    while (note < 55) note += 12;
     
-    // Add rhythmic variation: some notes are accented or sustained
-    int duration = noteDuration;
+    // Duration from rhythm pattern
+    int duration = rhythmPattern[i] * ticksPer16th;
+    
+    // Velocity shaping: accent downbeats and phrase starts/ends
     int velocity = baseVelocity;
+    if (i == 0) velocity += 12;  // First note accented
+    else if (i == motifDegrees.size() - 1) velocity += 8;  // Last note slightly accented
+    else if (rhythmPattern[i] >= 4) velocity += 5;  // Long notes slightly louder
     
-    if (i == 0 || i == motifDegrees.size() - 1) {
-      // Accent first and last notes of motif
-      velocity += 10;
-      duration = noteDuration * 3 / 2;  // Slightly longer
-    }
+    // Humanization
+    velocity += randomInt(-6, 6);
+    velocity = std::clamp(velocity, 50, 115);
     
-    // Humanization: slight velocity variation
-    velocity += randomInt(-5, 5);
+    // Slight timing humanization (not on first beat)
+    int timingOffset = (i == 0) ? 0 : randomInt(-3, 3);
     
-    midi.addNoteOn(trackIdx, tick, channel, note, velocity);
-    midi.addNoteOff(trackIdx, tick + duration - 5, channel, note);
+    midi.addNoteOn(trackIdx, tick + timingOffset, channel, note, velocity);
+    midi.addNoteOff(trackIdx, tick + timingOffset + duration - 5, channel, note);
     
-    tick += noteDuration;
+    tick += duration;
   }
   
   // Update melodic state for variation across bars
   melodicState += randomInt(-1, 2);
-  melodicState = std::max(-3, std::min(4, melodicState));
+  melodicState = std::clamp(melodicState, -4, 5);
 }
 
 // Generate pad (sustained chords) for one bar
@@ -823,14 +1097,16 @@ void composeSongToMidi(const SongSpec& spec, const std::string& midiPath) {
             if (activity.bass) {
               generateBassBar(midi, trackIdx, currentTick, ticksPerBar,
                               spec.rootMidiNote, chordDegree, scale, channel,
-                              sectionEnergy, trackSpec.complexity);
+                              sectionEnergy, trackSpec.complexity,
+                              spec.genreProfile.genre);
             }
             break;
           case TrackRole::CHORDS:
             if (activity.chords) {
               generateChordBar(midi, trackIdx, currentTick, ticksPerBar,
                                spec.rootMidiNote, chordDegree, scale, channel,
-                               sectionEnergy, trackSpec.complexity);
+                               sectionEnergy, trackSpec.complexity,
+                               spec.genreProfile.genre);
             }
             break;
           case TrackRole::LEAD:

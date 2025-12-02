@@ -18,6 +18,7 @@ import wave  # Phase 12: For accurate WAV duration
 from mastering import apply_mastering_chain, apply_simple_limiter, measure_lufs
 from stem_mixer import mix_stems  # Phase 12 A4: Removed unused mix_stems_simple
 from drum_sampler import DrumSampler  # Phase 9
+from synth_drums import DrumSynthesizer  # Phase 13: Use synthesized drums for better quality
 from fx_player import FXPlayer  # Phase 9
 from mix.schema import get_preset_for_genre  # Phase 9
 from audio_validation import validate_audio_file, get_audio_stats, create_fallback_audio  # Phase 12 A1.4
@@ -202,35 +203,40 @@ def produce():
         stem_wavs = {}
         temp_stems = []
         
-        # Phase 9: Use sample-based drums if enabled
-        if use_sample_drums and drum_sampler_enabled and midi_path:
-            print("  Rendering drums with samples...")
+        # Phase 13: Use SYNTHESIZED drums for better quality (no samples needed!)
+        if use_sample_drums and midi_path:
+            print("  Rendering drums with synthesizer...")
             
             drums_wav = os.path.join(STEMS_DIR, f"drums_{os.getpid()}.wav")
             temp_stems.append(drums_wav)
             
-            # Get genre-specific drum kit
-            kit_name = {
-                'RAP': 'trap_808',
-                'HOUSE': 'house',
-                'RNB': 'rnb_soft',
-                'EDM_DROP': 'house',  # Use house kit for EDM
-                'EDM_CHILL': 'rnb_soft',  # Softer drums for chill
-                'RetroWave': 'house'  # RetroWave uses house kit
-            }.get(genre, 'house')
-            
             try:
-                # Create a DrumSampler instance for this kit
-                drum_sampler = DrumSampler(kit_name=kit_name, assets_dir=ASSETS_DIR)
-                drum_sampler.render_midi(midi_path, drums_wav)
+                # Use synthesized drums - much better quality than samples
+                drum_synth = DrumSynthesizer(samplerate=44100)
+                drum_synth.render_midi_to_drums(midi_path, drums_wav, genre=genre)
                 stem_wavs['drums'] = drums_wav
-                print(f"    ✓ Drums rendered with {kit_name} kit")
+                print(f"    ✓ Drums synthesized for {genre}")
             except Exception as e:
-                print(f"    Warning: Sample drum rendering failed: {e}")
-                # Fallback to FluidSynth
-                if render_midi_to_wav(midi_path, drums_wav):
+                print(f"    Warning: Synthesized drum rendering failed: {e}")
+                # Fallback to sample-based drums if available
+                try:
+                    kit_name = {
+                        'RAP': 'trap_808',
+                        'HOUSE': 'house',
+                        'RNB': 'rnb_soft',
+                        'EDM_DROP': 'house',
+                        'EDM_CHILL': 'rnb_soft',
+                    }.get(genre, 'house')
+                    drum_sampler = DrumSampler(kit_name=kit_name, assets_dir=ASSETS_DIR)
+                    drum_sampler.render_midi(midi_path, drums_wav)
                     stem_wavs['drums'] = drums_wav
-                    print("    ✓ Drums rendered with FluidSynth (fallback)")
+                    print(f"    ✓ Drums rendered with {kit_name} samples (fallback)")
+                except Exception as e2:
+                    print(f"    Warning: Sample drum rendering also failed: {e2}")
+                    # Final fallback to FluidSynth
+                    if render_midi_to_wav(midi_path, drums_wav):
+                        stem_wavs['drums'] = drums_wav
+                        print("    ✓ Drums rendered with FluidSynth (fallback)")
         
         # Render other stems (bass, lead, pad, etc.)
         if stems_midi:

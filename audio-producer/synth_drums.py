@@ -22,31 +22,38 @@ class DrumSynthesizer:
         
     def synthesize_808_kick(self, pitch: float = 50, decay: float = 0.5, punch: float = 0.7) -> np.ndarray:
         """
-        Classic 808 kick drum with pitch envelope
+        Classic 808 kick drum with pitch envelope - Enhanced for better sub bass
         
         Args:
             pitch: Starting pitch in Hz (typically 50-80)
             decay: Decay time in seconds
             punch: Transient punch amount (0-1)
         """
-        duration = max(decay * 2, 0.8)
+        duration = max(decay * 2.5, 1.0)  # Longer tail for sub
         t = np.linspace(0, duration, int(self.sr * duration))
         
-        # Pitch envelope: starts high, drops quickly to fundamental
-        pitch_env = pitch * (1 + 8 * np.exp(-t * 40))
+        # Pitch envelope: starts high, drops quickly to fundamental (trap style)
+        # More dramatic pitch drop for that "808 slide"
+        pitch_env = pitch * (1 + 12 * np.exp(-t * 35))
         
-        # Generate sine wave with pitch envelope
+        # Generate sine wave with pitch envelope (sub bass)
         phase = np.cumsum(2 * np.pi * pitch_env / self.sr)
         kick = np.sin(phase)
+        
+        # Add harmonic saturation for presence in smaller speakers
+        kick += 0.3 * np.tanh(np.sin(2 * phase) * 2)
         
         # Amplitude envelope with fast attack and exponential decay
         amp_env = np.exp(-t / decay)
         
-        # Add click/punch transient
-        click = np.exp(-t * 150) * np.random.randn(len(t)) * punch * 0.3
+        # Add click/punch transient with high-frequency content
+        click_env = np.exp(-t * 200)
+        click = click_env * (np.random.randn(len(t)) * 0.15 + np.sin(2 * np.pi * 4000 * t) * 0.3)
+        click = click * punch
         
-        # Combine and normalize
+        # Combine and apply soft clipping for warmth
         kick = kick * amp_env + click
+        kick = np.tanh(kick * 1.2)  # Soft saturation
         kick = kick / np.max(np.abs(kick)) * 0.95
         
         return kick.astype(np.float32)
@@ -80,30 +87,45 @@ class DrumSynthesizer:
     
     def synthesize_snare(self, tone: float = 200, decay: float = 0.15, noise_mix: float = 0.6) -> np.ndarray:
         """
-        Snare drum with tonal body and noise
+        Snare drum with tonal body and noise - Enhanced with layered transient
         """
-        duration = 0.25
+        duration = 0.35  # Longer for more body
         t = np.linspace(0, duration, int(self.sr * duration))
         
-        # Tonal component (shell resonance)
+        # Tonal component (shell resonance) - two body frequencies
         tone_body = np.sin(2 * np.pi * tone * t)
         tone_body += 0.5 * np.sin(2 * np.pi * tone * 1.5 * t)  # Inharmonic partial
+        tone_body += 0.25 * np.sin(2 * np.pi * tone * 0.5 * t)  # Sub body
+        
+        # Pitch envelope for impact
+        pitch_env = 1 + 2 * np.exp(-t * 80)
+        tone_pitched = np.sin(2 * np.pi * tone * t * pitch_env)
+        
+        tone_body = 0.7 * tone_body + 0.3 * tone_pitched
         tone_env = np.exp(-t / (decay * 0.8))
         tonal = tone_body * tone_env
         
-        # Noise component (snares)
+        # Noise component (snares) - layered high and mid
         noise = np.random.randn(len(t))
         
-        # High-pass filter for snare rattle
-        sos = signal.butter(4, 2000, 'high', fs=self.sr, output='sos')
-        noise = signal.sosfilt(sos, noise)
+        # High-pass filter for snare rattle (crispy top)
+        sos_hi = signal.butter(4, 3000, 'high', fs=self.sr, output='sos')
+        noise_hi = signal.sosfilt(sos_hi, noise)
         
+        # Band-pass for snare body (mid presence)
+        sos_mid = signal.butter(3, [500, 3000], 'band', fs=self.sr, output='sos')
+        noise_mid = signal.sosfilt(sos_mid, noise)
+        
+        noise_combined = 0.6 * noise_hi + 0.4 * noise_mid
         noise_env = np.exp(-t / decay)
-        noise = noise * noise_env
+        noise_out = noise_combined * noise_env
+        
+        # Transient crack
+        transient = np.exp(-t * 300) * np.random.randn(len(t)) * 0.4
         
         # Mix tonal and noise
-        snare = (1 - noise_mix) * tonal + noise_mix * noise
-        snare = np.tanh(snare * 2)
+        snare = (1 - noise_mix) * tonal + noise_mix * noise_out + transient
+        snare = np.tanh(snare * 2.5)  # Soft clipping for punch
         snare = snare / np.max(np.abs(snare)) * 0.85
         
         return snare.astype(np.float32)
@@ -142,34 +164,47 @@ class DrumSynthesizer:
     
     def synthesize_hihat(self, closed: bool = True, tone: float = 8000, decay: float = 0.08) -> np.ndarray:
         """
-        Metallic hihat using band-passed noise
+        Metallic hihat using band-passed noise with resonant peaks - Enhanced realism
         """
         if closed:
-            duration = 0.08
-            decay = min(decay, 0.1)
+            duration = 0.1
+            decay = min(decay, 0.08)
         else:
-            duration = 0.3
-            decay = max(decay, 0.15)
+            duration = 0.4
+            decay = max(decay, 0.2)
         
         t = np.linspace(0, duration, int(self.sr * duration))
         
         # Start with noise
         hat = np.random.randn(len(t))
         
-        # Multiple resonant peaks for metallic sound
-        freqs = [tone * r for r in [1.0, 1.42, 1.89, 2.45]]
+        # Multiple resonant peaks for metallic sound (cymbal frequencies)
+        # Real hihats have inharmonic partials at specific ratios
+        freqs = [tone * r for r in [1.0, 1.47, 1.89, 2.55, 3.24]]
         filtered = np.zeros_like(hat)
         
-        for freq in freqs:
-            sos = signal.butter(2, [freq * 0.9, freq * 1.1], 'band', fs=self.sr, output='sos')
-            filtered += signal.sosfilt(sos, hat)
+        for i, freq in enumerate(freqs):
+            if freq < self.sr / 2:  # Nyquist check
+                # Narrower Q for more defined ring
+                low = max(freq * 0.95, 100)
+                high = min(freq * 1.05, self.sr/2 - 100)
+                if high > low:
+                    sos = signal.butter(2, [low, high], 'band', fs=self.sr, output='sos')
+                    filtered += signal.sosfilt(sos, hat) * (0.8 ** i)  # Higher partials quieter
         
-        # Envelope
-        env = np.exp(-t / decay)
+        # Add high-frequency shimmer
+        sos_hi = signal.butter(2, 10000, 'high', fs=self.sr, output='sos')
+        shimmer = signal.sosfilt(sos_hi, hat) * 0.3
+        filtered += shimmer
+        
+        # Envelope with sharper attack
+        attack = np.minimum(t * 500, 1.0)  # 2ms attack
+        release = np.exp(-t / decay)
+        env = attack * release
         
         hat = filtered * env
-        hat = np.tanh(hat * 3)
-        hat = hat / np.max(np.abs(hat)) * 0.6
+        hat = np.tanh(hat * 4)  # Slight saturation
+        hat = hat / np.max(np.abs(hat)) * 0.55
         
         return hat.astype(np.float32)
     
@@ -219,19 +254,91 @@ class DrumSynthesizer:
         duration = total_time + 2  # Add 2s tail
         output = np.zeros(int(self.sr * duration), dtype=np.float32)
         
-        # Genre-specific drum sounds
-        if genre.lower() in ['rap', 'trap', 'hip-hop']:
-            kick_gen = lambda: self.synthesize_808_kick(pitch=55, decay=0.6, punch=0.8)
-            snare_gen = lambda: self.synthesize_snare(tone=180, decay=0.18, noise_mix=0.5)
-        elif genre.lower() in ['edm', 'house', 'edm_drop', 'edm_chill']:
-            kick_gen = lambda: self.synthesize_house_kick(pitch=65, decay=0.35)
-            snare_gen = lambda: self.synthesize_snare(tone=220, decay=0.15, noise_mix=0.7)
+        # Genre-specific drum sounds with better variation
+        genre_lower = genre.lower().replace('_', '')
+        
+        if genre_lower in ['rap', 'trap', 'hiphop']:
+            # Trap/Rap: Deep 808, punchy snare, fast hats
+            kick_gen = lambda v: self.synthesize_808_kick(
+                pitch=45 + v * 0.15,  # Velocity affects pitch slightly
+                decay=0.7 + v * 0.003,
+                punch=0.9
+            )
+            snare_gen = lambda v: self.synthesize_snare(
+                tone=170 + v * 0.3,
+                decay=0.2,
+                noise_mix=0.55
+            )
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=9000, decay=0.05)
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=8500, decay=0.25)
+            
+        elif genre_lower in ['rnb', 'rb']:
+            # R&B: Soft rounded kick, warm snare, gentle hats
+            kick_gen = lambda v: self.synthesize_house_kick(
+                pitch=55,
+                decay=0.3
+            )
+            snare_gen = lambda v: self.synthesize_snare(
+                tone=180,
+                decay=0.18,
+                noise_mix=0.4  # Less noise = warmer
+            )
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=7000, decay=0.06)
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=6500, decay=0.18)
+            
+        elif genre_lower in ['house']:
+            # House: Tight 4-on-floor kick, snappy snare
+            kick_gen = lambda v: self.synthesize_house_kick(
+                pitch=65,
+                decay=0.3
+            )
+            snare_gen = lambda v: self.synthesize_snare(
+                tone=230,
+                decay=0.12,
+                noise_mix=0.75  # More noise = tighter
+            )
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=10000, decay=0.04)
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=9000, decay=0.15)
+            
+        elif genre_lower in ['edmdrop', 'edm']:
+            # EDM Drop: Big punchy kick, aggressive snare
+            kick_gen = lambda v: self.synthesize_house_kick(
+                pitch=60,
+                decay=0.35
+            )
+            snare_gen = lambda v: self.synthesize_snare(
+                tone=210,
+                decay=0.15,
+                noise_mix=0.7
+            )
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=9500, decay=0.05)
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=8500, decay=0.2)
+            
+        elif genre_lower in ['edmchill', 'chill']:
+            # EDM Chill: Soft kick, muted snare, subtle hats
+            kick_gen = lambda v: self.synthesize_808_kick(
+                pitch=50,
+                decay=0.4,
+                punch=0.5
+            )
+            snare_gen = lambda v: self.synthesize_snare(
+                tone=190,
+                decay=0.2,
+                noise_mix=0.45
+            )
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=7500, decay=0.07)
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=7000, decay=0.2)
+            
         else:
-            kick_gen = lambda: self.synthesize_808_kick(pitch=60, decay=0.5, punch=0.6)
-            snare_gen = lambda: self.synthesize_snare(tone=200, decay=0.15, noise_mix=0.6)
+            # Default balanced EDM sound
+            kick_gen = lambda v: self.synthesize_808_kick(pitch=55, decay=0.5, punch=0.65)
+            snare_gen = lambda v: self.synthesize_snare(tone=200, decay=0.15, noise_mix=0.6)
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=8500, decay=0.06)
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=8000, decay=0.18)
         
         # Process MIDI events
         current_time = 0
+        note_count = 0
         
         for track in midi.tracks:
             current_time = 0
@@ -244,35 +351,39 @@ class DrumSynthesizer:
                     
                     # Map MIDI notes to drum sounds
                     if note in [35, 36]:  # Kick
-                        drum_sound = kick_gen()
+                        drum_sound = kick_gen(velocity)
                     elif note in [38, 40]:  # Snare
-                        drum_sound = snare_gen()
+                        drum_sound = snare_gen(velocity)
                     elif note == 39:  # Clap
                         drum_sound = self.synthesize_clap()
                     elif note in [42, 44]:  # Closed hihat
-                        drum_sound = self.synthesize_hihat(closed=True)
+                        drum_sound = hat_closed_gen(velocity)
                     elif note in [46, 49]:  # Open hihat
-                        drum_sound = self.synthesize_hihat(closed=False)
+                        drum_sound = hat_open_gen(velocity)
                     elif note in [41, 43, 45, 47, 48, 50]:  # Toms/percussion
-                        pitch = 200 + (note - 41) * 30
+                        pitch = 150 + (note - 41) * 40
                         drum_sound = self.synthesize_percussion(pitch=pitch, decay=0.15)
                     else:
                         continue
                     
                     # Apply velocity
-                    drum_sound = drum_sound * velocity
+                    drum_sound = drum_sound * (0.5 + 0.5 * velocity)  # Min 50% volume
                     
                     # Add to output
                     start_sample = int(current_time * self.sr)
                     end_sample = min(start_sample + len(drum_sound), len(output))
                     output[start_sample:end_sample] += drum_sound[:end_sample - start_sample]
+                    note_count += 1
         
         # Normalize and save
         if np.max(np.abs(output)) > 0:
-            output = output / np.max(np.abs(output)) * 0.95
+            # Soft limiting instead of hard normalization
+            output = np.tanh(output * 0.8) * 0.95
         
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         sf.write(output_path, output, self.sr)
+        
+        print(f"  Synthesized {note_count} drum hits for genre '{genre}'")
         
         return True
 
