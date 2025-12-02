@@ -522,7 +522,7 @@ void generateBassBar(MidiWriter& midi, int trackIdx, int startTick,
       midi.addNoteOff(trackIdx, startTick + ticksPerBeat * 3 - 10, channel, subBass);
       
       // Short stab before next bar
-      if (randomFloat() > 0.5f) {
+      if (randomFloat(0.0f, 1.0f) > 0.5f) {
         midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3 + eighthNote, 
                        channel, octaveUp, baseVelocity - 5);
         midi.addNoteOff(trackIdx, startTick + ticksPerBar - 10, channel, octaveUp);
@@ -569,7 +569,7 @@ void generateBassBar(MidiWriter& midi, int trackIdx, int startTick,
                       channel, bassNote);
       
       // Smooth transition to fifth or octave
-      int targetNote = (randomFloat() > 0.5f) ? fifthNote : octaveUp;
+      int targetNote = (randomFloat(0.0f, 1.0f) > 0.5f) ? fifthNote : octaveUp;
       midi.addNoteOn(trackIdx, startTick + ticksPerBeat * 3, channel, targetNote, 
                      baseVelocity - 10);
       midi.addNoteOff(trackIdx, startTick + ticksPerBar - 5, channel, targetNote);
