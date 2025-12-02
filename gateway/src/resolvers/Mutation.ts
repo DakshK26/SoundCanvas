@@ -1,7 +1,7 @@
+import { randomUUID } from "crypto";
 import { StorageService } from "../services/storage";
 import { insertGeneration, updateGenerationStatus, getGenerationById } from "../db";
 import { OrchestratorService } from "../services/orchestrator";
-import { v4 as uuidv4 } from "uuid";
 import Logger, { LogEvent } from "../utils/logger";
 
 export const Mutation = {
@@ -13,7 +13,7 @@ export const Mutation = {
     args: { input: { genreOverride?: string; mode?: string } },
     context: any
   ) => {
-    const jobId = uuidv4();
+    const jobId = randomUUID();
     const userId = context.user?.id || 'default-user';
     const genre = args.input.genreOverride || 'auto';
     const mode = args.input.mode || 'model';

@@ -23,11 +23,11 @@ primary_region = 'ord'
 
 [[services]]
   protocol = 'tcp'
-  internal_port = 9000
+  internal_port = 9002
   processes = ['app']
 
   [[services.ports]]
-    port = 9000
+    port = 9002
     handlers = ['http']
 
 [[vm]]

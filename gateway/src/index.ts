@@ -7,6 +7,7 @@ import { resolvers } from "./resolvers";
 import { initDb } from "./db";
 
 const PORT = process.env.PORT || 4000;
+const HOST = process.env.HOST || "0.0.0.0";
 
 async function start() {
   await initDb();
@@ -48,8 +49,8 @@ async function start() {
     }
   });
 
-  app.listen(PORT, () => {
-    console.log(`Gateway listening on http://localhost:${PORT}/graphql`);
+  app.listen(Number(PORT), HOST, () => {
+    console.log(`Gateway listening on http://${HOST}:${PORT}/graphql`);
   });
 }
 
