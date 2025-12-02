@@ -2,23 +2,49 @@
 Synthesized Drum Generator
 Creates high-quality drums using synthesis instead of samples
 Supports genre-specific drum sounds (808s, house kicks, acoustic drums)
+
+HUMANIZATION TECHNIQUES:
+- Velocity variation: Subtle random changes to each hit's velocity
+- Micro-timing: Small random timing offsets (±10-20ms) for human feel
+- Swing: Delayed offbeat notes for groove
+- Dynamic accenting: Downbeats louder, ghost notes present
+- Per-hit variation: Subtle pitch/timbre changes so hits aren't identical
 """
 
 import numpy as np
 from scipy import signal
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 import soundfile as sf
 from pathlib import Path
+import random
 
 
 class DrumSynthesizer:
     """
     Synthesizes drum sounds procedurally
     Much better quality than samples, with genre-specific tuning
+    Includes humanization for more realistic feel
     """
     
     def __init__(self, samplerate: int = 44100):
         self.sr = samplerate
+        # Humanization parameters
+        self.timing_jitter_ms = 8  # ±8ms timing variation
+        self.velocity_variation = 0.12  # ±12% velocity variation
+        self.pitch_variation = 0.02  # ±2% pitch variation per hit
+        self.swing_amount = 0.0  # Set per genre (0.0-0.5)
+        
+    def _apply_humanization(self, sound: np.ndarray, velocity: float = 1.0) -> np.ndarray:
+        """Apply subtle per-hit variations to prevent machine-gun effect"""
+        # Slight pitch variation (via resampling simulation - just amplitude envelope variation)
+        variation = 1.0 + random.uniform(-self.pitch_variation, self.pitch_variation)
+        
+        # Apply subtle amplitude modulation for timbral variation
+        t = np.linspace(0, 1, len(sound))
+        mod = 1.0 + 0.03 * np.sin(2 * np.pi * random.uniform(0.5, 2.0) * t + random.uniform(0, 2*np.pi))
+        sound = sound * mod
+        
+        return sound
         
     def synthesize_808_kick(self, pitch: float = 50, decay: float = 0.5, punch: float = 0.7) -> np.ndarray:
         """
@@ -287,120 +313,145 @@ class DrumSynthesizer:
         
         output = np.zeros(int(self.sr * duration), dtype=np.float32)
         
-        # Genre-specific drum sounds with better variation
+        # Genre-specific drum sounds with per-hit variation
         genre_lower = genre.lower().replace('_', '')
+        
+        # Helper to add subtle pitch variation per hit
+        def pitch_vary(base_pitch, amount=0.02):
+            return base_pitch * (1 + random.uniform(-amount, amount))
         
         if genre_lower in ['rap', 'trap', 'hiphop']:
             # Trap/Rap: Deep 808, punchy snare, fast hats
             kick_gen = lambda v: self.synthesize_808_kick(
-                pitch=45 + v * 0.15,  # Velocity affects pitch slightly
-                decay=0.7 + v * 0.003,
-                punch=0.9
+                pitch=pitch_vary(45 + v * 5),  # Velocity affects pitch
+                decay=0.7 + v * 0.1 + random.uniform(-0.05, 0.05),
+                punch=0.85 + random.uniform(-0.05, 0.1)
             )
             snare_gen = lambda v: self.synthesize_snare(
-                tone=170 + v * 0.3,
-                decay=0.2,
-                noise_mix=0.55
+                tone=pitch_vary(170 + v * 20),
+                decay=0.18 + random.uniform(-0.02, 0.02),
+                noise_mix=0.55 + random.uniform(-0.05, 0.05)
             )
-            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=9000, decay=0.05)
-            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=8500, decay=0.25)
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=pitch_vary(9000, 0.03), decay=0.05 + random.uniform(-0.01, 0.01))
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=pitch_vary(8500, 0.03), decay=0.25 + random.uniform(-0.02, 0.02))
             
         elif genre_lower in ['rnb', 'rb']:
             # R&B: Soft rounded kick, warm snare, gentle hats
             kick_gen = lambda v: self.synthesize_house_kick(
-                pitch=55,
-                decay=0.3
+                pitch=pitch_vary(55),
+                decay=0.3 + random.uniform(-0.02, 0.02)
             )
             snare_gen = lambda v: self.synthesize_snare(
-                tone=180,
-                decay=0.18,
-                noise_mix=0.4  # Less noise = warmer
+                tone=pitch_vary(180),
+                decay=0.18 + random.uniform(-0.02, 0.02),
+                noise_mix=0.4 + random.uniform(-0.05, 0.05)
             )
-            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=7000, decay=0.06)
-            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=6500, decay=0.18)
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=pitch_vary(7000, 0.03), decay=0.06 + random.uniform(-0.01, 0.01))
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=pitch_vary(6500, 0.03), decay=0.18 + random.uniform(-0.02, 0.02))
             
         elif genre_lower in ['house']:
             # House: Tight 4-on-floor kick, snappy snare
             kick_gen = lambda v: self.synthesize_house_kick(
-                pitch=65,
-                decay=0.3
+                pitch=pitch_vary(65),
+                decay=0.3 + random.uniform(-0.02, 0.02)
             )
             snare_gen = lambda v: self.synthesize_snare(
-                tone=230,
-                decay=0.12,
-                noise_mix=0.75  # More noise = tighter
+                tone=pitch_vary(230),
+                decay=0.12 + random.uniform(-0.01, 0.01),
+                noise_mix=0.75 + random.uniform(-0.05, 0.05)
             )
-            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=10000, decay=0.04)
-            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=9000, decay=0.15)
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=pitch_vary(10000, 0.03), decay=0.04 + random.uniform(-0.005, 0.005))
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=pitch_vary(9000, 0.03), decay=0.15 + random.uniform(-0.02, 0.02))
             
         elif genre_lower in ['edmdrop', 'edm']:
             # EDM Drop: Big punchy kick, aggressive snare
             kick_gen = lambda v: self.synthesize_house_kick(
-                pitch=60,
-                decay=0.35
+                pitch=pitch_vary(60),
+                decay=0.35 + random.uniform(-0.02, 0.02)
             )
             snare_gen = lambda v: self.synthesize_snare(
-                tone=210,
-                decay=0.15,
-                noise_mix=0.7
+                tone=pitch_vary(210),
+                decay=0.15 + random.uniform(-0.01, 0.01),
+                noise_mix=0.7 + random.uniform(-0.05, 0.05)
             )
-            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=9500, decay=0.05)
-            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=8500, decay=0.2)
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=pitch_vary(9500, 0.03), decay=0.05 + random.uniform(-0.005, 0.005))
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=pitch_vary(8500, 0.03), decay=0.2 + random.uniform(-0.02, 0.02))
             
         elif genre_lower in ['edmchill', 'chill']:
             # EDM Chill: Soft kick, muted snare, subtle hats
             kick_gen = lambda v: self.synthesize_808_kick(
-                pitch=50,
-                decay=0.4,
-                punch=0.5
+                pitch=pitch_vary(50),
+                decay=0.4 + random.uniform(-0.03, 0.03),
+                punch=0.5 + random.uniform(-0.05, 0.05)
             )
             snare_gen = lambda v: self.synthesize_snare(
-                tone=190,
-                decay=0.2,
-                noise_mix=0.45
+                tone=pitch_vary(190),
+                decay=0.2 + random.uniform(-0.02, 0.02),
+                noise_mix=0.45 + random.uniform(-0.05, 0.05)
             )
-            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=7500, decay=0.07)
-            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=7000, decay=0.2)
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=pitch_vary(7500, 0.03), decay=0.07 + random.uniform(-0.01, 0.01))
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=pitch_vary(7000, 0.03), decay=0.2 + random.uniform(-0.02, 0.02))
             
         elif genre_lower in ['cinematic', 'film', 'orchestral']:
             # Cinematic: Soft timpani-like kick, orchestral snare, subtle percussion
             kick_gen = lambda v: self.synthesize_808_kick(
-                pitch=40,  # Lower pitch for orchestral feel
-                decay=0.6,
-                punch=0.4  # Less punch, more body
+                pitch=pitch_vary(40),
+                decay=0.6 + random.uniform(-0.05, 0.05),
+                punch=0.4 + random.uniform(-0.05, 0.05)
             )
             snare_gen = lambda v: self.synthesize_snare(
-                tone=220,
-                decay=0.25,
-                noise_mix=0.5
+                tone=pitch_vary(220),
+                decay=0.25 + random.uniform(-0.02, 0.02),
+                noise_mix=0.5 + random.uniform(-0.05, 0.05)
             )
-            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=6000, decay=0.08)
-            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=5500, decay=0.25)
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=pitch_vary(6000, 0.03), decay=0.08 + random.uniform(-0.01, 0.01))
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=pitch_vary(5500, 0.03), decay=0.25 + random.uniform(-0.02, 0.02))
             
         elif genre_lower in ['retrowave', 'synthwave', '80s']:
             # Retrowave: Punchy gated snare, electronic kick, shimmering hats
             kick_gen = lambda v: self.synthesize_house_kick(
-                pitch=58,
-                decay=0.25
+                pitch=pitch_vary(58),
+                decay=0.25 + random.uniform(-0.02, 0.02)
             )
             snare_gen = lambda v: self.synthesize_snare(
-                tone=250,  # Higher pitch for 80s gated sound
-                decay=0.1,  # Short for gated effect
-                noise_mix=0.8
+                tone=pitch_vary(250),
+                decay=0.1 + random.uniform(-0.01, 0.01),
+                noise_mix=0.8 + random.uniform(-0.05, 0.05)
             )
-            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=11000, decay=0.04)
-            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=10000, decay=0.22)
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=pitch_vary(11000, 0.03), decay=0.04 + random.uniform(-0.005, 0.005))
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=pitch_vary(10000, 0.03), decay=0.22 + random.uniform(-0.02, 0.02))
             
         else:
-            # Default balanced EDM sound
-            kick_gen = lambda v: self.synthesize_808_kick(pitch=55, decay=0.5, punch=0.65)
-            snare_gen = lambda v: self.synthesize_snare(tone=200, decay=0.15, noise_mix=0.6)
-            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=8500, decay=0.06)
-            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=8000, decay=0.18)
+            # Default balanced EDM sound with humanization
+            kick_gen = lambda v: self.synthesize_808_kick(
+                pitch=pitch_vary(55),
+                decay=0.5 + random.uniform(-0.03, 0.03),
+                punch=0.65 + random.uniform(-0.05, 0.05)
+            )
+            snare_gen = lambda v: self.synthesize_snare(
+                tone=pitch_vary(200),
+                decay=0.15 + random.uniform(-0.01, 0.01),
+                noise_mix=0.6 + random.uniform(-0.05, 0.05)
+            )
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=pitch_vary(8500, 0.03), decay=0.06 + random.uniform(-0.01, 0.01))
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=pitch_vary(8000, 0.03), decay=0.18 + random.uniform(-0.02, 0.02))
+        
+        # Genre-specific swing settings
+        swing_amounts = {
+            'rap': 0.15, 'trap': 0.1, 'hiphop': 0.2,
+            'rnb': 0.25, 'rb': 0.25,  # R&B has more swing
+            'house': 0.05,  # Minimal swing for 4-on-floor
+            'edmdrop': 0.0, 'edm': 0.02,  # Very little swing
+            'edmchill': 0.08,
+            'cinematic': 0.0, 'film': 0.0,
+            'retrowave': 0.05, 'synthwave': 0.05,
+        }
+        self.swing_amount = swing_amounts.get(genre_lower, 0.05)
         
         # Process MIDI events
         note_count = 0
         max_time_sec = 0.0  # Track the latest note time
+        sixteenth_note_duration = (tempo / 1000000.0) / 4  # Duration of a 16th note in seconds
         
         for track in midi.tracks:
             current_tick = 0
@@ -411,6 +462,20 @@ class DrumSynthesizer:
                 if msg.type == 'note_on' and msg.velocity > 0:
                     note = msg.note
                     velocity = msg.velocity / 127.0
+                    
+                    # HUMANIZATION: Apply velocity variation (±12%)
+                    vel_variation = 1.0 + random.gauss(0, self.velocity_variation)
+                    velocity = max(0.1, min(1.0, velocity * vel_variation))
+                    
+                    # HUMANIZATION: Apply micro-timing jitter (±8ms)
+                    timing_offset_sec = random.gauss(0, self.timing_jitter_ms / 1000.0 / 2)
+                    
+                    # HUMANIZATION: Apply swing to offbeat notes (affects 2nd and 4th 16th notes)
+                    beat_position = (current_time_sec / sixteenth_note_duration) % 4
+                    if 0.8 < beat_position < 1.2 or 2.8 < beat_position < 3.2:  # Offbeat positions
+                        timing_offset_sec += self.swing_amount * sixteenth_note_duration
+                    
+                    humanized_time = max(0, current_time_sec + timing_offset_sec)
                     
                     # Track max time for debugging
                     if current_time_sec > max_time_sec:
@@ -433,13 +498,16 @@ class DrumSynthesizer:
                     else:
                         continue
                     
-                    # Apply velocity
-                    drum_sound = drum_sound * (0.5 + 0.5 * velocity)  # Min 50% volume
+                    # HUMANIZATION: Apply per-hit timbral variation
+                    drum_sound = self._apply_humanization(drum_sound, velocity)
                     
-                    # Add to output at correct time position
-                    start_sample = int(current_time_sec * self.sr)
+                    # Apply velocity (with minimum 40% for audibility)
+                    drum_sound = drum_sound * (0.4 + 0.6 * velocity)
+                    
+                    # Add to output at humanized time position
+                    start_sample = int(humanized_time * self.sr)
                     end_sample = min(start_sample + len(drum_sound), len(output))
-                    if start_sample < len(output):
+                    if start_sample < len(output) and start_sample >= 0:
                         output[start_sample:end_sample] += drum_sound[:end_sample - start_sample]
                         note_count += 1
         
