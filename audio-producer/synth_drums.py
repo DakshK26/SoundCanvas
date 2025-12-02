@@ -87,7 +87,13 @@ class DrumSynthesizer:
         # Combine
         kick = kick * amp_env + click
         kick = np.tanh(kick * 1.3)  # Soft saturation for warmth
-        kick = kick / np.max(np.abs(kick)) * 0.95
+        
+        # Fade-out to prevent clicks on rapid repeats (4-on-floor)
+        fadeout_samples = min(int(0.005 * self.sr), len(kick) // 4)
+        kick[-fadeout_samples:] *= np.linspace(1, 0, fadeout_samples)
+        
+        if np.max(np.abs(kick)) > 0:
+            kick = kick / np.max(np.abs(kick)) * 0.95
         
         return kick.astype(np.float32)
     
@@ -120,7 +126,13 @@ class DrumSynthesizer:
         
         kick = kick * amp_env + click
         kick = np.tanh(kick * 1.1)
-        kick = kick / np.max(np.abs(kick)) * 0.9
+        
+        # Fade-out to prevent end clicks
+        fadeout_samples = min(int(0.008 * self.sr), len(kick) // 4)
+        kick[-fadeout_samples:] *= np.linspace(1, 0, fadeout_samples)
+        
+        if np.max(np.abs(kick)) > 0:
+            kick = kick / np.max(np.abs(kick)) * 0.9
         
         return kick.astype(np.float32)
     
@@ -154,7 +166,13 @@ class DrumSynthesizer:
         
         kick = kick * amp_env + click
         kick = np.tanh(kick * 1.8)  # Heavy saturation
-        kick = kick / np.max(np.abs(kick)) * 0.98
+        
+        # Short fade-out (drop kicks are tight)
+        fadeout_samples = min(int(0.003 * self.sr), len(kick) // 4)
+        kick[-fadeout_samples:] *= np.linspace(1, 0, fadeout_samples)
+        
+        if np.max(np.abs(kick)) > 0:
+            kick = kick / np.max(np.abs(kick)) * 0.98
         
         return kick.astype(np.float32)
     
@@ -187,7 +205,13 @@ class DrumSynthesizer:
         
         kick = kick * amp_env + click
         kick = np.tanh(kick * 0.9)  # Minimal saturation
-        kick = kick / np.max(np.abs(kick)) * 0.85
+        
+        # Longer fade-out for cinematic tail
+        fadeout_samples = min(int(0.015 * self.sr), len(kick) // 4)
+        kick[-fadeout_samples:] *= np.linspace(1, 0, fadeout_samples)
+        
+        if np.max(np.abs(kick)) > 0:
+            kick = kick / np.max(np.abs(kick)) * 0.85
         
         return kick.astype(np.float32)
     
@@ -203,184 +227,353 @@ class DrumSynthesizer:
         duration = 0.2
         t = np.linspace(0, duration, int(self.sr * duration))
         
+        # Smooth attack ramp to prevent clicks
+        attack_samples = int(0.001 * self.sr)  # 1ms attack
+        attack = np.ones(len(t))
+        attack[:attack_samples] = np.linspace(0, 1, attack_samples)
+        
         # Tonal body (tuned membrane)
         tone_freq = 180 + self.features.get('saturation', 0.5) * 40
         tone = np.sin(2 * np.pi * tone_freq * t)
         tone += 0.3 * np.sin(2 * np.pi * tone_freq * 1.5 * t)  # Overtone
         tone_env = np.exp(-t / 0.08)
-        tonal = tone * tone_env
+        tonal = tone * tone_env * attack
         
-        # Noise body (snare wires) - bandpassed for realism
+        # Noise body (snare wires) - apply envelope BEFORE filtering
         noise = np.random.randn(len(t))
-        # Band-pass 1000-8000 Hz for snare character
-        sos = signal.butter(3, [1000, 8000], 'band', fs=self.sr, output='sos')
-        noise = signal.sosfilt(sos, noise)
         noise_env = np.exp(-t / 0.1)
-        noise_out = noise * noise_env
+        noise = noise * noise_env * attack  # Apply envelope first
         
-        # Click transient
-        click = np.exp(-t * 200) * 0.3
+        # Band-pass 1000-8000 Hz for snare character
+        sos = signal.butter(2, [1000, 8000], 'band', fs=self.sr, output='sos')
+        noise_out = signal.sosfilt(sos, noise)
+        
+        # Click transient (already has fast decay, no click issues)
+        click = np.exp(-t * 200) * 0.3 * attack
         
         # Mix: House snares are fairly balanced
         snare = 0.4 * tonal + 0.5 * noise_out + click
+        
+        # Apply fade-out to prevent end clicks
+        fadeout_samples = min(int(0.005 * self.sr), len(snare) // 4)
+        snare[-fadeout_samples:] *= np.linspace(1, 0, fadeout_samples)
+        
         snare = np.tanh(snare * 2)
-        snare = snare / np.max(np.abs(snare)) * 0.8
+        if np.max(np.abs(snare)) > 0:
+            snare = snare / np.max(np.abs(snare)) * 0.8
         
         return snare.astype(np.float32)
     
     def synthesize_snare_chill(self) -> np.ndarray:
         """
         Chill snare: Softer, warmer, less aggressive.
-        More tone, less bright noise.
+        More tone, less bright noise. Lo-fi/downtempo character.
         """
         duration = 0.25
         t = np.linspace(0, duration, int(self.sr * duration))
         
-        # Lower, warmer tone
-        tone_freq = 150 + self.features.get('brightness', 0.5) * 30
+        # Smooth attack ramp to prevent clicks
+        attack_samples = int(0.002 * self.sr)  # 2ms attack (softer than house)
+        attack = np.ones(len(t))
+        attack[:attack_samples] = np.linspace(0, 1, attack_samples)
+        
+        # Lower, warmer tone - chill uses lower fundamental for warmth
+        tone_freq = 150 + self.features.get('brightness', 0.5) * 30  # 150-180Hz
         tone = np.sin(2 * np.pi * tone_freq * t)
-        tone += 0.4 * np.sin(2 * np.pi * tone_freq * 1.4 * t)
-        tone_env = np.exp(-t / 0.12)
-        tonal = tone * tone_env
+        tone += 0.4 * np.sin(2 * np.pi * tone_freq * 1.4 * t)  # Slightly detuned harmonic
+        tone_env = np.exp(-t / 0.12)  # Longer decay than house
+        tonal = tone * tone_env * attack
         
-        # Softer noise - lower frequency content
+        # Softer noise - apply envelope BEFORE filtering
         noise = np.random.randn(len(t))
-        sos = signal.butter(3, [800, 5000], 'band', fs=self.sr, output='sos')
-        noise = signal.sosfilt(sos, noise)
         noise_env = np.exp(-t / 0.15)
-        noise_out = noise * noise_env
+        noise = noise * noise_env * attack  # Apply envelope first
         
-        # Soft click
-        click = np.exp(-t * 100) * 0.15
+        # Lower frequency band for warmer character (differs from house's 1k-8k)
+        sos = signal.butter(2, [800, 5000], 'band', fs=self.sr, output='sos')
+        noise_out = signal.sosfilt(sos, noise)
         
-        # More tonal, less noise
+        # Soft click (gentler than house)
+        click = np.exp(-t * 100) * 0.15 * attack
+        
+        # More tonal, less noise (opposite ratio from house - warmer sound)
         snare = 0.5 * tonal + 0.3 * noise_out + click
-        snare = np.tanh(snare * 1.5)
-        snare = snare / np.max(np.abs(snare)) * 0.7
+        
+        # Fade-out to prevent end clicks
+        fadeout_samples = min(int(0.008 * self.sr), len(snare) // 4)
+        snare[-fadeout_samples:] *= np.linspace(1, 0, fadeout_samples)
+        
+        snare = np.tanh(snare * 1.5)  # Less saturation than house
+        if np.max(np.abs(snare)) > 0:
+            snare = snare / np.max(np.abs(snare)) * 0.7
         
         return snare.astype(np.float32)
     
     def synthesize_snare_drop(self) -> np.ndarray:
         """
         EDM Drop snare: Aggressive, bright, cutting.
-        Heavy noise, strong transient.
+        Heavy noise, strong transient. Festival-ready impact.
         """
         duration = 0.18
         t = np.linspace(0, duration, int(self.sr * duration))
         
-        # Higher, aggressive tone
-        tone_freq = 200 + self.features.get('sharpness', 0.5) * 50
+        # Very short attack for aggressive transient (EDM needs punch)
+        attack_samples = int(0.0005 * self.sr)  # 0.5ms attack - very fast
+        attack = np.ones(len(t))
+        attack[:attack_samples] = np.linspace(0, 1, attack_samples)
+        
+        # Higher, aggressive tone - drop snares cut through the mix
+        tone_freq = 200 + self.features.get('sharpness', 0.5) * 50  # 200-250Hz
         tone = np.sin(2 * np.pi * tone_freq * t)
-        tone += 0.2 * np.sin(2 * np.pi * tone_freq * 2 * t)
-        tone_env = np.exp(-t / 0.06)
-        tonal = tone * tone_env
+        tone += 0.2 * np.sin(2 * np.pi * tone_freq * 2 * t)  # Octave harmonic
+        tone_env = np.exp(-t / 0.06)  # Fast decay
+        tonal = tone * tone_env * attack
         
-        # Bright, aggressive noise
+        # Bright, aggressive noise - apply envelope BEFORE filtering
         noise = np.random.randn(len(t))
-        sos = signal.butter(3, [2000, 12000], 'band', fs=self.sr, output='sos')
-        noise = signal.sosfilt(sos, noise)
         noise_env = np.exp(-t / 0.08)
-        noise_out = noise * noise_env
+        noise = noise * noise_env * attack  # Apply envelope first
         
-        # Strong transient
-        click = np.exp(-t * 300) * 0.5
+        # Higher frequency band for brightness (brighter than house/chill)
+        # Cap at safe Nyquist distance
+        high_freq = min(12000, self.sr * 0.45)
+        sos = signal.butter(2, [2000, high_freq], 'band', fs=self.sr, output='sos')
+        noise_out = signal.sosfilt(sos, noise)
         
-        # More noise, aggressive
+        # Strong transient click
+        click = np.exp(-t * 300) * 0.5 * attack
+        
+        # More noise than tone (opposite of chill - aggressive character)
         snare = 0.3 * tonal + 0.6 * noise_out + click
-        snare = np.tanh(snare * 2.5)
-        snare = snare / np.max(np.abs(snare)) * 0.9
+        
+        # Short fade-out
+        fadeout_samples = min(int(0.003 * self.sr), len(snare) // 4)
+        snare[-fadeout_samples:] *= np.linspace(1, 0, fadeout_samples)
+        
+        snare = np.tanh(snare * 2.5)  # Heavy saturation for aggression
+        if np.max(np.abs(snare)) > 0:
+            snare = snare / np.max(np.abs(snare)) * 0.9
         
         return snare.astype(np.float32)
     
     def synthesize_snare_cinematic(self) -> np.ndarray:
         """
         Cinematic snare: Dramatic, roomy, orchestral feel.
-        More tone and reverb-like tail.
+        More tone and reverb-like tail. Think Hans Zimmer.
         """
         duration = 0.35
         t = np.linspace(0, duration, int(self.sr * duration))
         
-        # Deep, dramatic tone
-        tone_freq = 160 + self.features.get('contrast', 0.5) * 30
+        # Gentle attack for orchestral feel (not punchy like EDM)
+        attack_samples = int(0.003 * self.sr)  # 3ms attack
+        attack = np.ones(len(t))
+        attack[:attack_samples] = np.linspace(0, 1, attack_samples)
+        
+        # Deep, dramatic tone - lower than other genres for gravitas
+        tone_freq = 160 + self.features.get('contrast', 0.5) * 30  # 160-190Hz
         tone = np.sin(2 * np.pi * tone_freq * t)
-        tone += 0.5 * np.sin(2 * np.pi * tone_freq * 1.3 * t)
-        tone_env = np.exp(-t / 0.15)
-        tonal = tone * tone_env
+        tone += 0.5 * np.sin(2 * np.pi * tone_freq * 1.3 * t)  # Fifth harmonic for richness
+        tone_env = np.exp(-t / 0.15)  # Long decay for drama
+        tonal = tone * tone_env * attack
         
-        # Warmer noise
+        # Warmer noise (like concert hall snare) - apply envelope BEFORE filtering
         noise = np.random.randn(len(t))
-        sos = signal.butter(3, [600, 6000], 'band', fs=self.sr, output='sos')
-        noise = signal.sosfilt(sos, noise)
-        noise_env = np.exp(-t / 0.2)
-        noise_out = noise * noise_env
+        noise_env = np.exp(-t / 0.2)  # Longest noise decay of all genres
+        noise = noise * noise_env * attack  # Apply envelope first
         
-        # Subtle click
-        click = np.exp(-t * 80) * 0.2
+        # Lower, warmer frequency band (orchestral warmth)
+        sos = signal.butter(2, [600, 6000], 'band', fs=self.sr, output='sos')
+        noise_out = signal.sosfilt(sos, noise)
         
-        # Balanced but with longer tail
+        # Subtle, soft click (not aggressive)
+        click = np.exp(-t * 80) * 0.2 * attack
+        
+        # Balanced mix with long tail (more reverberant character)
         snare = 0.5 * tonal + 0.4 * noise_out + click
-        snare = np.tanh(snare * 1.3)
-        snare = snare / np.max(np.abs(snare)) * 0.75
+        
+        # Longer fade-out for cinematic tail
+        fadeout_samples = min(int(0.015 * self.sr), len(snare) // 4)
+        snare[-fadeout_samples:] *= np.linspace(1, 0, fadeout_samples)
+        
+        snare = np.tanh(snare * 1.3)  # Gentle saturation
+        if np.max(np.abs(snare)) > 0:
+            snare = snare / np.max(np.abs(snare)) * 0.75
         
         return snare.astype(np.float32)
     
     # =========================================================================
-    # HI-HATS - Clean, no metallic screech
+    # HI-HATS - Clean, genre-appropriate character
     # =========================================================================
     
     def synthesize_hihat_closed(self, genre: str = 'house') -> np.ndarray:
         """
         Closed hi-hat: Short, tight, clean.
-        Uses filtered noise, NOT metallic resonant peaks.
+        Genre-specific character without metallic harshness.
+        
+        - House: Crisp, punchy, offbeat-ready
+        - Chill: Softer, warmer, lo-fi character
+        - EDM Drop: Bright, cutting, aggressive
+        - Cinematic: Subtle, refined, orchestral
         """
-        duration = 0.06 if genre in ['house', 'edmdrop'] else 0.08
+        # Genre-specific durations
+        if genre in ['house']:
+            duration = 0.05  # Tight for offbeat patterns
+        elif genre in ['edmdrop']:
+            duration = 0.04  # Very tight and punchy
+        elif genre in ['chill']:
+            duration = 0.08  # Slightly longer, relaxed
+        else:  # cinematic
+            duration = 0.06
+            
         t = np.linspace(0, duration, int(self.sr * duration))
         
-        # Pure noise base - no metallic resonances!
+        # Pure noise base
         hat = np.random.randn(len(t))
         
-        # High-pass filter for brightness (not band-pass with resonance)
-        hp_freq = 6000 + self.features.get('brightness', 0.5) * 4000  # 6k-10k
-        hp_freq = min(hp_freq, self.sr / 2 - 100)
-        sos_hp = signal.butter(2, hp_freq, 'high', fs=self.sr, output='sos')
-        hat = signal.sosfilt(sos_hp, hat)
+        # Genre-specific decay (controlled by sharpness for variation)
+        base_sharpness = self.features.get('sharpness', 0.5)
+        if genre in ['house']:
+            decay = 0.015 + (1 - base_sharpness) * 0.015  # 15-30ms
+        elif genre in ['edmdrop']:
+            decay = 0.010 + (1 - base_sharpness) * 0.010  # 10-20ms (tightest)
+        elif genre in ['chill']:
+            decay = 0.025 + (1 - base_sharpness) * 0.020  # 25-45ms (most relaxed)
+        else:  # cinematic
+            decay = 0.020 + (1 - base_sharpness) * 0.015  # 20-35ms
         
-        # Sharp envelope for tightness
-        decay = 0.02 + (1 - self.features.get('sharpness', 0.5)) * 0.02
         env = np.exp(-t / decay)
         
-        # Quick attack
-        attack = np.minimum(t * 500, 1.0)
+        # Smooth attack ramp (prevents clicks)
+        attack_samples = int(0.001 * self.sr)  # 1ms attack
+        attack = np.ones(len(t))
+        if attack_samples < len(t):
+            attack[:attack_samples] = np.linspace(0, 1, attack_samples)
         
+        # Apply envelope to noise BEFORE filtering
         hat = hat * env * attack
-        hat = hat / np.max(np.abs(hat)) * 0.5
+        
+        # Genre-specific frequency bands (brightness modulates within range)
+        brightness = self.features.get('brightness', 0.5)
+        
+        if genre in ['house']:
+            # House: Clean, present but not harsh (6k-12k range)
+            low_freq = 5500 + brightness * 1500   # 5.5k-7k
+            high_freq = 11000 + brightness * 2000  # 11k-13k
+        elif genre in ['edmdrop']:
+            # EDM Drop: Brightest, most cutting (7k-14k range)  
+            low_freq = 6000 + brightness * 2000   # 6k-8k
+            high_freq = 12000 + brightness * 2000  # 12k-14k
+        elif genre in ['chill']:
+            # Chill: Warmest, lo-fi character (4k-9k range)
+            low_freq = 4000 + brightness * 1000   # 4k-5k
+            high_freq = 8000 + brightness * 2000   # 8k-10k
+        else:  # cinematic
+            # Cinematic: Refined, not too bright (5k-10k range)
+            low_freq = 4500 + brightness * 1500   # 4.5k-6k
+            high_freq = 9000 + brightness * 2000   # 9k-11k
+        
+        # Cap at safe Nyquist distance
+        high_freq = min(high_freq, self.sr * 0.45)
+        low_freq = min(low_freq, high_freq - 1000)  # Ensure valid range
+        
+        sos_bp = signal.butter(2, [low_freq, high_freq], 'band', fs=self.sr, output='sos')
+        hat = signal.sosfilt(sos_bp, hat)
+        
+        # Fade-out to prevent end clicks
+        fadeout_samples = min(int(0.003 * self.sr), len(hat) // 4)
+        hat[-fadeout_samples:] *= np.linspace(1, 0, fadeout_samples)
+        
+        # Genre-specific output levels
+        if genre in ['edmdrop']:
+            level = 0.55  # Slightly louder for aggression
+        elif genre in ['chill']:
+            level = 0.40  # Quieter, sits back in mix
+        else:
+            level = 0.50
+            
+        if np.max(np.abs(hat)) > 0:
+            hat = hat / np.max(np.abs(hat)) * level
         
         return hat.astype(np.float32)
     
     def synthesize_hihat_open(self, genre: str = 'house') -> np.ndarray:
         """
         Open hi-hat: Longer, ringing, clean.
+        Genre-specific sustain and brightness.
         """
-        duration = 0.2 if genre in ['house', 'edmdrop'] else 0.25
+        # Genre-specific durations
+        if genre in ['house']:
+            duration = 0.18  # Standard open hat
+        elif genre in ['edmdrop']:
+            duration = 0.15  # Shorter, tighter
+        elif genre in ['chill']:
+            duration = 0.28  # Longest, most relaxed
+        else:  # cinematic
+            duration = 0.22  # Moderate with tail
+            
         t = np.linspace(0, duration, int(self.sr * duration))
         
         # Noise base
         hat = np.random.randn(len(t))
         
-        # High-pass for brightness
-        hp_freq = 5000 + self.features.get('brightness', 0.5) * 3000
-        hp_freq = min(hp_freq, self.sr / 2 - 100)
-        sos_hp = signal.butter(2, hp_freq, 'high', fs=self.sr, output='sos')
-        hat = signal.sosfilt(sos_hp, hat)
+        # Genre-specific decay (entropy affects sustain)
+        entropy = self.features.get('entropy', 0.5)
+        if genre in ['house']:
+            decay = 0.08 + entropy * 0.04  # 80-120ms
+        elif genre in ['edmdrop']:
+            decay = 0.06 + entropy * 0.03  # 60-90ms (tighter)
+        elif genre in ['chill']:
+            decay = 0.12 + entropy * 0.06  # 120-180ms (longest)
+        else:  # cinematic
+            decay = 0.10 + entropy * 0.05  # 100-150ms
         
-        # Longer decay
-        decay = 0.1 + self.features.get('entropy', 0.5) * 0.05
         env = np.exp(-t / decay)
         
-        attack = np.minimum(t * 300, 1.0)
+        # Smooth attack ramp
+        attack_samples = int(0.002 * self.sr)  # 2ms attack
+        attack = np.ones(len(t))
+        if attack_samples < len(t):
+            attack[:attack_samples] = np.linspace(0, 1, attack_samples)
         
+        # Apply envelope BEFORE filtering
         hat = hat * env * attack
-        hat = hat / np.max(np.abs(hat)) * 0.45
+        
+        # Genre-specific frequency bands (slightly lower than closed for fullness)
+        brightness = self.features.get('brightness', 0.5)
+        
+        if genre in ['house']:
+            low_freq = 4500 + brightness * 1500
+            high_freq = 10000 + brightness * 2000
+        elif genre in ['edmdrop']:
+            low_freq = 5000 + brightness * 2000
+            high_freq = 11000 + brightness * 2000
+        elif genre in ['chill']:
+            low_freq = 3500 + brightness * 1000
+            high_freq = 7500 + brightness * 2000
+        else:  # cinematic
+            low_freq = 4000 + brightness * 1500
+            high_freq = 8500 + brightness * 2000
+        
+        high_freq = min(high_freq, self.sr * 0.45)
+        low_freq = min(low_freq, high_freq - 1000)
+        
+        sos_bp = signal.butter(2, [low_freq, high_freq], 'band', fs=self.sr, output='sos')
+        hat = signal.sosfilt(sos_bp, hat)
+        
+        # Longer fade-out for open hats
+        fadeout_samples = min(int(0.008 * self.sr), len(hat) // 4)
+        hat[-fadeout_samples:] *= np.linspace(1, 0, fadeout_samples)
+        
+        # Genre-specific output levels
+        if genre in ['edmdrop']:
+            level = 0.50
+        elif genre in ['chill']:
+            level = 0.38
+        else:
+            level = 0.45
+            
+        if np.max(np.abs(hat)) > 0:
+            hat = hat / np.max(np.abs(hat)) * level
         
         return hat.astype(np.float32)
     
@@ -404,16 +597,30 @@ class DrumSynthesizer:
                 
                 # Band-passed noise
                 noise = np.random.randn(layer_len)
+                
+                # Apply envelope BEFORE filtering
+                env = np.exp(-t / 0.05)
+                
+                # Smooth attack for this layer
+                attack_samples = int(0.001 * self.sr)  # 1ms attack
+                attack = np.ones(layer_len)
+                if attack_samples < layer_len:
+                    attack[:attack_samples] = np.linspace(0, 1, attack_samples)
+                
+                noise = noise * env * attack
+                
                 sos = signal.butter(3, [1000, 6000], 'band', fs=self.sr, output='sos')
                 noise = signal.sosfilt(sos, noise)
                 
-                # Fast decay
-                env = np.exp(-t / 0.05)
-                
-                clap[delay_samples:] += noise * env * (0.7 + 0.3 * i / num_layers)
+                clap[delay_samples:] += noise * (0.7 + 0.3 * i / num_layers)
+        
+        # Apply fade-out to prevent end clicks
+        fadeout_samples = min(int(0.005 * self.sr), samples // 4)
+        clap[-fadeout_samples:] *= np.linspace(1, 0, fadeout_samples)
         
         clap = np.tanh(clap * 1.5)
-        clap = clap / np.max(np.abs(clap)) * 0.7
+        if np.max(np.abs(clap)) > 0:
+            clap = clap / np.max(np.abs(clap)) * 0.7
         
         return clap.astype(np.float32)
     
@@ -422,22 +629,33 @@ class DrumSynthesizer:
     # =========================================================================
     
     def synthesize_tom(self, pitch: float = 100) -> np.ndarray:
-        """Simple tom/percussion hit"""
+        """Simple tom/percussion hit with proper attack/decay"""
         duration = 0.25
         t = np.linspace(0, duration, int(self.sr * duration))
         
-        # Pitch envelope drops
+        # Smooth attack ramp to prevent clicks
+        attack_samples = int(0.002 * self.sr)  # 2ms attack
+        attack = np.ones(len(t))
+        attack[:attack_samples] = np.linspace(0, 1, attack_samples)
+        
+        # Pitch envelope drops (characteristic tom sound)
         pitch_env = pitch * (1 + 0.5 * np.exp(-t * 20))
         phase = np.cumsum(2 * np.pi * pitch_env / self.sr)
         tom = np.sin(phase)
         
-        # Add body
+        # Add body with second harmonic
         tom += 0.2 * np.sin(2 * phase) * np.exp(-t * 15)
         
-        # Envelope
+        # Envelope with attack
         env = np.exp(-t / 0.12)
-        tom = tom * env
-        tom = tom / np.max(np.abs(tom)) * 0.65
+        tom = tom * env * attack
+        
+        # Fade-out to prevent end clicks
+        fadeout_samples = min(int(0.008 * self.sr), len(tom) // 4)
+        tom[-fadeout_samples:] *= np.linspace(1, 0, fadeout_samples)
+        
+        if np.max(np.abs(tom)) > 0:
+            tom = tom / np.max(np.abs(tom)) * 0.65
         
         return tom.astype(np.float32)
     
