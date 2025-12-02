@@ -365,14 +365,29 @@ class DrumSynthesizer:
             hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=8500, decay=0.06)
             hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=8000, decay=0.18)
         
-        # Process MIDI events
-        current_time = 0
+        # Process MIDI events - convert ticks to seconds properly
+        # Get ticks per beat and calculate tempo
+        ticks_per_beat = midi.ticks_per_beat
+        tempo = 500000  # Default: 120 BPM (500000 microseconds per beat)
+        
+        # Find tempo from MIDI meta messages
+        for track in midi.tracks:
+            for msg in track:
+                if msg.type == 'set_tempo':
+                    tempo = msg.tempo
+                    break
+        
+        # Calculate seconds per tick
+        seconds_per_tick = tempo / 1000000.0 / ticks_per_beat
+        print(f"  MIDI timing: {ticks_per_beat} ticks/beat, tempo={tempo}, sec/tick={seconds_per_tick:.6f}")
+        
         note_count = 0
         
         for track in midi.tracks:
-            current_time = 0
+            current_tick = 0
             for msg in track:
-                current_time += msg.time
+                current_tick += msg.time
+                current_time_sec = current_tick * seconds_per_tick
                 
                 if msg.type == 'note_on' and msg.velocity > 0:
                     note = msg.note
@@ -398,11 +413,12 @@ class DrumSynthesizer:
                     # Apply velocity
                     drum_sound = drum_sound * (0.5 + 0.5 * velocity)  # Min 50% volume
                     
-                    # Add to output
-                    start_sample = int(current_time * self.sr)
+                    # Add to output at correct time position
+                    start_sample = int(current_time_sec * self.sr)
                     end_sample = min(start_sample + len(drum_sound), len(output))
-                    output[start_sample:end_sample] += drum_sound[:end_sample - start_sample]
-                    note_count += 1
+                    if start_sample < len(output):
+                        output[start_sample:end_sample] += drum_sound[:end_sample - start_sample]
+                        note_count += 1
         
         # Normalize and save
         if np.max(np.abs(output)) > 0:
