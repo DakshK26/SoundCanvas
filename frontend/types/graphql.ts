@@ -10,15 +10,14 @@ export enum GenerationStatus {
 export enum Genre {
     AUTO = 'AUTO',
     RAP = 'RAP',
-    HOUSE = 'HOUSE',
     RNB = 'RNB',
+    HOUSE = 'HOUSE',
     EDM_CHILL = 'EDM_CHILL',
     EDM_DROP = 'EDM_DROP',
 }
 
 export enum Mode {
     MODEL = 'model',
-    HEURISTIC = 'heuristic',
 }
 
 export interface CreateGenerationInput {

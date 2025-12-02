@@ -56,9 +56,16 @@ void runHttpServer(
             if (body.contains("mode") && body["mode"].is_string()) {
                 mode = body["mode"].get<std::string>();
             }
+            
+            // Phase 12 A2.3: Genre override support
+            std::string genreOverride = "";
+            if (body.contains("genre") && body["genre"].is_string()) {
+                genreOverride = body["genre"].get<std::string>();
+            }
 
             std::cout << "[HTTP] /generate image_path=" << imagePath
-                      << " mode=" << mode << std::endl;
+                      << " mode=" << mode 
+                      << " genre=" << (genreOverride.empty() ? "AUTO" : genreOverride) << std::endl;
 
             // Extract features
             ImageFeatures features = extractImageFeatures(imagePath);
@@ -89,8 +96,35 @@ void runHttpServer(
             // Phase 7: Derive extended style parameters
             StyleParameters style = deriveStyle(features, params);
 
-            // Phase 12 A2.2: Select genre from image and create MIDI
-            GenreType decidedGenre = selectGenreFromImage(features, params.energy);
+            // Phase 12 A2.2: Select genre from image OR use override
+            GenreType decidedGenre;
+            if (!genreOverride.empty() && genreOverride != "AUTO") {
+                // Map frontend genre names to GenreType
+                if (genreOverride == "RAP") {
+                    decidedGenre = GenreType::RAP;
+                } else if (genreOverride == "RNB") {
+                    decidedGenre = GenreType::RNB;
+                } else if (genreOverride == "HOUSE") {
+                    decidedGenre = GenreType::HOUSE;
+                } else if (genreOverride == "EDM_CHILL") {
+                    decidedGenre = GenreType::EDM_CHILL;
+                } else if (genreOverride == "EDM_DROP") {
+                    decidedGenre = GenreType::EDM_DROP;
+                } else if (genreOverride == "RETROWAVE") {
+                    decidedGenre = GenreType::RETROWAVE;
+                } else if (genreOverride == "CINEMATIC") {
+                    decidedGenre = GenreType::CINEMATIC;
+                } else {
+                    // Unknown genre, fall back to auto
+                    decidedGenre = selectGenreFromImage(features, params.energy);
+                    std::cout << "[HTTP] Unknown genre override '" << genreOverride 
+                              << "', falling back to auto-selection" << std::endl;
+                }
+                std::cout << "[HTTP] Using genre override: " << genreOverride 
+                          << " -> " << genreTypeName(decidedGenre) << std::endl;
+            } else {
+                decidedGenre = selectGenreFromImage(features, params.energy);
+            }
             const GenreTemplate& genreTemplate = getGenreTemplate(decidedGenre);
             
             std::cout << "[HTTP] Selected genre: " << genreTypeName(decidedGenre) 

@@ -10,10 +10,13 @@ std::string SectionTemplate::name() const {
 
 const char* genreTypeName(GenreType type) {
     switch (type) {
-        case GenreType::EDM_CHILL: return "EDM_Chill";
-        case GenreType::EDM_DROP: return "EDM_Drop";
-        case GenreType::RETROWAVE: return "RetroWave";
-        case GenreType::CINEMATIC: return "Cinematic";
+        case GenreType::EDM_CHILL: return "EDM_CHILL";
+        case GenreType::EDM_DROP: return "EDM_DROP";
+        case GenreType::RETROWAVE: return "RETROWAVE";
+        case GenreType::CINEMATIC: return "CINEMATIC";
+        case GenreType::RAP: return "RAP";
+        case GenreType::RNB: return "RNB";
+        case GenreType::HOUSE: return "HOUSE";
         default: return "Unknown";
     }
 }
@@ -155,12 +158,120 @@ static const GenreTemplate CINEMATIC_TEMPLATE = {
     {1, 2} // preferredScales: Minor, Dorian (dramatic, epic)
 };
 
+// ============================================================================
+// RAP / TRAP TEMPLATE - Hard 808s, trap hi-hats, boom bap vibes
+// ============================================================================
+static const GenreTemplate RAP_TEMPLATE = {
+    GenreType::RAP,
+    "RAP",
+    85,   // minTempo (can go slower for boom bap)
+    145,  // maxTempo (trap can be fast)
+    
+    // Section plan: intro → verse → hook → verse → hook → outro
+    {
+        {SectionType::INTRO, 4, 0.3f, false},
+        {SectionType::BUILD, 8, 0.6f, false},   // Verse 1
+        {SectionType::DROP, 8, 0.8f, true},     // Hook/Chorus
+        {SectionType::BUILD, 8, 0.6f, false},   // Verse 2  
+        {SectionType::DROP, 8, 0.9f, true},     // Hook 2 (bigger)
+        {SectionType::OUTRO, 4, 0.3f, false}
+    },
+    
+    // Trap/Rap layers - 808s, hi-hats, snares
+    {
+        {"kick", 36, 0.0f, false},           // 808 kick (always)
+        {"hihat", 42, 0.0f, false},          // Trap hi-hats (always)
+        {"snare", 38, 0.0f, false},          // Hard snare/clap
+        {"bass", 38, 0.0f, true},            // 808 bass (sidechained)
+        {"perc", 56, 0.4f, false},           // Extra percussion
+        {"pad", 89, 0.3f, true},             // Dark atmospheric pad
+        {"lead", 81, 0.6f, true}             // Melody/lead (in hooks)
+    },
+    
+    0.5f,  // dropEnergyThreshold
+    {1, 2} // preferredScales: Minor, Dorian (dark, hard)
+};
+
+// ============================================================================
+// R&B TEMPLATE - Smooth grooves, soft keys, soulful vibes
+// ============================================================================
+static const GenreTemplate RNB_TEMPLATE = {
+    GenreType::RNB,
+    "RNB",
+    65,   // minTempo (slow jams)
+    95,   // maxTempo (upbeat R&B)
+    
+    // Section plan: intro → verse → chorus → verse → chorus → bridge → outro
+    {
+        {SectionType::INTRO, 4, 0.2f, false},
+        {SectionType::BUILD, 8, 0.4f, false},   // Verse
+        {SectionType::DROP, 8, 0.6f, false},    // Chorus (smooth, not hard drop)
+        {SectionType::BUILD, 8, 0.4f, false},   // Verse 2
+        {SectionType::DROP, 8, 0.7f, true},     // Bigger chorus
+        {SectionType::BREAK, 4, 0.5f, false},   // Bridge
+        {SectionType::OUTRO, 4, 0.2f, false}
+    },
+    
+    // R&B layers - smooth keys, soft drums, bass
+    {
+        {"kick", 36, 0.0f, false},           // Soft kick
+        {"hihat", 42, 0.0f, false},          // Soft hi-hats
+        {"snare", 38, 0.2f, false},          // Snare with groove
+        {"bass", 33, 0.0f, false},           // Electric bass (smooth)
+        {"keys", 4, 0.0f, false},            // Electric piano (Rhodes)
+        {"pad", 89, 0.2f, false},            // Warm pad
+        {"strings", 49, 0.5f, false},        // Strings for emotion
+        {"lead", 26, 0.6f, false}            // Guitar or synth lead
+    },
+    
+    0.4f,  // dropEnergyThreshold (smooth builds)
+    {0, 1, 2} // preferredScales: Major, Minor, Dorian (soulful)
+};
+
+// ============================================================================
+// HOUSE TEMPLATE - 4-on-floor, driving bass, disco vibes
+// ============================================================================
+static const GenreTemplate HOUSE_TEMPLATE = {
+    GenreType::HOUSE,
+    "HOUSE",
+    120,  // minTempo
+    130,  // maxTempo
+    
+    // Section plan: intro → build → drop → breakdown → drop → outro
+    {
+        {SectionType::INTRO, 8, 0.3f, false},
+        {SectionType::BUILD, 8, 0.6f, false},
+        {SectionType::DROP, 16, 0.9f, true},    // Long main drop
+        {SectionType::BREAK, 8, 0.4f, false},   // Breakdown
+        {SectionType::DROP, 16, 1.0f, true},    // Second drop (bigger)
+        {SectionType::OUTRO, 8, 0.3f, false}
+    },
+    
+    // House layers - 4-on-floor kick, funky bass, disco elements
+    {
+        {"kick", 36, 0.0f, false},           // 4-on-floor kick (always)
+        {"hihat", 42, 0.0f, false},          // Open/closed hi-hats
+        {"clap", 39, 0.0f, false},           // Clap on 2 and 4
+        {"bass", 38, 0.0f, true},            // Funky bass (sidechained)
+        {"stab", 62, 0.4f, true},            // Brass/synth stabs
+        {"pad", 89, 0.2f, true},             // Filtered pad
+        {"lead", 81, 0.5f, true},            // Disco lead
+        {"arp", 88, 0.6f, true}              // Arpeggio pattern
+    },
+    
+    0.6f,  // dropEnergyThreshold
+    {0, 2} // preferredScales: Major, Dorian (uplifting, groovy)
+};
+
 const GenreTemplate& getGenreTemplate(GenreType type) {
     switch (type) {
         case GenreType::EDM_CHILL: return EDM_CHILL_TEMPLATE;
         case GenreType::EDM_DROP: return EDM_DROP_TEMPLATE;
         case GenreType::RETROWAVE: return RETROWAVE_TEMPLATE;
         case GenreType::CINEMATIC: return CINEMATIC_TEMPLATE;
+        case GenreType::RAP: return RAP_TEMPLATE;
+        case GenreType::RNB: return RNB_TEMPLATE;
+        case GenreType::HOUSE: return HOUSE_TEMPLATE;
         default:
             throw std::runtime_error("Unknown genre type");
     }

@@ -263,24 +263,11 @@ export default function Playground() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     <SelectItem value={Genre.AUTO}>Auto (AI decides)</SelectItem>
-                                    <SelectItem value={Genre.RAP}>Rap</SelectItem>
-                                    <SelectItem value={Genre.HOUSE}>House</SelectItem>
+                                    <SelectItem value={Genre.RAP}>Rap / Trap</SelectItem>
                                     <SelectItem value={Genre.RNB}>R&amp;B</SelectItem>
+                                    <SelectItem value={Genre.HOUSE}>House</SelectItem>
                                     <SelectItem value={Genre.EDM_CHILL}>EDM Chill</SelectItem>
                                     <SelectItem value={Genre.EDM_DROP}>EDM Drop</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        <div className="space-y-2">
-                            <label className="text-sm font-medium">Mode</label>
-                            <Select value={mode} onValueChange={setMode} disabled={isGenerating}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select mode" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value={Mode.MODEL}>ML Model</SelectItem>
-                                    <SelectItem value={Mode.HEURISTIC}>Heuristic</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
