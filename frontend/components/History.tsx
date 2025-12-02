@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useQuery } from '@apollo/client';
-import { MY_GENERATIONS } from '@/graphql/operations';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Table,
@@ -13,21 +11,46 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Play, Download, Loader2, AlertCircle } from 'lucide-react';
+import { Play, Download, Loader2, AlertCircle, Trash2 } from 'lucide-react';
 import { GenerationStatus } from '@/types/graphql';
+import { getLocalHistory, clearLocalHistory, removeFromLocalHistory, LocalGeneration } from '@/lib/historyStorage';
 
 const ITEMS_PER_PAGE = 20;
 
 export default function History() {
     const [playingId, setPlayingId] = useState<string | null>(null);
     const [audioElements, setAudioElements] = useState<Map<string, HTMLAudioElement>>(new Map());
+    const [generations, setGenerations] = useState<LocalGeneration[]>([]);
+    const [isLoaded, setIsLoaded] = useState(false);
 
-    const { data, loading, error, refetch } = useQuery(MY_GENERATIONS, {
-        variables: {
-            limit: ITEMS_PER_PAGE,
-        },
-        fetchPolicy: 'network-only',
-    });
+    // Load history from localStorage on mount
+    useEffect(() => {
+        setGenerations(getLocalHistory());
+        setIsLoaded(true);
+    }, []);
+
+    // Listen for storage changes (when generations are added from Playground)
+    useEffect(() => {
+        const handleStorageChange = () => {
+            setGenerations(getLocalHistory());
+        };
+
+        // Custom event for same-tab updates
+        window.addEventListener('storage', handleStorageChange);
+
+        // Also check periodically for same-tab updates
+        const interval = setInterval(() => {
+            const current = getLocalHistory();
+            if (current.length !== generations.length) {
+                setGenerations(current);
+            }
+        }, 2000);
+
+        return () => {
+            window.removeEventListener('storage', handleStorageChange);
+            clearInterval(interval);
+        };
+    }, [generations.length]);
 
     useEffect(() => {
         // Cleanup audio elements on unmount
@@ -79,6 +102,18 @@ export default function History() {
         }
     };
 
+    const handleDelete = (id: string) => {
+        removeFromLocalHistory(id);
+        setGenerations(getLocalHistory());
+    };
+
+    const handleClearAll = () => {
+        if (window.confirm('Are you sure you want to clear all history? This cannot be undone.')) {
+            clearLocalHistory();
+            setGenerations([]);
+        }
+    };
+
     const formatDate = (dateString: string) => {
         const date = new Date(dateString);
         return date.toLocaleDateString('en-US', {
@@ -105,7 +140,7 @@ export default function History() {
         );
     };
 
-    if (loading) {
+    if (!isLoaded) {
         return (
             <Card>
                 <CardContent className="flex items-center justify-center py-12">
@@ -115,32 +150,21 @@ export default function History() {
         );
     }
 
-    if (error) {
-        return (
-            <Card>
-                <CardContent className="py-12">
-                    <div className="text-center space-y-4">
-                        <AlertCircle className="h-12 w-12 text-red-500 mx-auto" />
-                        <div>
-                            <p className="font-medium text-red-600 dark:text-red-400">Failed to load history</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{error.message}</p>
-                        </div>
-                        <Button onClick={() => refetch()} variant="outline">
-                            Retry
-                        </Button>
-                    </div>
-                </CardContent>
-            </Card>
-        );
-    }
-
-    const generations = data?.myGenerations || [];
-
     return (
         <Card>
             <CardHeader>
-                <CardTitle>Generation History</CardTitle>
-                <CardDescription>Your previously generated tracks</CardDescription>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <CardTitle>Generation History</CardTitle>
+                        <CardDescription>Your previously generated tracks (stored locally in this browser)</CardDescription>
+                    </div>
+                    {generations.length > 0 && (
+                        <Button variant="outline" size="sm" onClick={handleClearAll} className="text-red-600 hover:text-red-700">
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Clear All
+                        </Button>
+                    )}
+                </div>
             </CardHeader>
             <CardContent>
                 {generations.length === 0 ? (
@@ -163,7 +187,7 @@ export default function History() {
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {generations.map((gen: any) => (
+                                    {generations.slice(0, ITEMS_PER_PAGE).map((gen) => (
                                         <TableRow key={gen.id}>
                                             <TableCell>
                                                 {gen.imageUrl ? (
@@ -201,7 +225,7 @@ export default function History() {
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            onClick={() => handlePlay(gen.id, gen.audioUrl)}
+                                                            onClick={() => handlePlay(gen.id, gen.audioUrl!)}
                                                             title={playingId === gen.id ? 'Pause' : 'Play'}
                                                         >
                                                             <Play className={`h-4 w-4 ${playingId === gen.id ? 'fill-current' : ''}`} />
@@ -209,16 +233,36 @@ export default function History() {
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"
-                                                            onClick={() => handleDownload(gen.audioUrl, gen.id)}
+                                                            onClick={() => handleDownload(gen.audioUrl!, gen.id)}
                                                             title="Download"
                                                         >
                                                             <Download className="h-4 w-4" />
                                                         </Button>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleDelete(gen.id)}
+                                                            title="Delete"
+                                                            className="text-red-600 hover:text-red-700"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
                                                     </>
                                                 ) : gen.status === GenerationStatus.FAILED ? (
-                                                    <span className="text-xs text-red-600 dark:text-red-400">
-                                                        {gen.errorMessage || 'Failed'}
-                                                    </span>
+                                                    <>
+                                                        <span className="text-xs text-red-600 dark:text-red-400">
+                                                            {gen.errorMessage || 'Failed'}
+                                                        </span>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            onClick={() => handleDelete(gen.id)}
+                                                            title="Delete"
+                                                            className="text-red-600 hover:text-red-700 ml-2"
+                                                        >
+                                                            <Trash2 className="h-4 w-4" />
+                                                        </Button>
+                                                    </>
                                                 ) : (
                                                     <Loader2 className="h-4 w-4 animate-spin inline" />
                                                 )}

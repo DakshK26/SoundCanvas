@@ -16,6 +16,7 @@ import {
 import { Genre, Mode, GenerationStatus as Status } from '@/types/graphql';
 import { Upload, Music, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import AudioPlayer from '@/components/AudioPlayer';
+import { addToLocalHistory } from '@/lib/historyStorage';
 
 export default function Playground() {
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
@@ -96,11 +97,37 @@ export default function Playground() {
                             setAudioUrl(data.generationStatus.audioUrl);
                             setParams(data.generationStatus.params);
                             setNetworkError(null);
+
+                            // Save to local history
+                            addToLocalHistory({
+                                id: currentJobId,
+                                imageUrl: data.generationStatus.imageUrl || null,
+                                audioUrl: data.generationStatus.audioUrl || null,
+                                genre: data.generationStatus.params?.genre || genre,
+                                tempoBpm: data.generationStatus.params?.tempoBpm || null,
+                                scaleType: data.generationStatus.params?.scaleType || null,
+                                status: Status.COMPLETE,
+                                createdAt: new Date().toISOString(),
+                                errorMessage: null,
+                            });
                         } else if (status === Status.FAILED) {
                             if (pollIntervalRef.current) {
                                 clearInterval(pollIntervalRef.current);
                             }
                             setErrorMessage(data.generationStatus.errorMessage || 'Generation failed');
+
+                            // Save failed generation to history too
+                            addToLocalHistory({
+                                id: currentJobId,
+                                imageUrl: data.generationStatus.imageUrl || null,
+                                audioUrl: null,
+                                genre: genre,
+                                tempoBpm: null,
+                                scaleType: null,
+                                status: Status.FAILED,
+                                createdAt: new Date().toISOString(),
+                                errorMessage: data.generationStatus.errorMessage || 'Generation failed',
+                            });
                         }
                     }
                 } catch (error: any) {
