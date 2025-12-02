@@ -66,7 +66,9 @@ if [ ! -d "/data/mysql/mysql" ]; then
     echo "Creating Database and User..."
     mysql -u root -e "CREATE DATABASE IF NOT EXISTS soundcanvas;"
     mysql -u root -e "CREATE USER IF NOT EXISTS 'soundcanvas'@'%' IDENTIFIED BY 'soundcanvas';"
+    mysql -u root -e "CREATE USER IF NOT EXISTS 'soundcanvas'@'localhost' IDENTIFIED BY 'soundcanvas';"
     mysql -u root -e "GRANT ALL PRIVILEGES ON soundcanvas.* TO 'soundcanvas'@'%';"
+    mysql -u root -e "GRANT ALL PRIVILEGES ON soundcanvas.* TO 'soundcanvas'@'localhost';"
     mysql -u root -e "FLUSH PRIVILEGES;"
     
     echo "MySQL Initialized."

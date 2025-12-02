@@ -72,6 +72,8 @@ RUN rm -rf build && mkdir -p build && cd build \
 # ==========================================
 COPY ../../gateway /app/gateway
 WORKDIR /app/gateway
+# Remove any .env file that might have been copied (use container env vars instead)
+RUN rm -f .env .env.* 2>/dev/null || true
 RUN npm install && npm run build
 
 # ==========================================
