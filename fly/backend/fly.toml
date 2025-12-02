@@ -1,0 +1,35 @@
+# fly.toml app configuration file generated for soundcanvas-backend-20251201195552 on 2025-12-01T19:55:54-05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'soundcanvas-backend-20251201195552'
+primary_region = 'ord'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[[mounts]]
+  source = 'soundcanvas_data'
+  destination = '/data'
+
+[http_service]
+  internal_port = 4000
+  force_https = true
+  auto_stop_machines = 'off'
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+[[services]]
+  protocol = 'tcp'
+  internal_port = 9000
+  processes = ['app']
+
+  [[services.ports]]
+    port = 9000
+    handlers = ['http']
+
+[[vm]]
+  size = 'shared-cpu-2x'
+  memory = '2gb'

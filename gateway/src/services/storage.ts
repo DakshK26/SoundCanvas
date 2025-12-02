@@ -8,6 +8,7 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 const AWS_REGION = process.env.AWS_REGION || 'us-east-2';
 const S3_BUCKET_NAME = process.env.S3_BUCKET_NAME || '';
 const USE_S3 = process.env.USE_S3 === 'true';
+const S3_ENDPOINT = process.env.S3_ENDPOINT; // Optional: for MinIO/LocalStack
 
 // Initialize S3 Client (credentials from environment variables)
 let s3Client: S3Client | null = null;
@@ -15,6 +16,8 @@ let s3Client: S3Client | null = null;
 if (USE_S3) {
   s3Client = new S3Client({
     region: AWS_REGION,
+    endpoint: S3_ENDPOINT, // Add endpoint support
+    forcePathStyle: !!S3_ENDPOINT, // Required for MinIO
     credentials: {
       accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
       secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
