@@ -36,8 +36,8 @@ RUN mkdir -p /app/gateway /app/cpp-core /app/audio-producer /app/audio-renderer 
 # ==========================================
 # 1. Setup Audio Producer & Renderer (Python)
 # ==========================================
-COPY ../../audio-producer/requirements.txt /app/audio-producer/
-COPY ../../audio-renderer/requirements.txt /app/audio-renderer/
+COPY audio-producer/requirements.txt /app/audio-producer/
+COPY audio-renderer/requirements.txt /app/audio-renderer/
 
 # Install Python dependencies
 RUN pip install --no-cache-dir -r /app/audio-producer/requirements.txt \
@@ -53,13 +53,13 @@ RUN wget --no-check-certificate -O /tmp/FluidR3_GM.zip \
     && rm FluidR3_GM.zip
 
 # Copy Python Service Code
-COPY ../../audio-producer /app/audio-producer
-COPY ../../audio-renderer /app/audio-renderer
+COPY audio-producer /app/audio-producer
+COPY audio-renderer /app/audio-renderer
 
 # ==========================================
 # 2. Setup C++ Core
 # ==========================================
-COPY ../../cpp-core /app/cpp-core
+COPY cpp-core /app/cpp-core
 WORKDIR /app/cpp-core
 # Build C++ Core
 # Clean up any existing build artifacts from local machine before building
@@ -70,7 +70,7 @@ RUN rm -rf build && mkdir -p build && cd build \
 # ==========================================
 # 3. Setup Gateway (Node.js)
 # ==========================================
-COPY ../../gateway /app/gateway
+COPY gateway /app/gateway
 WORKDIR /app/gateway
 # Remove any .env file that might have been copied (use container env vars instead)
 RUN rm -f .env .env.* 2>/dev/null || true
