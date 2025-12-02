@@ -7,7 +7,7 @@ app = 'soundcanvas-backend-20251201195552'
 primary_region = 'ord'
 
 [build]
-  dockerfile = 'Dockerfile'
+  dockerfile = 'Dockerfile.fly'
 
 [[mounts]]
   source = 'soundcanvas_data'

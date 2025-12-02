@@ -1,0 +1,117 @@
+FROM python:3.11-slim
+
+# Avoid interactive prompts
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install system dependencies
+# We need Node.js, MySQL, CMake, Build tools, FluidSynth, FFmpeg
+RUN apt-get update && apt-get install -y \
+    curl \
+    wget \
+    unzip \
+    gnupg \
+    build-essential \
+    cmake \
+    fluidsynth \
+    ffmpeg \
+    libsndfile1 \
+    supervisor \
+    default-mysql-server \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 18
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install MinIO (S3 compatible storage)
+RUN wget https://dl.min.io/server/minio/release/linux-amd64/minio \
+    && chmod +x minio \
+    && mv minio /usr/local/bin/
+
+# Create directory structure
+WORKDIR /app
+RUN mkdir -p /app/gateway /app/cpp-core /app/audio-producer /app/audio-renderer /app/ml /data/mysql /data/minio /var/log/supervisor
+
+# ==========================================
+# 1. Setup Audio Producer & Renderer (Python)
+# ==========================================
+COPY audio-producer/requirements.txt /app/audio-producer/
+COPY audio-renderer/requirements.txt /app/audio-renderer/
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r /app/audio-producer/requirements.txt \
+    && pip install --no-cache-dir -r /app/audio-renderer/requirements.txt
+
+# Download SoundFont (FluidR3_GM)
+RUN mkdir -p /sf
+RUN wget --no-check-certificate -O /tmp/FluidR3_GM.zip \
+    "https://member.keymusician.com/Member/FluidR3_GM/FluidR3_GM.zip" \
+    && cd /tmp \
+    && unzip -q FluidR3_GM.zip \
+    && mv FluidR3_GM.sf2 /sf/ \
+    && rm FluidR3_GM.zip
+
+# Copy Python Service Code
+COPY audio-producer /app/audio-producer
+COPY audio-renderer /app/audio-renderer
+
+# ==========================================
+# 2. Setup C++ Core
+# ==========================================
+COPY cpp-core /app/cpp-core
+WORKDIR /app/cpp-core
+# Build C++ Core
+# Clean up any existing build artifacts from local machine before building
+RUN rm -rf build && mkdir -p build && cd build \
+    && cmake .. \
+    && make -j$(nproc)
+
+# ==========================================
+# 3. Setup Gateway (Node.js)
+# ==========================================
+COPY gateway /app/gateway
+WORKDIR /app/gateway
+# Remove any .env file that might have been copied (use container env vars instead)
+RUN rm -f .env .env.* 2>/dev/null || true
+RUN npm install && npm run build
+
+# ==========================================
+# 4. Configuration & Startup
+# ==========================================
+WORKDIR /app
+
+# Copy Supervisor Config
+COPY fly/backend/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Copy Startup Script
+COPY fly/backend/start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Environment Variables
+ENV PORT=4000
+ENV SC_DATA_ROOT=/data
+ENV SF2_PATH=/sf/FluidR3_GM.sf2
+ENV CPP_SERVICE_URL=http://localhost:8080
+ENV SC_AUDIO_PRODUCER_URL=http://localhost:9001
+ENV SC_AUDIO_RENDERER_URL=http://localhost:9000
+ENV SC_TF_SERVING_URL=http://soundcanvas-ml.internal:8501/v1/models/soundcanvas:predict
+ENV DB_HOST=localhost
+ENV DB_USER=soundcanvas
+ENV DB_PASSWORD=soundcanvas
+ENV DB_NAME=soundcanvas
+ENV USE_S3=true
+ENV S3_ENDPOINT=http://localhost:9002
+ENV S3_BUCKET_NAME=soundcanvas-uploads
+ENV AWS_ACCESS_KEY_ID=minioadmin
+ENV AWS_SECRET_ACCESS_KEY=minioadmin
+ENV AWS_REGION=us-east-1
+ENV GATEWAY_PUBLIC_URL=https://soundcanvas-backend-20251201195552.fly.dev
+
+# Expose ports
+# 4000: Gateway (Public)
+# 9000: MinIO (Internal/Public for presigned URLs)
+# 9090: MinIO Console
+EXPOSE 4000 9000 9090
+
+CMD ["/app/start.sh"]
