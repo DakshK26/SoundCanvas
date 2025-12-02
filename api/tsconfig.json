@@ -13,6 +13,9 @@
         "paths": {
             "@gateway/*": [
                 "../gateway/src/*"
+            ],
+            "*": [
+                "node_modules/*"
             ]
         }
     },
