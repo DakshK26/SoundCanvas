@@ -7,6 +7,7 @@ import { Readable } from 'stream';
 import { getGenerationById, updateGenerationStatus, updateGenerationFields } from '../db';
 import { StorageService } from './storage';
 import Logger, { LogEvent } from '../utils/logger';
+import { generateMusicPrompt, generateMusic, downloadAudio, ImageAnalysis } from './musicgen';
 
 const CPP_CORE_URL = process.env.CPP_CORE_URL || 'http://localhost:8080';
 const AUDIO_PRODUCER_URL = process.env.SC_AUDIO_PRODUCER_URL || process.env.AUDIO_PRODUCER_URL || 'http://localhost:9001';
@@ -78,9 +79,34 @@ export class OrchestratorService {
                 console.log(`[Orchestrator] Genre decided by cpp-core: ${cppResponse.decidedGenre}`);
             }
 
-            // Step 3: Call audio-producer service
-            console.log(`[Orchestrator] [${jobId}] Calling audio-producer service...`);
-            await this.callAudioProducer(cppResponse.midiPath || midiPath, audioPath, cppResponse.decidedGenre || generation.genre);
+            const finalGenre = cppResponse.decidedGenre || generation.genre;
+
+            // Step 3: Generate audio
+            // Try MusicGen AI first (much better quality), fall back to MIDI rendering
+            let audioGenerated = false;
+            
+            if (process.env.REPLICATE_API_TOKEN) {
+                console.log(`[Orchestrator] [${jobId}] Using MusicGen AI for audio generation...`);
+                audioGenerated = await this.generateWithMusicGen(
+                    finalGenre,
+                    audioPath,
+                    {
+                        energy: cppResponse.tempoBpm > 120 ? 0.8 : 0.5,
+                        brightness: cppResponse.scaleType === 'Major' ? 0.7 : 0.4,
+                        tempoBpm: cppResponse.tempoBpm,
+                    }
+                );
+                
+                if (!audioGenerated) {
+                    console.log(`[Orchestrator] MusicGen failed, falling back to MIDI rendering...`);
+                }
+            }
+            
+            if (!audioGenerated) {
+                // Fallback: Use traditional MIDI + SoundFont rendering
+                console.log(`[Orchestrator] [${jobId}] Calling audio-producer service...`);
+                await this.callAudioProducer(cppResponse.midiPath || midiPath, audioPath, finalGenre);
+            }
 
             // Phase 12 A1.3: Validate audio file before S3 upload
             const audioStats = await fs.promises.stat(audioPath);
@@ -276,5 +302,63 @@ export class OrchestratorService {
             console.error(`[Orchestrator] Audio producer error:`, error.message);
             throw new Error(`Failed to render audio: ${error.message}`);
         }
+    }
+
+    /**
+     * Generate music using MusicGen AI (Replicate API)
+     * This produces much higher quality audio than MIDI + SoundFont
+     */
+    private async generateWithMusicGen(
+        genre: string,
+        outputPath: string,
+        params: { energy?: number; brightness?: number; tempoBpm?: number }
+    ): Promise<boolean> {
+        console.log(`[Orchestrator] Generating with MusicGen AI...`);
+
+        // Build image analysis object for prompt generation
+        const analysis: ImageAnalysis = {
+            genre: genre,
+            mood: this.getMoodFromGenre(genre),
+            energy: params.energy || 0.6,
+            brightness: params.brightness || 0.5,
+            colors: [],
+        };
+
+        // Generate prompt and call MusicGen
+        const prompt = generateMusicPrompt(analysis);
+        console.log(`[Orchestrator] MusicGen prompt: ${prompt}`);
+
+        const audioUrl = await generateMusic({
+            prompt,
+            duration: 20,  // 20 seconds of audio
+            temperature: 1.0,
+        });
+
+        if (!audioUrl) {
+            console.error(`[Orchestrator] MusicGen failed to generate audio`);
+            return false;
+        }
+
+        // Download the generated audio
+        const success = await downloadAudio(audioUrl, outputPath);
+        if (success) {
+            const stats = await fs.promises.stat(outputPath);
+            console.log(`[Orchestrator] MusicGen audio saved: ${stats.size} bytes`);
+        }
+
+        return success;
+    }
+
+    private getMoodFromGenre(genre: string): string {
+        const moods: Record<string, string> = {
+            'RAP': 'aggressive, confident, urban',
+            'RNB': 'romantic, smooth, emotional',
+            'HOUSE': 'energetic, groovy, euphoric',
+            'EDM_CHILL': 'peaceful, dreamy, atmospheric',
+            'EDM_DROP': 'intense, powerful, festival',
+            'RETROWAVE': 'nostalgic, cool, neon',
+            'CINEMATIC': 'epic, dramatic, emotional',
+        };
+        return moods[genre] || 'atmospheric, melodic';
     }
 }
