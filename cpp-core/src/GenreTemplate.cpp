@@ -288,23 +288,39 @@ GenreType selectGenreFromImage(const ImageFeatures& features, float energy) {
     }
     
     // Heuristic mapping based on color and energy
+    // Use a mix of genres for variety - not always CINEMATIC for edge cases
     
-    // Edge case 1: Very dark image (brightness < 0.2) → Cinematic (safe, moody)
+    // Edge case 1: Very dark image (brightness < 0.2) → Moody genres based on energy
     if (features.brightness < 0.2f) {
-        std::cout << "[Genre Selection] Very dark image → CINEMATIC" << std::endl;
-        return GenreType::CINEMATIC;
+        if (safeEnergy > 0.6f) {
+            std::cout << "[Genre Selection] Dark image + high energy → RAP" << std::endl;
+            return GenreType::RAP;  // Dark and energetic
+        } else if (safeEnergy > 0.4f) {
+            std::cout << "[Genre Selection] Dark image + mid energy → RNB" << std::endl;
+            return GenreType::RNB;  // Moody and smooth
+        }
+        std::cout << "[Genre Selection] Dark image + low energy → CINEMATIC" << std::endl;
+        return GenreType::CINEMATIC;  // Only truly low energy gets cinematic
     }
     
-    // Edge case 2: Very bright image (brightness > 0.9) → Avoid crazy tempos
-    if (features.brightness > 0.9f && safeEnergy > 0.7f) {
-        std::cout << "[Genre Selection] Very bright + high energy → RETROWAVE (avoiding EDM_DROP)" << std::endl;
-        return GenreType::RETROWAVE;  // Safer tempo range than EDM_DROP
+    // Edge case 2: Very bright image (brightness > 0.9) → Upbeat genres
+    if (features.brightness > 0.9f) {
+        if (safeEnergy > 0.7f) {
+            std::cout << "[Genre Selection] Very bright + high energy → HOUSE" << std::endl;
+            return GenreType::HOUSE;  // Uplifting and energetic
+        }
+        std::cout << "[Genre Selection] Very bright image → EDM_CHILL" << std::endl;
+        return GenreType::EDM_CHILL;  // Bright and chill
     }
     
-    // Edge case 3: Low saturation (grayscale-ish) → Cinematic
+    // Edge case 3: Low saturation (grayscale-ish) → Based on energy
     if (features.saturation < 0.15f && features.colorfulness < 0.2f) {
-        std::cout << "[Genre Selection] Grayscale image → CINEMATIC" << std::endl;
-        return GenreType::CINEMATIC;
+        if (safeEnergy > 0.5f) {
+            std::cout << "[Genre Selection] Grayscale + energy → RETROWAVE" << std::endl;
+            return GenreType::RETROWAVE;  // Stylish monochrome vibe
+        }
+        std::cout << "[Genre Selection] Grayscale image → RNB" << std::endl;
+        return GenreType::RNB;  // Smooth and understated
     }
     
     // High energy + warm colors (red/orange) → EDM_Drop

@@ -329,6 +329,35 @@ class DrumSynthesizer:
             hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=7500, decay=0.07)
             hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=7000, decay=0.2)
             
+        elif genre_lower in ['cinematic', 'film', 'orchestral']:
+            # Cinematic: Soft timpani-like kick, orchestral snare, subtle percussion
+            kick_gen = lambda v: self.synthesize_808_kick(
+                pitch=40,  # Lower pitch for orchestral feel
+                decay=0.6,
+                punch=0.4  # Less punch, more body
+            )
+            snare_gen = lambda v: self.synthesize_snare(
+                tone=220,
+                decay=0.25,
+                noise_mix=0.5
+            )
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=6000, decay=0.08)
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=5500, decay=0.25)
+            
+        elif genre_lower in ['retrowave', 'synthwave', '80s']:
+            # Retrowave: Punchy gated snare, electronic kick, shimmering hats
+            kick_gen = lambda v: self.synthesize_house_kick(
+                pitch=58,
+                decay=0.25
+            )
+            snare_gen = lambda v: self.synthesize_snare(
+                tone=250,  # Higher pitch for 80s gated sound
+                decay=0.1,  # Short for gated effect
+                noise_mix=0.8
+            )
+            hat_closed_gen = lambda v: self.synthesize_hihat(closed=True, tone=11000, decay=0.04)
+            hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=10000, decay=0.22)
+            
         else:
             # Default balanced EDM sound
             kick_gen = lambda v: self.synthesize_808_kick(pitch=55, decay=0.5, punch=0.65)

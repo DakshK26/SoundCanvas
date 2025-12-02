@@ -268,6 +268,7 @@ export default function Playground() {
                                     <SelectItem value={Genre.HOUSE}>House</SelectItem>
                                     <SelectItem value={Genre.EDM_CHILL}>EDM Chill</SelectItem>
                                     <SelectItem value={Genre.EDM_DROP}>EDM Drop</SelectItem>
+                                    <SelectItem value={Genre.CINEMATIC}>Cinematic</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

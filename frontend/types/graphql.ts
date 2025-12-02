@@ -14,6 +14,7 @@ export enum Genre {
     HOUSE = 'HOUSE',
     EDM_CHILL = 'EDM_CHILL',
     EDM_DROP = 'EDM_DROP',
+    CINEMATIC = 'CINEMATIC',
 }
 
 export enum Mode {
