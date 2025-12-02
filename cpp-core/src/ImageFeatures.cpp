@@ -6,6 +6,8 @@
 #include <cmath>
 #include <vector>
 #include <algorithm>
+#include <iostream>
+#include <cstdio>
 
 // Helper: Convert RGB [0,1] to HSV [H: 0-360, S: 0-1, V: 0-1]
 static void rgbToHsv(float r, float g, float b, float& h, float& s, float& v) {
