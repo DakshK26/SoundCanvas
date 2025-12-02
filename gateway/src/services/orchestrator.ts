@@ -62,6 +62,14 @@ export class OrchestratorService {
             console.log(`[Orchestrator] [${jobId}] Downloading image from S3: ${generation.image_key}`);
             await this.downloadFromS3(generation.image_key, imagePath);
 
+            // Verify image file exists and is readable
+            const imageStats = await fs.promises.stat(imagePath);
+            console.log(`[Orchestrator] [${jobId}] Image file ready: ${imagePath} (${imageStats.size} bytes)`);
+
+            if (imageStats.size < 100) {
+                throw new Error(`Image file too small (${imageStats.size} bytes), likely corrupted`);
+            }
+
             // Step 2: Call cpp-core service
             console.log(`[Orchestrator] [${jobId}] Calling cpp-core service...`);
             const cppResponse = await this.callCppCore(imagePath, generation.genre, generation.mode);
@@ -147,6 +155,8 @@ export class OrchestratorService {
      * Download file from S3 to local path
      */
     private async downloadFromS3(key: string, localPath: string): Promise<void> {
+        console.log(`[Orchestrator] Downloading from S3: bucket=${S3_BUCKET_NAME}, key=${key}, localPath=${localPath}`);
+
         const command = new GetObjectCommand({
             Bucket: S3_BUCKET_NAME,
             Key: key,
@@ -164,10 +174,27 @@ export class OrchestratorService {
 
         await new Promise<void>((resolve, reject) => {
             stream.pipe(writeStream);
-            stream.on('error', reject);
-            writeStream.on('finish', () => resolve());
-            writeStream.on('error', reject);
+            stream.on('error', (err) => {
+                console.error(`[Orchestrator] S3 stream error: ${err}`);
+                reject(err);
+            });
+            writeStream.on('finish', () => {
+                console.log(`[Orchestrator] File written successfully: ${localPath}`);
+                resolve();
+            });
+            writeStream.on('error', (err) => {
+                console.error(`[Orchestrator] Write stream error: ${err}`);
+                reject(err);
+            });
         });
+
+        // Verify the file was written correctly
+        const stats = await fs.promises.stat(localPath);
+        console.log(`[Orchestrator] Downloaded file size: ${stats.size} bytes`);
+
+        if (stats.size === 0) {
+            throw new Error(`Downloaded file is empty: ${localPath}`);
+        }
     }
 
     /**

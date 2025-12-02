@@ -38,11 +38,36 @@ static void rgbToHsv(float r, float g, float b, float& h, float& s, float& v) {
 }
 
 ImageFeatures extractImageFeatures(const std::string& imagePath) {
+    // Check if file exists first
+    FILE* f = fopen(imagePath.c_str(), "rb");
+    if (!f) {
+        throw std::runtime_error("Failed to open image file (file not found or permission denied): " + imagePath);
+    }
+    
+    // Read first few bytes to check file format
+    unsigned char header[8];
+    size_t bytesRead = fread(header, 1, 8, f);
+    fclose(f);
+    
+    if (bytesRead < 8) {
+        throw std::runtime_error("Image file too small or empty: " + imagePath);
+    }
+    
+    // Log file header for debugging
+    std::cout << "[ImageFeatures] File header bytes: ";
+    for (size_t i = 0; i < bytesRead; i++) {
+        printf("%02X ", header[i]);
+    }
+    std::cout << std::endl;
+    
     int width, height, channels;
     unsigned char* data = stbi_load(imagePath.c_str(), &width, &height, &channels, 3);
     if (!data) {
-        throw std::runtime_error("Failed to load image: " + imagePath);
+        const char* failReason = stbi_failure_reason();
+        throw std::runtime_error("Failed to load image: " + imagePath + " (reason: " + (failReason ? failReason : "unknown") + ")");
     }
+    
+    std::cout << "[ImageFeatures] Loaded image: " << width << "x" << height << ", " << channels << " channels" << std::endl;
 
     const int numPixels = width * height;
     
