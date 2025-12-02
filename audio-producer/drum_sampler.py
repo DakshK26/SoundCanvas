@@ -1,6 +1,12 @@
 """
 Phase 9: Sample-based Drum Renderer
 Renders drum MIDI using WAV samples from Freesound instead of FluidSynth
+
+MUSICAL HUMANIZATION (v2):
+- Groove templates: Genre-specific timing feel (not random jitter)
+- Accent patterns: Velocity curves based on beat position
+- Swing: Delayed offbeats for shuffle feel
+- Ghost note handling: Very soft dynamics for subtlety
 """
 
 import mido
@@ -15,7 +21,33 @@ import random
 class DrumSampler:
     """
     Renders drum MIDI tracks using WAV samples
+    With musical humanization for authentic feel
     """
+    
+    # GENRE-SPECIFIC GROOVE TEMPLATES
+    # Timing offset in ms for each 16th note position (0-15)
+    GROOVE_TEMPLATES = {
+        'trap_808': [0, -2, 0, 2, 0, -1, 0, 3, 0, -2, 0, 2, 0, -1, 0, 4],
+        'house': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],  # Tight
+        'rnb_soft': [0, 3, 2, 4, 2, 3, 2, 5, 0, 3, 2, 4, 2, 3, 2, 6],  # Laid back
+        'default': [0, 1, 0, 2, 0, 1, 0, 2, 0, 1, 0, 2, 0, 1, 0, 3],
+    }
+    
+    # ACCENT PATTERNS: Velocity multipliers per 16th note
+    ACCENT_PATTERNS = {
+        'trap_808': [1.0, 0.6, 0.8, 0.5, 0.9, 0.55, 0.75, 0.5, 1.0, 0.6, 0.8, 0.5, 0.9, 0.55, 0.75, 0.6],
+        'house': [0.85, 0.7, 1.0, 0.65, 0.85, 0.7, 1.0, 0.65, 0.85, 0.7, 1.0, 0.65, 0.85, 0.7, 1.0, 0.75],
+        'rnb_soft': [1.0, 0.4, 0.7, 0.35, 0.95, 0.4, 0.65, 0.35, 1.0, 0.4, 0.7, 0.35, 0.95, 0.4, 0.65, 0.4],
+        'default': [1.0, 0.65, 0.85, 0.6, 0.95, 0.65, 0.8, 0.6, 1.0, 0.65, 0.85, 0.6, 0.95, 0.65, 0.8, 0.65],
+    }
+    
+    # SWING AMOUNTS (0.0 = no swing, 0.3 = heavy shuffle)
+    SWING_AMOUNTS = {
+        'trap_808': 0.08,
+        'house': 0.03,
+        'rnb_soft': 0.22,
+        'default': 0.05,
+    }
     
     def __init__(self, kit_name: str, assets_dir: Optional[Path] = None, samplerate: int = 44100):
         """
@@ -168,6 +200,7 @@ class DrumSampler:
     def render_midi(self, midi_path: Path, output_path: Path, duration_seconds: Optional[float] = None):
         """
         Render a MIDI file to WAV using drum samples
+        With musical humanization for authentic feel
         
         Args:
             midi_path: Path to input MIDI file
@@ -193,8 +226,14 @@ class DrumSampler:
                     tempo = msg.tempo
                     break
         
-        # Calculate tick duration in seconds
+        # Calculate timing constants
         tick_duration = (tempo / 1_000_000.0) / ticks_per_beat
+        sixteenth_note_duration = (tempo / 1_000_000.0) / 4  # Duration of a 16th note
+        
+        # Get genre-specific humanization settings
+        groove_template = self.GROOVE_TEMPLATES.get(self.kit_name, self.GROOVE_TEMPLATES['default'])
+        accent_pattern = self.ACCENT_PATTERNS.get(self.kit_name, self.ACCENT_PATTERNS['default'])
+        swing_amount = self.SWING_AMOUNTS.get(self.kit_name, self.SWING_AMOUNTS['default'])
         
         # Parse all note events from drum track (channel 9 = drums)
         note_events = []
@@ -206,10 +245,41 @@ class DrumSampler:
                 current_time += msg.time * tick_duration
                 
                 if msg.type == 'note_on' and msg.channel == 9 and msg.velocity > 0:
+                    # Calculate 16th note position for humanization
+                    bar_position_sec = current_time % (sixteenth_note_duration * 16)
+                    sixteenth_position = int(bar_position_sec / sixteenth_note_duration) % 16
+                    
+                    # MUSICAL HUMANIZATION: Groove template timing
+                    groove_offset_ms = groove_template[sixteenth_position]
+                    timing_offset_sec = groove_offset_ms / 1000.0
+                    
+                    # Add minimal random jitter (±3ms)
+                    timing_offset_sec += random.gauss(0, 0.003 / 2)
+                    
+                    # Apply swing to offbeat 8th notes (positions 2, 6, 10, 14)
+                    if sixteenth_position in [2, 6, 10, 14]:
+                        timing_offset_sec += swing_amount * sixteenth_note_duration
+                    
+                    humanized_time = max(0, current_time + timing_offset_sec)
+                    
+                    # MUSICAL HUMANIZATION: Accent pattern velocity
+                    accent_mult = accent_pattern[sixteenth_position]
+                    velocity = msg.velocity
+                    
+                    # Ghost notes (low velocity) stay quiet
+                    if velocity < 50:
+                        velocity = int(velocity * 0.7 * accent_mult)
+                    else:
+                        velocity = int(velocity * accent_mult)
+                    
+                    # Small random variation (±6%)
+                    velocity = int(velocity * (1.0 + random.gauss(0, 0.06)))
+                    velocity = max(20, min(127, velocity))
+                    
                     note_events.append({
-                        'time': current_time,
+                        'time': humanized_time,
                         'note': msg.note,
-                        'velocity': msg.velocity
+                        'velocity': velocity
                     })
         
         # Determine output duration

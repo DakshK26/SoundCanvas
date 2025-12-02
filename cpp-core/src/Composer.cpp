@@ -182,113 +182,263 @@ const int TOM_LOW = 41;
 const int TOM_MID = 47;
 const int TOM_HIGH = 50;
 
-// Phase 9: House drum patterns
+// Phase 9: House drum patterns - AUTHENTIC FOUR-ON-FLOOR
+// Key characteristics from research:
+// - Four-on-the-floor kick: EVERY beat, very tight timing, no swing
+// - Offbeat hi-hats: signature house sound, on the "and" of each beat
+// - Clap/snare on 2 and 4
+// - Open hi-hat accents on upbeats for energy
+// - Tight, mechanical feel (less humanization than other genres)
 DrumPattern getHousePattern(float energy) {
   DrumPattern pattern;
   pattern.name = "house_basic";
   
-  // Four-on-the-floor kick (every beat)
+  // ============================================================
+  // KICK: Four-on-the-floor - EVERY beat, consistent velocity
+  // This is THE defining characteristic of house music
+  // ============================================================
   for (int beat = 0; beat < 4; ++beat) {
-    pattern.hits.push_back({beat * 4, KICK, 100});
+    // House kicks should be very consistent - less velocity variation
+    pattern.hits.push_back({beat * 4, KICK, 105});
   }
   
-  // Snare/clap on 2 and 4
-  pattern.hits.push_back({4, SNARE, 95});   // Beat 2
-  pattern.hits.push_back({12, SNARE, 95});  // Beat 4
+  // ============================================================
+  // SNARE/CLAP: On 2 and 4 - crisp and tight
+  // ============================================================
+  pattern.hits.push_back({4, CLAP, 95});   // Beat 2
+  pattern.hits.push_back({12, CLAP, 100}); // Beat 4 - slightly stronger
   
-  // Off-beat hi-hats (8th notes on the "and")
-  for (int i = 0; i < 4; ++i) {
-    pattern.hits.push_back({i * 4 + 2, CLOSED_HAT, 75});  // Off-beats
-  }
-  
-  // Add 16th hats for higher energy
+  // Add snare layer for fuller sound at higher energy
   if (energy > 0.6f) {
-    for (int i = 0; i < 16; i += 2) {
-      if (i % 4 != 0 && i % 4 != 2) {  // Fill in gaps
-        pattern.hits.push_back({i, CLOSED_HAT, 60});
+    pattern.hits.push_back({4, SNARE, 80});
+    pattern.hits.push_back({12, SNARE, 85});
+  }
+  
+  // ============================================================
+  // HI-HATS: Offbeat pattern is signature house sound
+  // The "and" of each beat (steps 2, 6, 10, 14) are the main groove
+  // ============================================================
+  
+  // OFFBEAT hi-hats - the signature house groove
+  // These are LOUDER than the downbeat hats
+  pattern.hits.push_back({2, CLOSED_HAT, 90});   // "and of 1"
+  pattern.hits.push_back({6, CLOSED_HAT, 88});   // "and of 2"
+  pattern.hits.push_back({10, CLOSED_HAT, 90});  // "and of 3"
+  pattern.hits.push_back({14, CLOSED_HAT, 88});  // "and of 4"
+  
+  if (energy > 0.4f) {
+    // Add downbeat hats (softer than offbeats)
+    for (int beat = 0; beat < 4; ++beat) {
+      pattern.hits.push_back({beat * 4, CLOSED_HAT, 70});
+    }
+  }
+  
+  // Higher energy: fill in 16th notes for driving feel
+  if (energy > 0.7f) {
+    // Add the "e" and "a" of each beat (steps 1, 3, 5, 7, etc.)
+    for (int i = 1; i < 16; i += 2) {
+      if (i % 4 != 2) {  // Don't double the offbeats we already have
+        pattern.hits.push_back({i, CLOSED_HAT, 55});
       }
     }
   }
   
+  // Open hi-hats for accent and energy
+  if (energy > 0.5f) {
+    // Open hat on the "and of 4" leads into next bar
+    pattern.hits.push_back({14, OPEN_HAT, 75});
+  }
+  if (energy > 0.8f) {
+    // More open hats for high energy sections
+    pattern.hits.push_back({6, OPEN_HAT, 70});
+  }
+  
   return pattern;
 }
 
-// Phase 9: Rap/Trap drum patterns
+// Phase 9: Rap/Trap drum patterns - AUTHENTIC TRAP FEEL
+// Key characteristics from research:
+// - Deep 808 kicks with long decay, sparse placement
+// - Double/triple-time hi-hats (16th or 32nd notes)
+// - Half-time feel: snare on beat 3 only (common in trap)
+// - Hi-hat rolls that accelerate into transitions
+// - Ghost snares for groove
 DrumPattern getTrapPattern(float energy) {
   DrumPattern pattern;
   pattern.name = "trap_808";
   
-  // Syncopated kick pattern
-  pattern.hits.push_back({0, KICK, 100});    // Beat 1
-  pattern.hits.push_back({6, KICK, 85});     // "& of 2" (syncopated)
-  pattern.hits.push_back({8, KICK, 95});     // Beat 3
+  // ============================================================
+  // KICK: 808-style - sparse but powerful, syncopated placement
+  // ============================================================
+  // Beat 1: Strong downbeat
+  pattern.hits.push_back({0, KICK, 110});
   
-  if (energy > 0.5f) {
-    pattern.hits.push_back({14, KICK, 80});  // "a of 3" (syncopated)
+  // Syncopated kick on the "and of 2" or "e of 3" - creates bounce
+  if (energy > 0.3f) {
+    pattern.hits.push_back({7, KICK, 90});   // "e of 2" - very trap
   }
   
-  // Snare on 2 & 4 (or just 3 for half-time feel)
-  if (energy > 0.4f) {
-    pattern.hits.push_back({4, SNARE, 100});   // Beat 2
-    pattern.hits.push_back({12, SNARE, 100});  // Beat 4
+  // Optional kick on beat 3 (half-time contexts)
+  if (energy < 0.5f) {
+    pattern.hits.push_back({8, KICK, 95});   // Beat 3
+  }
+  
+  // High energy: add more syncopated kicks
+  if (energy > 0.7f) {
+    pattern.hits.push_back({10, KICK, 85});  // "and of 3"
+    pattern.hits.push_back({15, KICK, 80});  // "a of 4" - leads into next bar
+  }
+  
+  // ============================================================
+  // SNARE/CLAP: Half-time feel is signature trap sound
+  // ============================================================
+  if (energy < 0.5f) {
+    // HALF-TIME: Snare on beat 3 ONLY - this is authentic trap
+    pattern.hits.push_back({8, SNARE, 105});
+    pattern.hits.push_back({8, CLAP, 100});  // Layer clap with snare
   } else {
-    pattern.hits.push_back({8, SNARE, 100});   // Beat 3 only (half-time)
+    // Full-time: Snare on 2 and 4
+    pattern.hits.push_back({4, SNARE, 100});
+    pattern.hits.push_back({4, CLAP, 95});
+    pattern.hits.push_back({12, SNARE, 105});
+    pattern.hits.push_back({12, CLAP, 100});
   }
   
-  // Ghost snares before backbeat
-  if (energy > 0.5f) {
-    pattern.hits.push_back({3, SNARE, 50});    // Ghost before beat 2
-    pattern.hits.push_back({11, SNARE, 50});   // Ghost before beat 4
+  // Ghost snares - VERY soft, creates groove
+  if (energy > 0.4f) {
+    pattern.hits.push_back({3, SNARE, 40});   // Ghost before beat 2
+    pattern.hits.push_back({6, SNARE, 35});   // Ghost on "and of 2"
+    if (energy > 0.6f) {
+      pattern.hits.push_back({11, SNARE, 40}); // Ghost before beat 4
+      pattern.hits.push_back({14, SNARE, 35}); // Ghost on "and of 4"
+    }
   }
   
-  // Triplet hi-hat rolls
-  for (int i = 0; i < 16; i += 2) {
-    int vel = (i % 4 == 0) ? 70 : 55;  // Accent on beats
+  // ============================================================
+  // HI-HATS: The heart of trap - double/triple time patterns
+  // ============================================================
+  // Every 16th note for that fast trap feel
+  for (int i = 0; i < 16; ++i) {
+    // Velocity pattern: accents on beats and upbeats
+    int vel;
+    if (i % 4 == 0) {
+      vel = 85;  // Downbeats - strongest
+    } else if (i % 4 == 2) {
+      vel = 70;  // Offbeats - medium
+    } else if (i % 2 == 0) {
+      vel = 60;  // 8th note subdivisions
+    } else {
+      vel = 50;  // 16th note subdivisions - softest
+    }
     pattern.hits.push_back({i, CLOSED_HAT, vel});
   }
   
-  // Add occasional open hat
-  if (energy > 0.6f) {
-    pattern.hits.push_back({7, OPEN_HAT, 65});
-    pattern.hits.push_back({15, OPEN_HAT, 65});
+  // Open hi-hats for accents - on upbeats before major beats
+  if (energy > 0.5f) {
+    pattern.hits.push_back({3, OPEN_HAT, 75});   // Before beat 2
+    pattern.hits.push_back({7, OPEN_HAT, 70});   // Before beat 3
+  }
+  if (energy > 0.7f) {
+    pattern.hits.push_back({11, OPEN_HAT, 75});  // Before beat 4
+    pattern.hits.push_back({15, OPEN_HAT, 80});  // Leads into next bar
   }
   
   return pattern;
 }
 
-// Phase 9: R&B drum patterns
+// Phase 9: R&B drum patterns - SMOOTH GROOVE WITH FEEL
+// Key characteristics from research:
+// - Softer, warmer sound overall
+// - Prominent ghost notes - essential for R&B groove
+// - Shaker/hi-hat pattern for smoothness
+// - Kick and snare are laid back (behind the beat slightly)
+// - More swing than house/trap
+// - Velocity dynamics are crucial for the "feel"
 DrumPattern getRnBPattern(float energy) {
   DrumPattern pattern;
   pattern.name = "rnb_groove";
   
-  // Softer kick pattern
-  pattern.hits.push_back({0, KICK, 80});     // Beat 1
-  pattern.hits.push_back({8, KICK, 75});     // Beat 3
+  // ============================================================
+  // KICK: Soft but defined, slightly sparse
+  // R&B kicks are warmer and less aggressive
+  // ============================================================
+  pattern.hits.push_back({0, KICK, 85});     // Beat 1
+  pattern.hits.push_back({8, KICK, 80});     // Beat 3
   
-  if (energy > 0.5f) {
-    pattern.hits.push_back({6, KICK, 65});   // Syncopated kick
+  // Syncopated ghost kick for groove
+  if (energy > 0.4f) {
+    pattern.hits.push_back({6, KICK, 60});   // "and of 2" - soft
+  }
+  if (energy > 0.6f) {
+    pattern.hits.push_back({14, KICK, 55});  // "and of 4" - softer
   }
   
-  // Snare with ghost notes
-  pattern.hits.push_back({4, SNARE, 85});    // Beat 2
-  pattern.hits.push_back({12, SNARE, 85});   // Beat 4
+  // ============================================================
+  // SNARE: Backbeat with PROMINENT ghost notes
+  // Ghost notes are what make R&B feel smooth
+  // ============================================================
+  // Main backbeat - not too loud
+  pattern.hits.push_back({4, SNARE, 90});    // Beat 2
+  pattern.hits.push_back({12, SNARE, 90});   // Beat 4
   
-  // Ghost snares (softer, creating groove)
-  pattern.hits.push_back({2, SNARE, 45});    // Ghost
-  pattern.hits.push_back({10, SNARE, 45});   // Ghost
+  // Ghost notes - VERY soft but present throughout
+  // These create the "shuffle" feel essential to R&B
+  pattern.hits.push_back({2, SNARE, 35});    // Ghost before beat 2
+  pattern.hits.push_back({6, SNARE, 30});    // Ghost after beat 2
+  pattern.hits.push_back({10, SNARE, 35});   // Ghost before beat 4
+  pattern.hits.push_back({14, SNARE, 30});   // Ghost after beat 4
   
-  // Gentle hi-hats (sparse)
-  for (int beat = 0; beat < 4; ++beat) {
-    pattern.hits.push_back({beat * 4, CLOSED_HAT, 60});
-    if (energy > 0.4f) {
-      pattern.hits.push_back({beat * 4 + 2, CLOSED_HAT, 50});  // Off-beats
+  if (energy > 0.5f) {
+    // More ghost notes for groovier feel
+    pattern.hits.push_back({1, SNARE, 25});  // Very soft ghost
+    pattern.hits.push_back({9, SNARE, 25});  // Very soft ghost
+  }
+  
+  // ============================================================
+  // HI-HATS: Gentle, with emphasis on 8th notes
+  // Less aggressive than trap, more like jazz ride
+  // ============================================================
+  // 8th note hi-hats with swing implied
+  for (int i = 0; i < 8; ++i) {
+    int step = i * 2;  // Every 8th note
+    int vel = (i % 2 == 0) ? 65 : 55;  // Downbeats slightly louder
+    pattern.hits.push_back({step, CLOSED_HAT, vel});
+  }
+  
+  // Add subtle 16th notes at higher energy
+  if (energy > 0.6f) {
+    for (int i = 0; i < 16; ++i) {
+      if (i % 2 == 1) {  // The "e" and "a" subdivisions
+        pattern.hits.push_back({i, CLOSED_HAT, 40});  // Very soft
+      }
     }
   }
   
-  // Ride cymbal for higher energy
+  // ============================================================
+  // SHAKER: Smooth layer for R&B texture (MIDI note 70)
+  // Constant 16th notes at very low velocity
+  // ============================================================
+  const int SHAKER = 70;  // Standard GM shaker
+  for (int i = 0; i < 16; ++i) {
+    // Shaker has subtle accent pattern
+    int vel;
+    if (i % 4 == 0) {
+      vel = 50;  // Downbeats
+    } else if (i % 4 == 2) {
+      vel = 45;  // Offbeats
+    } else {
+      vel = 35;  // In-between
+    }
+    pattern.hits.push_back({i, SHAKER, vel});
+  }
+  
+  // ============================================================
+  // RIDE: For higher energy sections - jazzy touch
+  // ============================================================
   if (energy > 0.7f) {
-    for (int i = 0; i < 16; i += 2) {
-      pattern.hits.push_back({i, RIDE, 55});
+    // Quarter note ride pattern
+    for (int beat = 0; beat < 4; ++beat) {
+      pattern.hits.push_back({beat * 4, RIDE, 55});
     }
   }
   
@@ -342,29 +492,54 @@ void generateDrumsBarGenre(MidiWriter& midi, int trackIdx, int startTick,
   // Add fills at section transitions
   if (addFill && energy > 0.3f) {
     int fillStart = startTick + ticksPerBar - ticksPerBeat;
+    int ticksPer32nd = ticksPer16th / 2;
     
     if (genre.genre == Genre::HOUSE) {
-      // House: Snare roll
+      // House: Snare roll into next section - tight and mechanical
       for (int i = 0; i < 4; ++i) {
-        int vel = 70 + i * 8;  // Crescendo
+        int vel = 70 + i * 10;  // Crescendo
         midi.addNoteOn(trackIdx, fillStart + i * ticksPer16th, channel, SNARE, vel);
         midi.addNoteOff(trackIdx, fillStart + i * ticksPer16th + ticksPer16th/2, channel, SNARE);
       }
+      // Add a crash on the last 16th to lead into next bar
+      midi.addNoteOn(trackIdx, fillStart + 3 * ticksPer16th, channel, CRASH, 85);
+      midi.addNoteOff(trackIdx, fillStart + ticksPerBeat + ticksPer16th, channel, CRASH);
+      
     } else if (genre.genre == Genre::RAP) {
-      // Rap: Hi-hat roll
-      for (int i = 0; i < 8; ++i) {
-        int vel = 65 + i * 4;
-        midi.addNoteOn(trackIdx, fillStart + i * (ticksPer16th/2), channel, CLOSED_HAT, vel);
-        midi.addNoteOff(trackIdx, fillStart + i * (ticksPer16th/2) + 20, channel, CLOSED_HAT);
+      // TRAP: Authentic hi-hat roll - 32nd notes accelerating
+      // This is THE signature trap fill
+      int numNotes = 12;  // 32nd note triplets feel
+      int rollDuration = ticksPerBeat;
+      int noteDuration = rollDuration / numNotes;
+      
+      for (int i = 0; i < numNotes; ++i) {
+        // Accelerating velocity (builds tension)
+        int vel = 55 + (i * 5);  // 55 to 110
+        vel = std::min(vel, 110);
+        
+        // Alternate open/closed for texture (open hats on accents)
+        int hatNote = (i % 3 == 2) ? OPEN_HAT : CLOSED_HAT;
+        
+        midi.addNoteOn(trackIdx, fillStart + i * noteDuration, channel, hatNote, vel);
+        midi.addNoteOff(trackIdx, fillStart + i * noteDuration + noteDuration/2, channel, hatNote);
       }
+      
+      // Add a rim shot on the last 16th for impact
+      midi.addNoteOn(trackIdx, fillStart + ticksPerBeat - ticksPer16th, channel, SNARE, 100);
+      midi.addNoteOff(trackIdx, fillStart + ticksPerBeat, channel, SNARE);
+      
     } else if (genre.genre == Genre::RNB) {
-      // R&B: Tom fill (melodic)
-      int toms[] = {TOM_HIGH, TOM_MID, TOM_LOW, TOM_LOW};
+      // R&B: Subtle tom fill - melodic descending pattern
+      // More musical, less aggressive
+      int toms[] = {TOM_HIGH, TOM_HIGH, TOM_MID, TOM_LOW};
+      int vels[] = {70, 65, 75, 80};  // Dynamic shape
       for (int i = 0; i < 4; ++i) {
-        int vel = 75 + i * 5;
-        midi.addNoteOn(trackIdx, fillStart + i * ticksPer16th, channel, toms[i], vel);
-        midi.addNoteOff(trackIdx, fillStart + i * ticksPer16th + ticksPer16th, channel, toms[i]);
+        midi.addNoteOn(trackIdx, fillStart + i * ticksPer16th, channel, toms[i], vels[i]);
+        midi.addNoteOff(trackIdx, fillStart + i * ticksPer16th + ticksPer16th - 5, channel, toms[i]);
       }
+      // Soft crash for smooth transition
+      midi.addNoteOn(trackIdx, fillStart + 3 * ticksPer16th, channel, CRASH, 60);
+      midi.addNoteOff(trackIdx, fillStart + ticksPerBeat * 2, channel, CRASH);
     }
   }
 }

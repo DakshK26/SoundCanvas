@@ -3,12 +3,12 @@ Synthesized Drum Generator
 Creates high-quality drums using synthesis instead of samples
 Supports genre-specific drum sounds (808s, house kicks, acoustic drums)
 
-HUMANIZATION TECHNIQUES:
-- Velocity variation: Subtle random changes to each hit's velocity
-- Micro-timing: Small random timing offsets (±10-20ms) for human feel
-- Swing: Delayed offbeat notes for groove
-- Dynamic accenting: Downbeats louder, ghost notes present
-- Per-hit variation: Subtle pitch/timbre changes so hits aren't identical
+HUMANIZATION TECHNIQUES (v2 - Musical, not random):
+- Groove templates: Genre-specific timing tendencies (not random jitter)
+- Accent patterns: Predictable velocity curves based on beat position
+- Swing: Delayed offbeat notes for groove (genre-specific amounts)
+- Dynamic range: Ghost notes dramatically softer (30-40 velocity)
+- Per-hit variation: Subtle timbral changes so hits aren't identical
 """
 
 import numpy as np
@@ -23,16 +23,63 @@ class DrumSynthesizer:
     """
     Synthesizes drum sounds procedurally
     Much better quality than samples, with genre-specific tuning
-    Includes humanization for more realistic feel
+    Includes MUSICAL humanization for realistic feel
     """
     
     def __init__(self, samplerate: int = 44100):
         self.sr = samplerate
-        # Humanization parameters
-        self.timing_jitter_ms = 8  # ±8ms timing variation
-        self.velocity_variation = 0.12  # ±12% velocity variation
-        self.pitch_variation = 0.02  # ±2% pitch variation per hit
-        self.swing_amount = 0.0  # Set per genre (0.0-0.5)
+        
+        # GENRE-SPECIFIC GROOVE TEMPLATES
+        # Each value is timing offset in ms for that 16th note position
+        # Positive = late (laid back), Negative = early (pushed)
+        self.groove_templates = {
+            # Trap: Tight kicks, hi-hats can be slightly late for groove
+            'trap': [0, -2, 0, 2, 0, -1, 0, 3, 0, -2, 0, 2, 0, -1, 0, 4],
+            'rap': [0, -2, 0, 2, 0, -1, 0, 3, 0, -2, 0, 2, 0, -1, 0, 4],
+            
+            # House: Very tight, almost mechanical (signature 4-on-floor)
+            'house': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            
+            # R&B: Laid back feel, drums behind the beat
+            'rnb': [0, 3, 2, 4, 2, 3, 2, 5, 0, 3, 2, 4, 2, 3, 2, 6],
+            'rb': [0, 3, 2, 4, 2, 3, 2, 5, 0, 3, 2, 4, 2, 3, 2, 6],
+            
+            # Default: Slight push/pull for life
+            'default': [0, 1, 0, 2, 0, 1, 0, 2, 0, 1, 0, 2, 0, 1, 0, 3],
+        }
+        
+        # ACCENT PATTERNS: Velocity multipliers per 16th note position
+        # These create the natural feel of a drummer
+        self.accent_patterns = {
+            # Trap: Strong downbeats, varied hi-hats
+            'trap': [1.0, 0.6, 0.8, 0.5, 0.9, 0.55, 0.75, 0.5, 1.0, 0.6, 0.8, 0.5, 0.9, 0.55, 0.75, 0.6],
+            'rap': [1.0, 0.6, 0.8, 0.5, 0.9, 0.55, 0.75, 0.5, 1.0, 0.6, 0.8, 0.5, 0.9, 0.55, 0.75, 0.6],
+            
+            # House: Offbeats louder (signature house pump)
+            'house': [0.85, 0.7, 1.0, 0.65, 0.85, 0.7, 1.0, 0.65, 0.85, 0.7, 1.0, 0.65, 0.85, 0.7, 1.0, 0.75],
+            
+            # R&B: Smooth dynamics, ghost notes very soft
+            'rnb': [1.0, 0.4, 0.7, 0.35, 0.95, 0.4, 0.65, 0.35, 1.0, 0.4, 0.7, 0.35, 0.95, 0.4, 0.65, 0.4],
+            'rb': [1.0, 0.4, 0.7, 0.35, 0.95, 0.4, 0.65, 0.35, 1.0, 0.4, 0.7, 0.35, 0.95, 0.4, 0.65, 0.4],
+            
+            # Default
+            'default': [1.0, 0.65, 0.85, 0.6, 0.95, 0.65, 0.8, 0.6, 1.0, 0.65, 0.85, 0.6, 0.95, 0.65, 0.8, 0.65],
+        }
+        
+        # Swing amounts (0.0 = no swing, 0.3 = heavy shuffle)
+        self.swing_amounts = {
+            'trap': 0.08, 'rap': 0.12, 'hiphop': 0.15,
+            'rnb': 0.22, 'rb': 0.22,  # R&B has more swing
+            'house': 0.03,  # Almost no swing for 4-on-floor
+            'edmdrop': 0.0, 'edm': 0.02,
+            'edmchill': 0.06,
+            'default': 0.05,
+        }
+        
+        # Minimal random variation on top of templates
+        self.timing_jitter_ms = 3  # Reduced from 8ms - most feel comes from template
+        self.velocity_variation = 0.06  # Reduced from 12% - accent pattern is primary
+        self.pitch_variation = 0.015  # Subtle timbral variation
         
     def _apply_humanization(self, sound: np.ndarray, velocity: float = 1.0) -> np.ndarray:
         """Apply subtle per-hit variations to prevent machine-gun effect"""
@@ -437,16 +484,10 @@ class DrumSynthesizer:
             hat_open_gen = lambda v: self.synthesize_hihat(closed=False, tone=pitch_vary(8000, 0.03), decay=0.18 + random.uniform(-0.02, 0.02))
         
         # Genre-specific swing settings
-        swing_amounts = {
-            'rap': 0.15, 'trap': 0.1, 'hiphop': 0.2,
-            'rnb': 0.25, 'rb': 0.25,  # R&B has more swing
-            'house': 0.05,  # Minimal swing for 4-on-floor
-            'edmdrop': 0.0, 'edm': 0.02,  # Very little swing
-            'edmchill': 0.08,
-            'cinematic': 0.0, 'film': 0.0,
-            'retrowave': 0.05, 'synthwave': 0.05,
-        }
-        self.swing_amount = swing_amounts.get(genre_lower, 0.05)
+        genre_key = genre_lower if genre_lower in self.swing_amounts else 'default'
+        swing_amount = self.swing_amounts.get(genre_key, 0.05)
+        groove_template = self.groove_templates.get(genre_key, self.groove_templates['default'])
+        accent_pattern = self.accent_patterns.get(genre_key, self.accent_patterns['default'])
         
         # Process MIDI events
         note_count = 0
@@ -463,17 +504,36 @@ class DrumSynthesizer:
                     note = msg.note
                     velocity = msg.velocity / 127.0
                     
-                    # HUMANIZATION: Apply velocity variation (±12%)
+                    # Calculate 16th note position within bar (0-15)
+                    bar_position_sec = current_time_sec % (sixteenth_note_duration * 16)
+                    sixteenth_position = int(bar_position_sec / sixteenth_note_duration) % 16
+                    
+                    # MUSICAL HUMANIZATION v2: Groove template timing
+                    groove_offset_ms = groove_template[sixteenth_position]
+                    timing_offset_sec = groove_offset_ms / 1000.0
+                    
+                    # Add minimal random jitter on top (±3ms)
+                    timing_offset_sec += random.gauss(0, self.timing_jitter_ms / 1000.0 / 2)
+                    
+                    # SWING: Apply to offbeat 8th notes (positions 2, 6, 10, 14)
+                    if sixteenth_position in [2, 6, 10, 14]:
+                        timing_offset_sec += swing_amount * sixteenth_note_duration
+                    
+                    # MUSICAL HUMANIZATION v2: Accent pattern velocity
+                    accent_mult = accent_pattern[sixteenth_position]
+                    
+                    # Combine MIDI velocity with accent pattern
+                    # Low MIDI velocity = ghost note, respect that
+                    if velocity < 0.4:
+                        # Ghost notes stay very quiet
+                        velocity = velocity * 0.7 * accent_mult
+                    else:
+                        # Normal notes use accent pattern
+                        velocity = velocity * accent_mult
+                    
+                    # Small random velocity variation (±6%)
                     vel_variation = 1.0 + random.gauss(0, self.velocity_variation)
                     velocity = max(0.1, min(1.0, velocity * vel_variation))
-                    
-                    # HUMANIZATION: Apply micro-timing jitter (±8ms)
-                    timing_offset_sec = random.gauss(0, self.timing_jitter_ms / 1000.0 / 2)
-                    
-                    # HUMANIZATION: Apply swing to offbeat notes (affects 2nd and 4th 16th notes)
-                    beat_position = (current_time_sec / sixteenth_note_duration) % 4
-                    if 0.8 < beat_position < 1.2 or 2.8 < beat_position < 3.2:  # Offbeat positions
-                        timing_offset_sec += self.swing_amount * sixteenth_note_duration
                     
                     humanized_time = max(0, current_time_sec + timing_offset_sec)
                     
