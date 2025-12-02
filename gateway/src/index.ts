@@ -1,14 +1,17 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import { createProxyMiddleware, Options } from "http-proxy-middleware";
 import { ApolloServer } from "apollo-server-express";
 import { graphqlUploadExpress } from "graphql-upload-minimal";
 import { typeDefs } from "./schema";
 import { resolvers } from "./resolvers";
 import { initDb } from "./db";
+import { IncomingMessage, ServerResponse } from "http";
 
 const PORT = process.env.PORT || 4000;
 const HOST = process.env.HOST || "0.0.0.0";
+const S3_ENDPOINT = process.env.S3_ENDPOINT || "http://localhost:9002";
 
 async function start() {
   await initDb();
@@ -20,6 +23,24 @@ async function start() {
     origin: true,
     credentials: true,
   }));
+
+  // Proxy /s3/* requests to MinIO (for presigned URLs)
+  const proxyOptions: Options = {
+    target: S3_ENDPOINT,
+    changeOrigin: true,
+    pathRewrite: { '^/s3': '' },
+    on: {
+      proxyRes: (proxyRes: IncomingMessage) => {
+        // Add CORS headers to MinIO responses
+        (proxyRes as any).headers = (proxyRes as any).headers || {};
+        (proxyRes as any).headers['access-control-allow-origin'] = '*';
+        (proxyRes as any).headers['access-control-allow-methods'] = 'GET, PUT, POST, DELETE, OPTIONS';
+        (proxyRes as any).headers['access-control-allow-headers'] = '*';
+        (proxyRes as any).headers['access-control-expose-headers'] = '*';
+      },
+    },
+  };
+  app.use('/s3', createProxyMiddleware(proxyOptions));
 
   // Middleware for file uploads (GraphQL multipart)
   app.use(graphqlUploadExpress({ maxFileSize: 10_000_000, maxFiles: 1 }) as any);

@@ -80,8 +80,11 @@ if [ ! -d "/data/mysql/mysql" ]; then
     fi
 fi
 
-# Initialize MinIO Data Directory
+# Initialize MinIO Data Directory and bucket
 mkdir -p /data/minio
+
+# Create the bucket directory for MinIO (MinIO auto-detects directories as buckets)
+mkdir -p /data/minio/soundcanvas-uploads
 
 # Start Supervisor
 echo "Starting Supervisor..."

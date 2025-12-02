@@ -102,6 +102,7 @@ ENV DB_PASSWORD=soundcanvas
 ENV DB_NAME=soundcanvas
 ENV USE_S3=true
 ENV S3_ENDPOINT=http://localhost:9002
+ENV S3_PUBLIC_ENDPOINT=https://soundcanvas-backend-20251201195552.fly.dev/s3
 ENV S3_BUCKET_NAME=soundcanvas-uploads
 ENV AWS_ACCESS_KEY_ID=minioadmin
 ENV AWS_SECRET_ACCESS_KEY=minioadmin
