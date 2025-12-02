@@ -1,6 +1,5 @@
 from http.server import BaseHTTPRequestHandler
 import json
-import numpy as np
 import os
 
 # Mock ML logic to replace TensorFlow Serving for Vercel deployment

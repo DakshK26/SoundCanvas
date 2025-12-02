@@ -1,8 +1,9 @@
 from http.server import BaseHTTPRequestHandler
 import json
 import os
-import numpy as np
-from scipy.io import wavfile
+import math
+import struct
+import wave
 import tempfile
 import base64
 import io
@@ -12,34 +13,44 @@ import io
 
 def generate_synthetic_track(genre, duration=30.0):
     sample_rate = 44100
-    t = np.linspace(0, duration, int(sample_rate * duration), False)
+    num_samples = int(sample_rate * duration)
     
     # Bass line (simple sine)
     bass_freq = 55.0 # A1
     if genre == 'EDM_DROP':
         bass_freq = 45.0
     
-    bass = 0.5 * np.sin(bass_freq * t * 2 * np.pi)
+    # Generate audio data
+    audio_data = bytearray()
     
-    # Add some modulation
-    mod = 0.2 * np.sin(2.0 * t * 2 * np.pi)
-    bass = bass * (1 + mod)
-    
-    # Simple beat (noise bursts)
-    beat = np.zeros_like(t)
-    kick_interval = int(sample_rate * 0.5) # 120 BPM
-    for i in range(0, len(t), kick_interval):
-        if i + 2000 < len(t):
-            beat[i:i+1000] = np.random.uniform(-1, 1, 1000) * np.linspace(1, 0, 1000)
+    for i in range(num_samples):
+        t = i / sample_rate
+        
+        # Bass
+        bass = 0.5 * math.sin(bass_freq * t * 2 * math.pi)
+        
+        # Modulation
+        mod = 0.2 * math.sin(2.0 * t * 2 * math.pi)
+        bass = bass * (1 + mod)
+        
+        # Simple beat (noise bursts)
+        beat = 0.0
+        kick_interval = int(sample_rate * 0.5) # 120 BPM
+        if (i % kick_interval) < 1000:
+             # Simple noise
+             import random
+             beat = random.uniform(-1, 1) * (1.0 - (i % kick_interval)/1000.0)
             
-    # Mix
-    mix = (bass + beat) * 0.5
-    
-    # Normalize
-    mix = mix / np.max(np.abs(mix))
-    
-    # Convert to 16-bit PCM
-    audio_data = (mix * 32767).astype(np.int16)
+        # Mix
+        mix = (bass + beat) * 0.5
+        
+        # Clip
+        if mix > 1.0: mix = 1.0
+        if mix < -1.0: mix = -1.0
+        
+        # Convert to 16-bit PCM
+        sample = int(mix * 32767)
+        audio_data.extend(struct.pack('<h', sample))
     
     return audio_data, sample_rate
 
@@ -54,19 +65,24 @@ class handler(BaseHTTPRequestHandler):
             genre = data.get('genre', 'EDM_CHILL')
             
             # Generate synthetic audio
-            audio_data, rate = generate_synthetic_track(genre)
+            audio_bytes, rate = generate_synthetic_track(genre)
             
             # Write to bytes
             byte_io = io.BytesIO()
-            wavfile.write(byte_io, rate, audio_data)
-            wav_bytes = byte_io.getvalue()
+            with wave.open(byte_io, 'wb') as wav_file:
+                wav_file.setnchannels(1)
+                wav_file.setsampwidth(2)
+                wav_file.setframerate(rate)
+                wav_file.writeframes(audio_bytes)
             
-            audio_base64 = base64.b64encode(wav_bytes).decode('utf-8')
+            wav_bytes_final = byte_io.getvalue()
+            
+            audio_base64 = base64.b64encode(wav_bytes_final).decode('utf-8')
             
             response = {
                 'status': 'success',
                 'audio_base64': audio_base64,
-                'file_size': len(wav_bytes),
+                'file_size': len(wav_bytes_final),
                 'lufs': -14.0,
                 'duration_sec': 30.0,
                 'genre': genre,
