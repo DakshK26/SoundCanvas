@@ -29,6 +29,7 @@
     "graphql-upload-minimal": "^1.6.1",
     "mysql2": "^3.15.3",
     "replicate": "^1.4.0",
+    "sharp": "^0.33.5",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.3",
     "uuid": "^13.0.0"

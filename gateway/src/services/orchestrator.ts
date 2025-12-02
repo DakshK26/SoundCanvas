@@ -7,6 +7,7 @@ import { Readable } from 'stream';
 import { getGenerationById, updateGenerationStatus, updateGenerationFields } from '../db';
 import { StorageService } from './storage';
 import Logger, { LogEvent } from '../utils/logger';
+import sharp from 'sharp';
 
 const CPP_CORE_URL = process.env.CPP_CORE_URL || 'http://localhost:8080';
 const AUDIO_PRODUCER_URL = process.env.SC_AUDIO_PRODUCER_URL || process.env.AUDIO_PRODUCER_URL || 'http://localhost:9001';
@@ -53,22 +54,32 @@ export class OrchestratorService {
         const tempDir = path.join(dataRoot, 'temp', jobId);
         await fs.promises.mkdir(tempDir, { recursive: true });
 
-        const imagePath = path.join(tempDir, 'input.jpg');
+        const rawImagePath = path.join(tempDir, 'input_raw');  // Original format
+        const imagePath = path.join(tempDir, 'input.jpg');     // Converted to JPEG
         const midiPath = path.join(tempDir, 'composition.mid');
         const audioPath = path.join(tempDir, 'output.wav');
 
         try {
             // Step 1: Download image from S3
             console.log(`[Orchestrator] [${jobId}] Downloading image from S3: ${generation.image_key}`);
-            await this.downloadFromS3(generation.image_key, imagePath);
+            await this.downloadFromS3(generation.image_key, rawImagePath);
 
             // Verify image file exists and is readable
-            const imageStats = await fs.promises.stat(imagePath);
-            console.log(`[Orchestrator] [${jobId}] Image file ready: ${imagePath} (${imageStats.size} bytes)`);
+            const imageStats = await fs.promises.stat(rawImagePath);
+            console.log(`[Orchestrator] [${jobId}] Raw image downloaded: ${rawImagePath} (${imageStats.size} bytes)`);
 
             if (imageStats.size < 100) {
                 throw new Error(`Image file too small (${imageStats.size} bytes), likely corrupted`);
             }
+
+            // Convert image to JPEG (handles AVIF, HEIF, WebP, PNG, etc.)
+            console.log(`[Orchestrator] [${jobId}] Converting image to JPEG...`);
+            await sharp(rawImagePath)
+                .jpeg({ quality: 90 })
+                .toFile(imagePath);
+            
+            const convertedStats = await fs.promises.stat(imagePath);
+            console.log(`[Orchestrator] [${jobId}] Image converted to JPEG: ${imagePath} (${convertedStats.size} bytes)`);
 
             // Step 2: Call cpp-core service
             console.log(`[Orchestrator] [${jobId}] Calling cpp-core service...`);
