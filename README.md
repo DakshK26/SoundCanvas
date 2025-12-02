@@ -58,8 +58,7 @@ soundcanvas/
 │   ├── docker-compose.yml
 │   ├── terraform/
 │   └── ecr_push.sh
-│
-└── docs/                          # Phase reports & architecture docs
+
 ```
 # AWS Deployment Architecture
 ```
