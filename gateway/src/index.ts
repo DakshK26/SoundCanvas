@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import cors from "cors";
 import { ApolloServer } from "apollo-server-express";
 import { graphqlUploadExpress } from "graphql-upload-minimal";
 import { typeDefs } from "./schema";
@@ -13,6 +14,12 @@ async function start() {
   await initDb();
 
   const app = express();
+
+  // Enable CORS for all origins (Vercel frontend)
+  app.use(cors({
+    origin: true,
+    credentials: true,
+  }));
 
   // Middleware for file uploads (GraphQL multipart)
   app.use(graphqlUploadExpress({ maxFileSize: 10_000_000, maxFiles: 1 }) as any);
