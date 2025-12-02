@@ -77,7 +77,7 @@ export class OrchestratorService {
             await sharp(rawImagePath)
                 .jpeg({ quality: 90 })
                 .toFile(imagePath);
-            
+
             const convertedStats = await fs.promises.stat(imagePath);
             console.log(`[Orchestrator] [${jobId}] Image converted to JPEG: ${imagePath} (${convertedStats.size} bytes)`);
 
