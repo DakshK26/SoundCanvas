@@ -203,7 +203,19 @@ def produce():
         stem_wavs = {}
         temp_stems = []
         
-        # Phase 13: Use SYNTHESIZED drums for better quality (no samples needed!)
+        # ALWAYS render the full MIDI with FluidSynth for melodic content (bass, chords, pads, leads)
+        if midi_path:
+            print("  Rendering melodic content with FluidSynth...")
+            melodic_wav = os.path.join(STEMS_DIR, f"melodic_{os.getpid()}.wav")
+            temp_stems.append(melodic_wav)
+            
+            if render_midi_to_wav(midi_path, melodic_wav):
+                stem_wavs['melodic'] = melodic_wav
+                print(f"    ✓ Melodic content rendered with FluidSynth")
+            else:
+                print(f"    ✗ Failed to render melodic content")
+        
+        # Phase 13: Use SYNTHESIZED drums for better quality (separate from melodic)
         if use_sample_drums and midi_path:
             print("  Rendering drums with synthesizer...")
             
@@ -233,12 +245,8 @@ def produce():
                     print(f"    ✓ Drums rendered with {kit_name} samples (fallback)")
                 except Exception as e2:
                     print(f"    Warning: Sample drum rendering also failed: {e2}")
-                    # Final fallback to FluidSynth
-                    if render_midi_to_wav(midi_path, drums_wav):
-                        stem_wavs['drums'] = drums_wav
-                        print("    ✓ Drums rendered with FluidSynth (fallback)")
         
-        # Render other stems (bass, lead, pad, etc.)
+        # Render additional stems if provided separately
         if stems_midi:
             for stem_name, stem_midi in stems_midi.items():
                 if not os.path.exists(stem_midi):
@@ -253,15 +261,6 @@ def produce():
                     print(f"  ✓ Rendered {stem_name}")
                 else:
                     print(f"  ✗ Failed to render {stem_name}")
-        
-        elif midi_path and not use_sample_drums:
-            # Render full MIDI with FluidSynth (old path)
-            full_wav = os.path.join(STEMS_DIR, f"full_{os.getpid()}.wav")
-            temp_stems.append(full_wav)
-            
-            if render_midi_to_wav(midi_path, full_wav):
-                stem_wavs['full'] = full_wav
-                print(f"  ✓ Rendered full MIDI")
         
         if not stem_wavs:
             return jsonify({'status': 'error', 'message': 'No stems rendered'}), 500
