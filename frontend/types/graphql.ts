@@ -9,8 +9,6 @@ export enum GenerationStatus {
 
 export enum Genre {
     AUTO = 'AUTO',
-    RAP = 'RAP',
-    RNB = 'RNB',
     HOUSE = 'HOUSE',
     EDM_CHILL = 'EDM_CHILL',
     EDM_DROP = 'EDM_DROP',

@@ -100,11 +100,7 @@ void runHttpServer(
             GenreType decidedGenre;
             if (!genreOverride.empty() && genreOverride != "AUTO") {
                 // Map frontend genre names to GenreType
-                if (genreOverride == "RAP") {
-                    decidedGenre = GenreType::RAP;
-                } else if (genreOverride == "RNB") {
-                    decidedGenre = GenreType::RNB;
-                } else if (genreOverride == "HOUSE") {
+                if (genreOverride == "HOUSE") {
                     decidedGenre = GenreType::HOUSE;
                 } else if (genreOverride == "EDM_CHILL") {
                     decidedGenre = GenreType::EDM_CHILL;

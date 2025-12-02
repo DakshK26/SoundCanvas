@@ -317,7 +317,7 @@ def main():
     parser.add_argument('output_wav', nargs='?', default='debug_out.wav',
                        help='Output WAV file (default: debug_out.wav)')
     parser.add_argument('--genre', default='HOUSE',
-                       choices=['RAP', 'HOUSE', 'RNB', 'EDM_CHILL', 'EDM_DROP'],
+                       choices=['HOUSE', 'EDM_CHILL', 'EDM_DROP', 'CINEMATIC', 'RETROWAVE'],
                        help='Genre for mixing presets')
     
     args = parser.parse_args()

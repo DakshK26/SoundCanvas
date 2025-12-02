@@ -61,7 +61,7 @@ def load_mix_preset(preset_name: str, presets_dir: Optional[Path] = None) -> Mix
     Load a mix preset from YAML file
     
     Args:
-        preset_name: Name of preset (e.g., 'rap', 'house', 'rnb')
+        preset_name: Name of preset (e.g., 'house')
         presets_dir: Optional custom directory (defaults to audio-producer/mix/presets/)
     
     Returns:
@@ -146,21 +146,21 @@ def get_preset_for_genre(genre: str, presets_dir: Optional[Path] = None) -> MixP
         MixPreset object
     """
     # Map genre names to preset names
+    # Available presets: house (energetic), rnb (soft/chill)
     genre_map = {
-        'Rap': 'rap',
-        'rap': 'rap',
-        'RAP': 'rap',
         'House': 'house',
         'house': 'house',
         'HOUSE': 'house',
-        'R&B': 'rnb',
-        'RnB': 'rnb',
-        'rnb': 'rnb',
-        'RNB': 'rnb',
-        'EDM Drop': 'house',  # Use house preset for EDM Drop (similar energy)
-        'EDM Chill': 'rnb',   # Use rnb preset for EDM Chill (softer)
+        'EDM Drop': 'house',  # Use house preset for EDM Drop (high energy)
         'EDM_DROP': 'house',
-        'EDM_CHILL': 'rnb'
+        'EDM Chill': 'house',   # House preset works for chill EDM too
+        'EDM_CHILL': 'house',
+        'Cinematic': 'house',
+        'cinematic': 'house',
+        'CINEMATIC': 'house',
+        'Retrowave': 'house',
+        'retrowave': 'house',
+        'RETROWAVE': 'house',
     }
     
     preset_name = genre_map.get(genre, 'house')  # Default to house
@@ -173,7 +173,7 @@ if __name__ == '__main__':
     
     print("Testing mix preset loader...\n")
     
-    for preset_name in ['rap', 'house', 'rnb']:
+    for preset_name in ['house']:
         try:
             preset = load_mix_preset(preset_name)
             print(f"✓ Loaded preset: {preset.name}")

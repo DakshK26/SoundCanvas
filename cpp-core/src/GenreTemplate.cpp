@@ -14,8 +14,6 @@ const char* genreTypeName(GenreType type) {
         case GenreType::EDM_DROP: return "EDM_DROP";
         case GenreType::RETROWAVE: return "RETROWAVE";
         case GenreType::CINEMATIC: return "CINEMATIC";
-        case GenreType::RAP: return "RAP";
-        case GenreType::RNB: return "RNB";
         case GenreType::HOUSE: return "HOUSE";
         default: return "Unknown";
     }
@@ -159,76 +157,6 @@ static const GenreTemplate CINEMATIC_TEMPLATE = {
 };
 
 // ============================================================================
-// RAP / TRAP TEMPLATE - Hard 808s, trap hi-hats, boom bap vibes
-// ============================================================================
-static const GenreTemplate RAP_TEMPLATE = {
-    GenreType::RAP,
-    "RAP",
-    85,   // minTempo (can go slower for boom bap)
-    145,  // maxTempo (trap can be fast)
-    
-    // Section plan: intro → verse → hook → verse → hook → outro
-    {
-        {SectionType::INTRO, 4, 0.3f, false},
-        {SectionType::BUILD, 8, 0.6f, false},   // Verse 1
-        {SectionType::DROP, 8, 0.8f, true},     // Hook/Chorus
-        {SectionType::BUILD, 8, 0.6f, false},   // Verse 2  
-        {SectionType::DROP, 8, 0.9f, true},     // Hook 2 (bigger)
-        {SectionType::OUTRO, 4, 0.3f, false}
-    },
-    
-    // Trap/Rap layers - 808s, hi-hats, snares
-    {
-        {"kick", 36, 0.0f, false},           // 808 kick (always)
-        {"hihat", 42, 0.0f, false},          // Trap hi-hats (always)
-        {"snare", 38, 0.0f, false},          // Hard snare/clap
-        {"bass", 38, 0.0f, true},            // 808 bass (sidechained)
-        {"perc", 56, 0.4f, false},           // Extra percussion
-        {"pad", 89, 0.3f, true},             // Dark atmospheric pad
-        {"lead", 81, 0.6f, true}             // Melody/lead (in hooks)
-    },
-    
-    0.5f,  // dropEnergyThreshold
-    {1, 2} // preferredScales: Minor, Dorian (dark, hard)
-};
-
-// ============================================================================
-// R&B TEMPLATE - Smooth grooves, soft keys, soulful vibes
-// ============================================================================
-static const GenreTemplate RNB_TEMPLATE = {
-    GenreType::RNB,
-    "RNB",
-    65,   // minTempo (slow jams)
-    95,   // maxTempo (upbeat R&B)
-    
-    // Section plan: intro → verse → chorus → verse → chorus → bridge → outro
-    {
-        {SectionType::INTRO, 4, 0.2f, false},
-        {SectionType::BUILD, 8, 0.4f, false},   // Verse
-        {SectionType::DROP, 8, 0.6f, false},    // Chorus (smooth, not hard drop)
-        {SectionType::BUILD, 8, 0.4f, false},   // Verse 2
-        {SectionType::DROP, 8, 0.7f, true},     // Bigger chorus
-        {SectionType::BREAK, 4, 0.5f, false},   // Bridge
-        {SectionType::OUTRO, 4, 0.2f, false}
-    },
-    
-    // R&B layers - smooth keys, soft drums, bass
-    {
-        {"kick", 36, 0.0f, false},           // Soft kick
-        {"hihat", 42, 0.0f, false},          // Soft hi-hats
-        {"snare", 38, 0.2f, false},          // Snare with groove
-        {"bass", 33, 0.0f, false},           // Electric bass (smooth)
-        {"keys", 4, 0.0f, false},            // Electric piano (Rhodes)
-        {"pad", 89, 0.2f, false},            // Warm pad
-        {"strings", 49, 0.5f, false},        // Strings for emotion
-        {"lead", 26, 0.6f, false}            // Guitar or synth lead
-    },
-    
-    0.4f,  // dropEnergyThreshold (smooth builds)
-    {0, 1, 2} // preferredScales: Major, Minor, Dorian (soulful)
-};
-
-// ============================================================================
 // HOUSE TEMPLATE - 4-on-floor, driving bass, disco vibes
 // ============================================================================
 static const GenreTemplate HOUSE_TEMPLATE = {
@@ -269,8 +197,6 @@ const GenreTemplate& getGenreTemplate(GenreType type) {
         case GenreType::EDM_DROP: return EDM_DROP_TEMPLATE;
         case GenreType::RETROWAVE: return RETROWAVE_TEMPLATE;
         case GenreType::CINEMATIC: return CINEMATIC_TEMPLATE;
-        case GenreType::RAP: return RAP_TEMPLATE;
-        case GenreType::RNB: return RNB_TEMPLATE;
         case GenreType::HOUSE: return HOUSE_TEMPLATE;
         default:
             throw std::runtime_error("Unknown genre type");
@@ -288,19 +214,16 @@ GenreType selectGenreFromImage(const ImageFeatures& features, float energy) {
     }
     
     // Heuristic mapping based on color and energy
-    // Use a mix of genres for variety - not always CINEMATIC for edge cases
+    // Available genres: EDM_CHILL, EDM_DROP, RETROWAVE, CINEMATIC, HOUSE
     
-    // Edge case 1: Very dark image (brightness < 0.2) → Moody genres based on energy
+    // Edge case 1: Very dark image (brightness < 0.2) → Moody genres
     if (features.brightness < 0.2f) {
         if (safeEnergy > 0.6f) {
-            std::cout << "[Genre Selection] Dark image + high energy → RAP" << std::endl;
-            return GenreType::RAP;  // Dark and energetic
-        } else if (safeEnergy > 0.4f) {
-            std::cout << "[Genre Selection] Dark image + mid energy → RNB" << std::endl;
-            return GenreType::RNB;  // Moody and smooth
+            std::cout << "[Genre Selection] Dark image + high energy → EDM_DROP" << std::endl;
+            return GenreType::EDM_DROP;  // Dark and energetic
         }
         std::cout << "[Genre Selection] Dark image + low energy → CINEMATIC" << std::endl;
-        return GenreType::CINEMATIC;  // Only truly low energy gets cinematic
+        return GenreType::CINEMATIC;  // Dark and moody
     }
     
     // Edge case 2: Very bright image (brightness > 0.9) → Upbeat genres
@@ -319,8 +242,8 @@ GenreType selectGenreFromImage(const ImageFeatures& features, float energy) {
             std::cout << "[Genre Selection] Grayscale + energy → RETROWAVE" << std::endl;
             return GenreType::RETROWAVE;  // Stylish monochrome vibe
         }
-        std::cout << "[Genre Selection] Grayscale image → RNB" << std::endl;
-        return GenreType::RNB;  // Smooth and understated
+        std::cout << "[Genre Selection] Grayscale image → CINEMATIC" << std::endl;
+        return GenreType::CINEMATIC;  // Understated
     }
     
     // High energy + warm colors (red/orange) → EDM_Drop
@@ -333,7 +256,7 @@ GenreType selectGenreFromImage(const ImageFeatures& features, float energy) {
         return GenreType::RETROWAVE;
     }
     
-    // Low colorfulness + high contrast → Cinematic (dramatic, grayscale)
+    // Low colorfulness + high contrast → Cinematic (dramatic)
     if (features.colorfulness < 0.3f && features.contrast > 0.5f) {
         return GenreType::CINEMATIC;
     }
@@ -343,8 +266,14 @@ GenreType selectGenreFromImage(const ImageFeatures& features, float energy) {
         return GenreType::EDM_CHILL;
     }
     
-    // Default: pick based on energy (using clamped safe energy)
+    // Green/yellow + high energy → House (uplifting, groovy)
+    if (features.hue > 0.2f && features.hue < 0.5f && safeEnergy > 0.5f) {
+        return GenreType::HOUSE;
+    }
+    
+    // Default: pick based on energy
     if (safeEnergy > 0.7f) return GenreType::EDM_DROP;
+    if (safeEnergy > 0.5f) return GenreType::HOUSE;
     if (safeEnergy > 0.4f) return GenreType::RETROWAVE;
     if (features.brightness < 0.4f) return GenreType::CINEMATIC;
     

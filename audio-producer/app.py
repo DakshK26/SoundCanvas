@@ -153,7 +153,7 @@ def produce():
             "lead": "/data/midi/lead.mid"
         },
         "output_path": "/data/audio/final.wav",
-        "genre": "HOUSE",  # EDM_CHILL, EDM_DROP, HOUSE, RAP, RNB
+        "genre": "HOUSE",  # EDM_CHILL, EDM_DROP, HOUSE, CINEMATIC, RETROWAVE
         "apply_mastering": true,
         "use_sample_drums": true,  # Phase 9: Use sample-based drums
         "render_fx": true  # Phase 9: Render FX stem
@@ -233,11 +233,10 @@ def produce():
                 # Fallback to sample-based drums if available
                 try:
                     kit_name = {
-                        'RAP': 'trap_808',
                         'HOUSE': 'house',
-                        'RNB': 'rnb_soft',
                         'EDM_DROP': 'house',
-                        'EDM_CHILL': 'rnb_soft',
+                        'EDM_CHILL': 'house',
+                        'CINEMATIC': 'house',
                     }.get(genre, 'house')
                     drum_sampler = DrumSampler(kit_name=kit_name, assets_dir=ASSETS_DIR)
                     drum_sampler.render_midi(midi_path, drums_wav)

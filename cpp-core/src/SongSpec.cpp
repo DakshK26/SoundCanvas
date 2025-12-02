@@ -72,8 +72,8 @@ SongSpec makeSongSpec(const ImageFeatures& f, const MusicParameters& m) {
   // Phase 9: Genre-aware groove selection
   if (spec.genreProfile.genre == Genre::HOUSE || spec.genreProfile.genre == Genre::EDM_DROP) {
     spec.groove = GrooveType::DRIVING;  // Always driving for house/edm
-  } else if (spec.genreProfile.genre == Genre::RAP || spec.genreProfile.genre == Genre::RNB) {
-    spec.groove = GrooveType::STRAIGHT;  // Straight with swing for rap/rnb
+  } else if (spec.genreProfile.genre == Genre::RETROWAVE || spec.genreProfile.genre == Genre::CINEMATIC) {
+    spec.groove = GrooveType::STRAIGHT;  // Straight for retrowave/cinematic
   } else if (m.energy < 0.2f && spec.tempoBpm < 70) {
     spec.groove = GrooveType::CHILL;  // Sparse, ambient
   } else if (m.energy > 0.4f || spec.tempoBpm > 90) {
@@ -99,31 +99,30 @@ SongSpec makeSongSpec(const ImageFeatures& f, const MusicParameters& m) {
   // Genre-specific section templates
   spec.sections.clear();
 
-  if (spec.genreProfile.genre == Genre::RAP) {
-    // Rap structure: intro + verse + hook + verse/outro
+  if (spec.genreProfile.genre == Genre::RETROWAVE) {
+    // Retrowave structure: intro + verse + chorus + verse + outro
     if (spec.totalBars == 16) {
-      spec.sections.push_back({"intro", 4, 0.2f});
-      spec.sections.push_back({"verse", 8, 0.5f});
-      spec.sections.push_back({"hook", 4, 0.8f});
+      spec.sections.push_back({"intro", 4, 0.3f});
+      spec.sections.push_back({"verse", 8, 0.6f});
+      spec.sections.push_back({"chorus", 4, 0.8f});
     } else {
-      spec.sections.push_back({"intro", 4, 0.2f});
-      spec.sections.push_back({"verse", 8, 0.5f});
-      spec.sections.push_back({"hook", 8, 0.8f});
-      spec.sections.push_back({"outro", 4, 0.3f});
+      spec.sections.push_back({"intro", 4, 0.3f});
+      spec.sections.push_back({"verse", 8, 0.6f});
+      spec.sections.push_back({"chorus", 8, 0.8f});
+      spec.sections.push_back({"outro", 4, 0.4f});
     }
-  } else if (spec.genreProfile.genre == Genre::RNB) {
-    // R&B structure: intro + verse + pre-chorus + chorus + bridge? + outro
+  } else if (spec.genreProfile.genre == Genre::CINEMATIC) {
+    // Cinematic structure: intro + build + climax + resolution + outro
     if (spec.totalBars <= 24) {
       spec.sections.push_back({"intro", 4, 0.2f});
-      spec.sections.push_back({"verse", 8, 0.5f});
-      spec.sections.push_back({"pre-chorus", 4, 0.6f});
-      spec.sections.push_back({"chorus", 8, 0.9f});
+      spec.sections.push_back({"build", 8, 0.5f});
+      spec.sections.push_back({"climax", 4, 0.9f});
+      spec.sections.push_back({"resolution", 8, 0.6f});
     } else {
       spec.sections.push_back({"intro", 4, 0.2f});
-      spec.sections.push_back({"verse", 8, 0.5f});
-      spec.sections.push_back({"pre-chorus", 4, 0.6f});
-      spec.sections.push_back({"chorus", 8, 0.9f});
-      spec.sections.push_back({"bridge", 4, 0.5f});
+      spec.sections.push_back({"build", 8, 0.5f});
+      spec.sections.push_back({"climax", 8, 0.9f});
+      spec.sections.push_back({"resolution", 8, 0.6f});
       spec.sections.push_back({"outro", 4, 0.3f});
     }
   } else if (spec.genreProfile.genre == Genre::HOUSE) {
@@ -301,12 +300,12 @@ const char* genreName(Genre genre) {
       return "EDM Chill";
     case Genre::EDM_DROP:
       return "EDM Drop";
+    case Genre::RETROWAVE:
+      return "Retrowave";
+    case Genre::CINEMATIC:
+      return "Cinematic";
     case Genre::HOUSE:
       return "House";
-    case Genre::RAP:
-      return "Rap";
-    case Genre::RNB:
-      return "R&B";
     default:
       return "Unknown";
   }
@@ -344,41 +343,41 @@ GenreProfile pickGenre(const ImageFeatures& f, const MusicParameters& m) {
     profile.hasBigDrop = true;
     profile.hasBridge = false;
   }
-  // Rap/Trap: High contrast + low saturation (urban/gritty) OR tempo in rap range
-  else if ((contrast > 0.5f && saturation < 0.4f) || 
-           (m.tempoBpm >= 70 && m.tempoBpm <= 100 && m.energy < 0.6f)) {
-    profile.genre = Genre::RAP;
-    profile.name = "Rap";
-    profile.minTempo = 70.0f;
-    profile.maxTempo = 100.0f;
-    profile.preferredScaleTypes = {1, 2};  // Minor, Dorian (darker)
-    profile.useSwing = true;
-    profile.swingAmount = 0.15f;  // Medium swing
+  // Retrowave: Warm colors, medium saturation (80s/synthwave vibes)
+  else if ((warmth > 0.6f && saturation > 0.3f && saturation < 0.7f) || 
+           (m.tempoBpm >= 90 && m.tempoBpm <= 120 && m.energy > 0.4f && m.energy < 0.7f)) {
+    profile.genre = Genre::RETROWAVE;
+    profile.name = "Retrowave";
+    profile.minTempo = 90.0f;
+    profile.maxTempo = 120.0f;
+    profile.preferredScaleTypes = {1, 2};  // Minor, Dorian (retro feel)
+    profile.useSwing = false;
+    profile.swingAmount = 0.0f;
     profile.heavySidechain = false;
-    profile.drumPatternSets = {"trap_808", "trap_syncopated"};
-    profile.chordProgressionSets = {"trap_minimal", "trap_dark"};
-    profile.bassPatternSets = {"trap_808", "trap_rolling"};
-    profile.leadPatternSets = {"trap_sparse", "trap_melodic"};
+    profile.drumPatternSets = {"retrowave_punchy", "retrowave_driving"};
+    profile.chordProgressionSets = {"retrowave_bright", "retrowave_nostalgic"};
+    profile.bassPatternSets = {"retrowave_arpeggio", "retrowave_pulse"};
+    profile.leadPatternSets = {"retrowave_lead", "retrowave_synth"};
     profile.minBars = 16;
     profile.maxBars = 24;
     profile.hasBigDrop = false;
-    profile.hasBridge = false;
+    profile.hasBridge = true;
   }
-  // R&B: High saturation + soft contrast + warm colors
-  else if (saturation > 0.5f && contrast < 0.5f && warmth > 0.5f &&
-           m.tempoBpm >= 70 && m.tempoBpm <= 95) {
-    profile.genre = Genre::RNB;
-    profile.name = "R&B";
-    profile.minTempo = 70.0f;
-    profile.maxTempo = 95.0f;
-    profile.preferredScaleTypes = {0, 1, 2};  // Major, Minor, Dorian (versatile)
-    profile.useSwing = true;
-    profile.swingAmount = 0.2f;  // Stronger swing
+  // Cinematic: High contrast + low saturation (dramatic/epic feel)
+  else if (contrast > 0.5f && saturation < 0.4f &&
+           m.tempoBpm >= 60 && m.tempoBpm <= 100) {
+    profile.genre = Genre::CINEMATIC;
+    profile.name = "Cinematic";
+    profile.minTempo = 60.0f;
+    profile.maxTempo = 100.0f;
+    profile.preferredScaleTypes = {0, 1};  // Major, Minor (dramatic)
+    profile.useSwing = false;
+    profile.swingAmount = 0.0f;
     profile.heavySidechain = false;
-    profile.drumPatternSets = {"rnb_soft", "rnb_groove"};
-    profile.chordProgressionSets = {"rnb_jazzy", "rnb_extended"};
-    profile.bassPatternSets = {"rnb_smooth", "rnb_walking"};
-    profile.leadPatternSets = {"rnb_vocal", "rnb_melodic"};
+    profile.drumPatternSets = {"cinematic_epic", "cinematic_subtle"};
+    profile.chordProgressionSets = {"cinematic_epic", "cinematic_emotional"};
+    profile.bassPatternSets = {"cinematic_sustained", "cinematic_moving"};
+    profile.leadPatternSets = {"cinematic_soaring", "cinematic_melodic"};
     profile.minBars = 24;
     profile.maxBars = 32;
     profile.hasBigDrop = false;
@@ -469,64 +468,55 @@ SectionActivity getSectionActivity(const GenreProfile& genre,
       activity.lead = false;
       activity.pad = true;
     }
-  } else if (genre.genre == Genre::RAP) {
-    // Rap: Focus on drums + bass, sparse melodic elements
+  } else if (genre.genre == Genre::RETROWAVE) {
+    // Retrowave: Punchy synth-driven, 80s-style arrangements
     if (sectionName == "intro") {
       activity.drums = false;
       activity.bass = false;
-      activity.chords = (moodScore > 0.3f);
+      activity.chords = true;
       activity.lead = false;
       activity.pad = true;
-    } else if (sectionName == "build" || sectionName == "build2") {
+    } else if (sectionName == "verse") {
       activity.drums = true;
       activity.bass = true;
-      activity.chords = (moodScore > 0.4f);
+      activity.chords = true;
       activity.lead = false;
-      activity.pad = (moodScore > 0.5f);
-    } else if (sectionName == "drop") {
-      // In rap, "drop" is more like a chorus/hook
+      activity.pad = true;
+    } else if (sectionName == "chorus") {
       activity.drums = true;
       activity.bass = true;
       activity.chords = true;
       activity.lead = true;
-      activity.pad = (moodScore > 0.4f);
-    } else if (sectionName == "break") {
-      activity.drums = false;
-      activity.bass = true;
-      activity.chords = true;
-      activity.lead = false;
       activity.pad = true;
     } else {  // outro
       activity.drums = true;
       activity.bass = true;
-      activity.chords = (moodScore > 0.3f);
+      activity.chords = true;
       activity.lead = false;
-      activity.pad = false;
+      activity.pad = true;
     }
-  } else if (genre.genre == Genre::RNB) {
-    // R&B: Smooth, all elements usually present but with dynamics
+  } else if (genre.genre == Genre::CINEMATIC) {
+    // Cinematic: Epic, orchestral builds and emotional dynamics
     if (sectionName == "intro") {
       activity.drums = false;
       activity.bass = false;
       activity.chords = true;
       activity.lead = false;
       activity.pad = true;
-    } else if (sectionName == "build" || sectionName == "build2") {
-      // Build is like a verse in R&B
+    } else if (sectionName == "build") {
       activity.drums = true;
       activity.bass = true;
       activity.chords = true;
       activity.lead = (energy > 0.4f);
       activity.pad = true;
-    } else if (sectionName == "drop") {
-      // Drop is like a chorus - fuller arrangement
+    } else if (sectionName == "climax") {
+      // Full arrangement for dramatic climax
       activity.drums = true;
       activity.bass = true;
       activity.chords = true;
       activity.lead = true;
       activity.pad = true;
-    } else if (sectionName == "break") {
-      // Bridge section
+    } else if (sectionName == "resolution") {
       activity.drums = true;
       activity.bass = true;
       activity.chords = true;

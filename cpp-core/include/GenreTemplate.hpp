@@ -14,9 +14,7 @@ enum class GenreType {
     EDM_DROP = 1,     // Side-chained synths, heavy kick, energy drops (125-135 BPM)
     RETROWAVE = 2,    // Analog bass, gated snare, 80s synth (90-110 BPM)
     CINEMATIC = 3,    // Strings, percussion hits, dramatic build (70-90 BPM)
-    RAP = 4,          // Hard-hitting 808s, trap hi-hats, boom bap (85-145 BPM)
-    RNB = 5,          // Smooth grooves, soft keys, soulful (65-95 BPM)
-    HOUSE = 6         // 4-on-floor, driving bass, disco vibes (120-130 BPM)
+    HOUSE = 4         // 4-on-floor, driving bass, disco vibes (120-130 BPM)
 };
 
 enum class SectionType {

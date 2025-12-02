@@ -35,9 +35,9 @@ enum class GrooveType {
 enum class Genre {
     EDM_CHILL = 0,   // Ambient/downtempo EDM
     EDM_DROP = 1,    // High-energy EDM with drops
-    HOUSE = 2,       // 4-on-the-floor house music
-    RAP = 3,         // Hip-hop/trap beats
-    RNB = 4          // R&B/neo-soul
+    RETROWAVE = 2,   // 80s synth-inspired
+    CINEMATIC = 3,   // Epic/orchestral
+    HOUSE = 4        // 4-on-the-floor house music
 };
 
 // Phase 9: Genre-specific musical characteristics
