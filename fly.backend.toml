@@ -2,6 +2,9 @@
 #
 # See https://fly.io/docs/reference/configuration/ for information about how to use this file.
 #
+# COST OPTIMIZED: Auto-stop when idle, minimal resources
+# Target: <$5/month for low-traffic personal project
+#
 
 app = 'soundcanvas-backend-20251201195552'
 primary_region = 'ord'
@@ -16,9 +19,10 @@ primary_region = 'ord'
 [http_service]
   internal_port = 4000
   force_https = true
-  auto_stop_machines = 'off'
+  # AUTO-STOP: Machine stops after idle, restarts on request (~3-5s cold start)
+  auto_stop_machines = 'stop'
   auto_start_machines = true
-  min_machines_running = 1
+  min_machines_running = 0  # Don't keep any machines running when idle
   processes = ['app']
 
 [[services]]
@@ -30,6 +34,8 @@ primary_region = 'ord'
     port = 9002
     handlers = ['http']
 
+# MINIMAL RESOURCES: shared-cpu-1x with 1GB RAM
+# Cost: ~$5.70/month if 24/7, but with auto-stop: ~$0.50-1.50/month
 [[vm]]
-  size = 'shared-cpu-2x'
-  memory = '2gb'
+  size = 'shared-cpu-1x'
+  memory = '1gb'
