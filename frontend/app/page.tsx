@@ -42,7 +42,7 @@ export default function Home() {
                 Start Creating
               </Button>
             </Link>
-            <Link href="/playground?tab=history">
+            <Link href="/playground?tab=examples">
               <Button size="lg" variant="secondary" className="text-lg px-8">
                 View Examples
               </Button>

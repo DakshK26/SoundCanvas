@@ -8,21 +8,45 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Music, ArrowLeft } from 'lucide-react';
 import Playground from '@/components/Playground';
 import History from '@/components/History';
+import Examples from '@/components/Examples';
 import ThemeToggle from '@/components/ThemeToggle';
+
+// Map example IDs to their image paths
+const EXAMPLE_IMAGES: Record<string, string> = {
+    house: '/examples/house.jpg',
+    edm_chill: '/examples/edm_chill.jpg',
+    edm_drop: '/examples/edm_drop.jpg',
+    cinematic: '/examples/cinematic.jpg',
+};
 
 function PlaygroundContent() {
     const searchParams = useSearchParams();
     const defaultTab = searchParams.get('tab') || 'playground';
 
+    // Check if an example was selected
+    const exampleId = searchParams.get('example');
+    const genreOverride = searchParams.get('genre');
+
+    // Get the image URL for the example
+    const initialImageUrl = exampleId ? EXAMPLE_IMAGES[exampleId] : undefined;
+
     return (
         <Tabs defaultValue={defaultTab} className="w-full">
-            <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
+            <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 mb-8">
                 <TabsTrigger value="playground">Playground</TabsTrigger>
+                <TabsTrigger value="examples">Examples</TabsTrigger>
                 <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
 
             <TabsContent value="playground">
-                <Playground />
+                <Playground
+                    initialImageUrl={initialImageUrl}
+                    initialGenre={genreOverride || undefined}
+                />
+            </TabsContent>
+
+            <TabsContent value="examples">
+                <Examples />
             </TabsContent>
 
             <TabsContent value="history">
