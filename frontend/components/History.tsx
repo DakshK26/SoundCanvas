@@ -75,13 +75,13 @@ export default function History() {
 
     const handlePlay = (id: string, audioUrl: string, createdAt: string) => {
         setPlayError(null);
-        
+
         // Check if URL might be expired
         if (isUrlExpired(audioUrl, createdAt)) {
             setPlayError('Audio link has expired. Recent tracks are playable for about 1 hour after generation.');
             return;
         }
-        
+
         // Pause currently playing audio
         if (playingId) {
             const currentAudio = audioElements.get(playingId);
@@ -198,15 +198,15 @@ export default function History() {
                     <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-200 px-4 py-3 rounded-lg flex items-center gap-3 mb-4">
                         <Clock className="w-5 h-5 flex-shrink-0" />
                         <p className="text-sm">{playError}</p>
-                        <button 
-                            onClick={() => setPlayError(null)} 
+                        <button
+                            onClick={() => setPlayError(null)}
                             className="ml-auto text-yellow-600 hover:text-yellow-800 dark:text-yellow-400 dark:hover:text-yellow-200"
                         >
                             ×
                         </button>
                     </div>
                 )}
-                
+
                 {generations.length === 0 ? (
                     <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                         <p className="text-lg font-medium mb-1">No generations yet.</p>

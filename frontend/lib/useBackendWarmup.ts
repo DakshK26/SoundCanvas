@@ -47,7 +47,7 @@ export function useBackendWarmup() {
             }
         } catch (err: any) {
             console.error('Backend warmup attempt failed:', err);
-            
+
             if (attemptRef.current < maxAttempts) {
                 // Retry after a delay (backend may be starting)
                 setTimeout(() => warmup(), 2000);
