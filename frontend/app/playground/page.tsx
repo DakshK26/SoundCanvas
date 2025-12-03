@@ -1,7 +1,7 @@
 'use client';
 
-import { Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { Suspense, useState, useEffect } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -21,7 +21,11 @@ const EXAMPLE_IMAGES: Record<string, string> = {
 
 function PlaygroundContent() {
     const searchParams = useSearchParams();
-    const defaultTab = searchParams.get('tab') || 'playground';
+    const router = useRouter();
+
+    // Get tab from URL, default to 'playground'
+    const tabFromUrl = searchParams.get('tab') || 'playground';
+    const [activeTab, setActiveTab] = useState(tabFromUrl);
 
     // Check if an example was selected
     const exampleId = searchParams.get('example');
@@ -30,8 +34,28 @@ function PlaygroundContent() {
     // Get the image URL for the example
     const initialImageUrl = exampleId ? EXAMPLE_IMAGES[exampleId] : undefined;
 
+    // Sync tab state with URL changes
+    useEffect(() => {
+        setActiveTab(tabFromUrl);
+    }, [tabFromUrl]);
+
+    // Handle tab changes - update URL
+    const handleTabChange = (value: string) => {
+        setActiveTab(value);
+        // Preserve example and genre params when switching tabs
+        const params = new URLSearchParams();
+        params.set('tab', value);
+        if (exampleId && value === 'playground') {
+            params.set('example', exampleId);
+        }
+        if (genreOverride && value === 'playground') {
+            params.set('genre', genreOverride);
+        }
+        router.push(`/playground?${params.toString()}`);
+    };
+
     return (
-        <Tabs defaultValue={defaultTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
             <TabsList className="grid w-full max-w-md mx-auto grid-cols-3 mb-8">
                 <TabsTrigger value="playground">Playground</TabsTrigger>
                 <TabsTrigger value="examples">Examples</TabsTrigger>
