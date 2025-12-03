@@ -5,11 +5,12 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Music, ArrowLeft } from 'lucide-react';
+import { Music, ArrowLeft, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import Playground from '@/components/Playground';
 import History from '@/components/History';
 import Examples from '@/components/Examples';
 import ThemeToggle from '@/components/ThemeToggle';
+import { useBackendWarmup } from '@/lib/useBackendWarmup';
 
 // Map example IDs to their image paths
 const EXAMPLE_IMAGES: Record<string, string> = {
@@ -80,6 +81,44 @@ function PlaygroundContent() {
     );
 }
 
+function BackendWarmupBanner() {
+    const { status, isWarming, error, retry } = useBackendWarmup();
+
+    if (status === 'ready' || status === 'idle') {
+        return null;
+    }
+
+    if (status === 'error') {
+        return (
+            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 px-4 py-3 rounded-lg flex items-center gap-3 mb-6">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <div className="flex-1">
+                    <p className="font-medium">Unable to connect to server</p>
+                    <p className="text-sm">{error || 'The backend service is unavailable.'}</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={retry} className="border-red-300 dark:border-red-700">
+                    <RefreshCw className="w-4 h-4 mr-2" />
+                    Retry
+                </Button>
+            </div>
+        );
+    }
+
+    if (isWarming) {
+        return (
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200 px-4 py-3 rounded-lg flex items-center gap-3 mb-6">
+                <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" />
+                <div className="flex-1">
+                    <p className="font-medium">Waking up the server...</p>
+                    <p className="text-sm">This may take a few seconds on the first visit.</p>
+                </div>
+            </div>
+        );
+    }
+
+    return null;
+}
+
 export default function PlaygroundPage() {
     return (
         <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
@@ -108,6 +147,7 @@ export default function PlaygroundPage() {
 
             {/* Main Content */}
             <main className="container mx-auto px-4 py-8">
+                <BackendWarmupBanner />
                 <Suspense fallback={
                     <div className="flex items-center justify-center py-12">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>

@@ -11,17 +11,28 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Play, Download, Loader2, AlertCircle, Trash2 } from 'lucide-react';
+import { Play, Download, Loader2, AlertCircle, Trash2, Clock } from 'lucide-react';
 import { GenerationStatus } from '@/types/graphql';
 import { getLocalHistory, clearLocalHistory, removeFromLocalHistory, LocalGeneration } from '@/lib/historyStorage';
 
 const ITEMS_PER_PAGE = 20;
+
+// Check if a URL has expired (S3 presigned URLs contain expiration info)
+function isUrlExpired(url: string, createdAt: string): boolean {
+    // S3 presigned URLs typically expire after 1 hour (3600 seconds)
+    // Check if the generation is more than 55 minutes old
+    const createdTime = new Date(createdAt).getTime();
+    const now = Date.now();
+    const ageInMinutes = (now - createdTime) / (1000 * 60);
+    return ageInMinutes > 55; // Conservative: assume expired after 55 mins
+}
 
 export default function History() {
     const [playingId, setPlayingId] = useState<string | null>(null);
     const [audioElements, setAudioElements] = useState<Map<string, HTMLAudioElement>>(new Map());
     const [generations, setGenerations] = useState<LocalGeneration[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
+    const [playError, setPlayError] = useState<string | null>(null);
 
     // Load history from localStorage on mount
     useEffect(() => {
@@ -62,7 +73,15 @@ export default function History() {
         };
     }, [audioElements]);
 
-    const handlePlay = (id: string, audioUrl: string) => {
+    const handlePlay = (id: string, audioUrl: string, createdAt: string) => {
+        setPlayError(null);
+        
+        // Check if URL might be expired
+        if (isUrlExpired(audioUrl, createdAt)) {
+            setPlayError('Audio link has expired. Recent tracks are playable for about 1 hour after generation.');
+            return;
+        }
+        
         // Pause currently playing audio
         if (playingId) {
             const currentAudio = audioElements.get(playingId);
@@ -78,9 +97,16 @@ export default function History() {
             if (!audio) {
                 audio = new Audio(audioUrl);
                 audio.onended = () => setPlayingId(null);
+                audio.onerror = () => {
+                    setPlayError('Failed to play audio. The link may have expired.');
+                    setPlayingId(null);
+                };
                 setAudioElements(new Map(audioElements.set(id, audio)));
             }
-            audio.play();
+            audio.play().catch(() => {
+                setPlayError('Failed to play audio. The link may have expired.');
+                setPlayingId(null);
+            });
             setPlayingId(id);
         }
     };
@@ -156,7 +182,7 @@ export default function History() {
                 <div className="flex items-center justify-between">
                     <div>
                         <CardTitle>Generation History</CardTitle>
-                        <CardDescription>Your previously generated tracks (stored locally in this browser)</CardDescription>
+                        <CardDescription>Your previously generated tracks (stored locally in this browser). Audio links expire after ~1 hour.</CardDescription>
                     </div>
                     {generations.length > 0 && (
                         <Button variant="outline" size="sm" onClick={handleClearAll} className="text-red-600 hover:text-red-700">
@@ -167,6 +193,20 @@ export default function History() {
                 </div>
             </CardHeader>
             <CardContent>
+                {/* Play Error Banner */}
+                {playError && (
+                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-200 px-4 py-3 rounded-lg flex items-center gap-3 mb-4">
+                        <Clock className="w-5 h-5 flex-shrink-0" />
+                        <p className="text-sm">{playError}</p>
+                        <button 
+                            onClick={() => setPlayError(null)} 
+                            className="ml-auto text-yellow-600 hover:text-yellow-800 dark:text-yellow-400 dark:hover:text-yellow-200"
+                        >
+                            ×
+                        </button>
+                    </div>
+                )}
+                
                 {generations.length === 0 ? (
                     <div className="text-center py-12 text-gray-500 dark:text-gray-400">
                         <p className="text-lg font-medium mb-1">No generations yet.</p>
@@ -221,33 +261,51 @@ export default function History() {
                                             </TableCell>
                                             <TableCell className="text-right space-x-2">
                                                 {gen.status === GenerationStatus.COMPLETE && gen.audioUrl ? (
-                                                    <>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => handlePlay(gen.id, gen.audioUrl!)}
-                                                            title={playingId === gen.id ? 'Pause' : 'Play'}
-                                                        >
-                                                            <Play className={`h-4 w-4 ${playingId === gen.id ? 'fill-current' : ''}`} />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => handleDownload(gen.audioUrl!, gen.id)}
-                                                            title="Download"
-                                                        >
-                                                            <Download className="h-4 w-4" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost"
-                                                            size="sm"
-                                                            onClick={() => handleDelete(gen.id)}
-                                                            title="Delete"
-                                                            className="text-red-600 hover:text-red-700"
-                                                        >
-                                                            <Trash2 className="h-4 w-4" />
-                                                        </Button>
-                                                    </>
+                                                    isUrlExpired(gen.audioUrl, gen.createdAt) ? (
+                                                        <>
+                                                            <span className="text-xs text-gray-500 dark:text-gray-400 inline-flex items-center gap-1">
+                                                                <Clock className="h-3 w-3" />
+                                                                Expired
+                                                            </span>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => handleDelete(gen.id)}
+                                                                title="Delete"
+                                                                className="text-red-600 hover:text-red-700 ml-2"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => handlePlay(gen.id, gen.audioUrl!, gen.createdAt)}
+                                                                title={playingId === gen.id ? 'Pause' : 'Play'}
+                                                            >
+                                                                <Play className={`h-4 w-4 ${playingId === gen.id ? 'fill-current' : ''}`} />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => handleDownload(gen.audioUrl!, gen.id)}
+                                                                title="Download"
+                                                            >
+                                                                <Download className="h-4 w-4" />
+                                                            </Button>
+                                                            <Button
+                                                                variant="ghost"
+                                                                size="sm"
+                                                                onClick={() => handleDelete(gen.id)}
+                                                                title="Delete"
+                                                                className="text-red-600 hover:text-red-700"
+                                                            >
+                                                                <Trash2 className="h-4 w-4" />
+                                                            </Button>
+                                                        </>
+                                                    )
                                                 ) : gen.status === GenerationStatus.FAILED ? (
                                                     <>
                                                         <span className="text-xs text-red-600 dark:text-red-400">
