@@ -29,6 +29,8 @@ primary_region = 'ord'
   protocol = 'tcp'
   internal_port = 9002
   processes = ['app']
+  auto_stop_machines = 'stop'
+  auto_start_machines = true
 
   [[services.ports]]
     port = 9002
