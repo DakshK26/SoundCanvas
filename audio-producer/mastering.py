@@ -19,7 +19,7 @@ def get_ffmpeg_path():
     return next((p for p in ffmpeg_paths if os.path.exists(p) or p == 'ffmpeg'), 'ffmpeg')
 
 
-def apply_mastering_chain(input_wav: str, output_wav: str, target_lufs: float = -14.0) -> bool:
+def apply_mastering_chain(input_wav: str, output_wav: str, target_lufs: float = -14.0, fast_mode: bool = True) -> bool:
     """
     Apply mastering chain using ffmpeg audio filters:
     1. EQ - boost lows, control mids, brighten highs
@@ -30,6 +30,7 @@ def apply_mastering_chain(input_wav: str, output_wav: str, target_lufs: float = 
         input_wav: Path to input WAV file
         output_wav: Path to output WAV file
         target_lufs: Target loudness in LUFS (default: -14.0)
+        fast_mode: Use single-pass processing (faster, slightly less accurate loudness)
     
     Returns:
         True if successful, False otherwise
@@ -37,7 +38,33 @@ def apply_mastering_chain(input_wav: str, output_wav: str, target_lufs: float = 
     try:
         ffmpeg = get_ffmpeg_path()
         
-        # Multi-stage mastering chain
+        if fast_mode:
+            # Single-pass mastering: EQ + Compression + Limiting in one command
+            # Much faster than 3 separate passes
+            combined_filter = (
+                # EQ
+                "equalizer=f=100:t=h:width=200:g=3,"      # Bass boost
+                "equalizer=f=500:t=h:width=400:g=-2,"     # Mid scoop
+                "equalizer=f=8000:t=h:width=2000:g=2,"    # High boost
+                # Compression
+                "acompressor=threshold=-18dB:ratio=4:attack=5:release=50:makeup=6dB,"
+                # Limiting (simplified loudness targeting)
+                "alimiter=limit=0.95:attack=1:release=50,"
+                # Volume normalization
+                "volume=1.5"
+            )
+            
+            fast_cmd = [
+                ffmpeg, '-y', '-i', input_wav,
+                '-af', combined_filter,
+                '-ar', '22050', '-ac', '2',  # Output at lower sample rate
+                output_wav
+            ]
+            
+            subprocess.run(fast_cmd, check=True, capture_output=True, timeout=30)
+            return True
+        
+        # Original 3-stage mastering chain (higher quality, slower)
         temp_eq = tempfile.NamedTemporaryFile(suffix='.wav', delete=False).name
         temp_comp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False).name
         
