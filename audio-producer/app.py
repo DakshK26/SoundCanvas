@@ -61,10 +61,7 @@ except Exception as e:
     print(f"Warning: FX player failed to initialize: {e}")
 
 
-# Optimized sample rate for faster generation (still good quality)
-FAST_SAMPLE_RATE = 22050  # Half of CD quality, much faster to process
-
-def render_midi_to_wav(midi_path: str, output_wav: str, sf2_path: str = SF2_PATH, fast_mode: bool = True) -> bool:
+def render_midi_to_wav(midi_path: str, output_wav: str, sf2_path: str = SF2_PATH) -> bool:
     """
     Render MIDI to WAV using FluidSynth
     
@@ -72,7 +69,6 @@ def render_midi_to_wav(midi_path: str, output_wav: str, sf2_path: str = SF2_PATH
         midi_path: Path to MIDI file
         output_wav: Output WAV path
         sf2_path: Path to soundfont
-        fast_mode: Use lower sample rate for faster rendering
     
     Returns:
         True if successful
@@ -84,23 +80,19 @@ def render_midi_to_wav(midi_path: str, output_wav: str, sf2_path: str = SF2_PATH
     ]
     fluidsynth_exe = next((p for p in fluidsynth_paths if os.path.exists(p) or p == 'fluidsynth'), 'fluidsynth')
     
-    sample_rate = str(FAST_SAMPLE_RATE) if fast_mode else '44100'
-    
     try:
         cmd = [
             fluidsynth_exe,
             '-ni',              # Non-interactive
             '-g', '1.0',        # Gain
-            '-r', sample_rate,  # Sample rate (22050 for speed)
-            '-c', '1',          # Audio channels (mono rendering, faster)
-            '-z', '256',        # Audio buffer size (smaller = faster)
+            '-r', '44100',      # Sample rate
             sf2_path,
             midi_path,
             '-F', output_wav,   # Output to file
             '-O', 's16'         # 16-bit samples
         ]
         
-        result = subprocess.run(cmd, capture_output=True, timeout=45)
+        result = subprocess.run(cmd, capture_output=True, timeout=60)
         
         if result.returncode != 0:
             print(f"FluidSynth error: {result.stderr.decode()}")
@@ -231,8 +223,8 @@ def produce():
             temp_stems.append(drums_wav)
             
             try:
-                # Use synthesized drums - use fast sample rate for speed
-                drum_synth = DrumSynthesizer(samplerate=FAST_SAMPLE_RATE)
+                # Use synthesized drums - much better quality than samples
+                drum_synth = DrumSynthesizer(samplerate=44100)
                 drum_synth.render_midi_to_drums(midi_path, drums_wav, genre=genre)
                 stem_wavs['drums'] = drums_wav
                 print(f"    ✓ Drums synthesized for {genre}")
@@ -272,10 +264,8 @@ def produce():
         if not stem_wavs:
             return jsonify({'status': 'error', 'message': 'No stems rendered'}), 500
         
-        # Phase 9: Skip FX rendering in fast mode (saves ~10 seconds)
-        # FX is optional and less important than core sounds
-        fast_mode = True  # Always use fast mode to prevent timeouts
-        if render_fx and fx_player and midi_path and not fast_mode:
+        # Phase 9: Render FX stem
+        if render_fx and fx_player and midi_path:
             print("  Rendering FX stem...")
             fx_wav = os.path.join(STEMS_DIR, f"fx_{os.getpid()}.wav")
             temp_stems.append(fx_wav)
@@ -291,6 +281,22 @@ def produce():
                 print(f"    ✓ FX stem rendered")
             except Exception as e:
                 print(f"    Warning: FX rendering failed: {e}")
+        
+        # Phase 12 A1.2: Log pre-mix buffer stats
+        print("  [DEBUG] Pre-mix buffer stats:")
+        for stem_name, stem_path in stem_wavs.items():
+            try:
+                rate, data = wavfile.read(stem_path)
+                if data.dtype == np.int16:
+                    data_float = data.astype(np.float32) / 32768.0
+                else:
+                    data_float = data.astype(np.float32)
+                
+                rms = np.sqrt(np.mean(data_float ** 2))
+                peak = np.abs(data_float).max()
+                print(f"    {stem_name}: samples={len(data_float)}, peak={peak:.4f}, rms={rms:.4f}")
+            except Exception as e:
+                print(f"    {stem_name}: ERROR reading - {e}")
         
         # Step 2: Mix stems with genre-aware settings
         temp_mixed = tempfile.NamedTemporaryFile(suffix='.wav', delete=False).name

@@ -34,8 +34,9 @@ primary_region = 'ord'
     port = 9002
     handlers = ['http']
 
-# MINIMAL RESOURCES: shared-cpu-1x with 2GB RAM (needed for audio synthesis)
-# Cost: ~$10.70/month if 24/7, but with auto-stop: ~$1-3/month
+# OPTIMIZED RESOURCES: shared-cpu-2x with 3GB RAM
+# Enough RAM for MySQL, MinIO, FluidSynth, and Python services
+# Cost: ~$16.39/month if 24/7, with auto-stop @ 2hrs/day: ~$1.36/month
 [[vm]]
-  size = 'shared-cpu-1x'
-  memory = '2gb'
+  size = 'shared-cpu-2x'
+  memory = '3gb'

@@ -18,15 +18,10 @@ import { Upload, Music, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react'
 import AudioPlayer from '@/components/AudioPlayer';
 import { addToLocalHistory } from '@/lib/historyStorage';
 
-interface PlaygroundProps {
-    initialImageUrl?: string;
-    initialGenre?: string;
-}
-
-export default function Playground({ initialImageUrl, initialGenre }: PlaygroundProps = {}) {
+export default function Playground() {
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
-    const [imagePreview, setImagePreview] = useState<string | null>(initialImageUrl || null);
-    const [genre, setGenre] = useState<string>(initialGenre || Genre.AUTO);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [genre, setGenre] = useState<string>(Genre.AUTO);
     const [mode, setMode] = useState<string>(Mode.MODEL);
     const [jobId, setJobId] = useState<string | null>(null);
     const [generationStatus, setGenerationStatus] = useState<Status | null>(null);
@@ -52,22 +47,6 @@ export default function Playground({ initialImageUrl, initialGenre }: Playground
             }
         };
     }, []);
-
-    // Load initial image if provided (for examples)
-    useEffect(() => {
-        if (initialImageUrl && !selectedImage) {
-            // Fetch the image and convert to File object
-            fetch(initialImageUrl)
-                .then(res => res.blob())
-                .then(blob => {
-                    const fileName = initialImageUrl.split('/').pop() || 'example.jpg';
-                    const file = new File([blob], fileName, { type: blob.type });
-                    setSelectedImage(file);
-                    setImagePreview(initialImageUrl);
-                })
-                .catch(err => console.error('Failed to load example image:', err));
-        }
-    }, [initialImageUrl, selectedImage]);
 
     const onDrop = useCallback((acceptedFiles: File[]) => {
         if (acceptedFiles.length > 0) {
