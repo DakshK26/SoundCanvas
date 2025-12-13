@@ -2,11 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-const GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000/graphql';
-
-// Check if we're using localhost (development without backend)
-const isLocalhost = GRAPHQL_ENDPOINT.includes('localhost') || GRAPHQL_ENDPOINT.includes('127.0.0.1');
-
 // Simple health check query
 const HEALTH_QUERY = `
   query HealthCheck {
@@ -17,6 +12,22 @@ const HEALTH_QUERY = `
 export type BackendStatus = 'idle' | 'warming' | 'ready' | 'error';
 
 /**
+ * Get the GraphQL endpoint - computed at runtime to ensure env vars are available
+ */
+function getGraphQLEndpoint(): string {
+    return process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000/graphql';
+}
+
+/**
+ * Check if we're using localhost (development without backend)
+ * Must be called at runtime, not module initialization
+ */
+function isLocalhostEndpoint(): boolean {
+    const endpoint = getGraphQLEndpoint();
+    return endpoint.includes('localhost') || endpoint.includes('127.0.0.1');
+}
+
+/**
  * Hook to warm up the backend on cold start.
  * Pings the GraphQL endpoint on mount to wake up the Fly.io machine.
  * Skips warmup if using localhost (development mode without backend).
@@ -24,14 +35,16 @@ export type BackendStatus = 'idle' | 'warming' | 'ready' | 'error';
  * @returns { status, isWarm, error, retry }
  */
 export function useBackendWarmup() {
-    // If localhost, immediately mark as ready (skip warmup)
-    const [status, setStatus] = useState<BackendStatus>(isLocalhost ? 'ready' : 'idle');
+    const [status, setStatus] = useState<BackendStatus>('idle');
     const [error, setError] = useState<string | null>(null);
     const attemptRef = useRef(0);
     const maxAttempts = 3;
     const isMountedRef = useRef(true);
 
     const warmup = useCallback(async () => {
+        const endpoint = getGraphQLEndpoint();
+        const isLocalhost = isLocalhostEndpoint();
+
         // Skip warmup for localhost
         if (isLocalhost) {
             setStatus('ready');
@@ -48,7 +61,7 @@ export function useBackendWarmup() {
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-            const response = await fetch(GRAPHQL_ENDPOINT, {
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -98,11 +111,7 @@ export function useBackendWarmup() {
 
     useEffect(() => {
         isMountedRef.current = true;
-        
-        // Only run warmup if not localhost
-        if (!isLocalhost) {
-            warmup();
-        }
+        warmup();
 
         return () => {
             isMountedRef.current = false;

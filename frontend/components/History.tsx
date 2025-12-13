@@ -254,7 +254,7 @@ export default function History() {
                                             <TableCell>
                                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[#E07A5F]/10 text-[#D4583D]">
                                                     {gen.genre === 'auto' || gen.genre === 'AUTO'
-                                                        ? (gen.status === GenerationStatus.COMPLETE ? 'Auto' : 'Auto')
+                                                        ? (gen.status === GenerationStatus.COMPLETE ? 'Unknown' : 'Auto')
                                                         : gen.genre}
                                                 </span>
                                             </TableCell>
