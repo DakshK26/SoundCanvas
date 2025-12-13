@@ -133,10 +133,7 @@ export default function PlaygroundPage() {
                             </Button>
                         </Link>
                         <div className="flex items-center gap-2">
-                            <Music className="w-8 h-8 text-purple-600 dark:text-purple-400" />
-                            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 dark:from-purple-400 dark:to-pink-400 bg-clip-text text-transparent">
-                                SoundCanvas
-                            </h1>
+                            <img src="/soundcanvas.svg" alt="SoundCanvas Logo" className="w-10 h-10" />
                         </div>
                     </div>
                     <div className="flex items-center gap-3">
