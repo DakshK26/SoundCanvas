@@ -10,7 +10,7 @@ export default function Home() {
       <header className="border-b bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-50 dark:border-gray-700">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <img src="/soundcanvas.svg" alt="SoundCanvas Logo" className="w-10 h-10" />
+            <img src="/soundcanvas.svg" alt="SoundCanvas Logo" className="w-20 h-20" />
           </div>
           <ThemeToggle />
         </div>

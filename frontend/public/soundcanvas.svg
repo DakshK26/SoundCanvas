@@ -1,6 +1,12 @@
 <svg version="1.1" id="Layer_1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" x="0px" y="0px"
 	 width="100%" viewBox="0 0 1024 544" enable-background="new 0 0 1024 544" xml:space="preserve">
-<path fill="#000000" opacity="1.000000" stroke="none" 
+	<defs>
+		<linearGradient id="logo-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+			<stop offset="0%" stop-color="#a21caf"/>
+			<stop offset="100%" stop-color="#f472b6"/>
+		</linearGradient>
+	</defs>
+<path fill="url(#logo-gradient)" opacity="1.000000" stroke="none" 
 	d="
 M445.773315,324.046143 
 	C437.732422,326.960297 430.037476,327.884033 421.936340,325.720306 
