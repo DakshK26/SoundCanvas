@@ -5,11 +5,10 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Music, ArrowLeft, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 import Playground from '@/components/Playground';
 import History from '@/components/History';
 import Examples from '@/components/Examples';
-import ThemeToggle from '@/components/ThemeToggle';
 import { useBackendWarmup } from '@/lib/useBackendWarmup';
 
 // Map example IDs to their image paths
@@ -90,13 +89,13 @@ function BackendWarmupBanner() {
 
     if (status === 'error') {
         return (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 px-4 py-3 rounded-lg flex items-center gap-3 mb-6">
+            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-2xl flex items-center gap-3 mb-6">
                 <AlertCircle className="w-5 h-5 flex-shrink-0" />
                 <div className="flex-1">
                     <p className="font-medium">Unable to connect to server</p>
                     <p className="text-sm">{error || 'The backend service is unavailable.'}</p>
                 </div>
-                <Button variant="outline" size="sm" onClick={retry} className="border-red-300 dark:border-red-700">
+                <Button variant="outline" size="sm" onClick={retry} className="border-red-300 hover:bg-red-100">
                     <RefreshCw className="w-4 h-4 mr-2" />
                     Retry
                 </Button>
@@ -106,7 +105,7 @@ function BackendWarmupBanner() {
 
     if (isWarming) {
         return (
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200 px-4 py-3 rounded-lg flex items-center gap-3 mb-6">
+            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-2xl flex items-center gap-3 mb-6">
                 <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" />
                 <div className="flex-1">
                     <p className="font-medium">Waking up the server...</p>
@@ -121,26 +120,27 @@ function BackendWarmupBanner() {
 
 export default function PlaygroundPage() {
     return (
-        <div className="min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="min-h-screen aurora-bg">
             {/* Header */}
-            <header className="border-b bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm sticky top-0 z-50 dark:border-gray-700">
+            <header className="border-b border-[#E8E0D8] bg-white/70 backdrop-blur-sm sticky top-0 z-50">
                 <div className="container mx-auto px-4 py-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                         <Link href="/">
-                            <Button variant="ghost" size="sm">
+                            <Button variant="ghost" size="sm" className="text-[#5C5549] hover:bg-[#F5F0EB]">
                                 <ArrowLeft className="w-4 h-4 mr-2" />
                                 Back
                             </Button>
                         </Link>
-                        <div className="flex items-center gap-2">
-                            <Music className="w-8 h-8 text-purple-600 dark:text-purple-400" />
-                            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 dark:from-purple-400 dark:to-pink-400 bg-clip-text text-transparent">
+                        <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#E07A5F] to-[#D4583D] flex items-center justify-center shadow-md">
+                                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                                </svg>
+                            </div>
+                            <h1 className="text-xl font-semibold text-[#1A1814]">
                                 SoundCanvas
                             </h1>
                         </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <ThemeToggle />
                     </div>
                 </div>
             </header>
@@ -150,7 +150,7 @@ export default function PlaygroundPage() {
                 <BackendWarmupBanner />
                 <Suspense fallback={
                     <div className="flex items-center justify-center py-12">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#E07A5F]"></div>
                     </div>
                 }>
                     <PlaygroundContent />

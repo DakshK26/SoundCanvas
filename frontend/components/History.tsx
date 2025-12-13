@@ -11,20 +11,17 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
-import { Play, Download, Loader2, AlertCircle, Trash2, Clock } from 'lucide-react';
+import { Play, Download, Loader2, Trash2, Clock } from 'lucide-react';
 import { GenerationStatus } from '@/types/graphql';
 import { getLocalHistory, clearLocalHistory, removeFromLocalHistory, LocalGeneration } from '@/lib/historyStorage';
 
 const ITEMS_PER_PAGE = 20;
 
-// Check if a URL has expired (S3 presigned URLs contain expiration info)
 function isUrlExpired(url: string, createdAt: string): boolean {
-    // S3 presigned URLs typically expire after 1 hour (3600 seconds)
-    // Check if the generation is more than 55 minutes old
     const createdTime = new Date(createdAt).getTime();
     const now = Date.now();
     const ageInMinutes = (now - createdTime) / (1000 * 60);
-    return ageInMinutes > 55; // Conservative: assume expired after 55 mins
+    return ageInMinutes > 55;
 }
 
 export default function History() {
@@ -34,22 +31,18 @@ export default function History() {
     const [isLoaded, setIsLoaded] = useState(false);
     const [playError, setPlayError] = useState<string | null>(null);
 
-    // Load history from localStorage on mount
     useEffect(() => {
         setGenerations(getLocalHistory());
         setIsLoaded(true);
     }, []);
 
-    // Listen for storage changes (when generations are added from Playground)
     useEffect(() => {
         const handleStorageChange = () => {
             setGenerations(getLocalHistory());
         };
 
-        // Custom event for same-tab updates
         window.addEventListener('storage', handleStorageChange);
 
-        // Also check periodically for same-tab updates
         const interval = setInterval(() => {
             const current = getLocalHistory();
             if (current.length !== generations.length) {
@@ -64,7 +57,6 @@ export default function History() {
     }, [generations.length]);
 
     useEffect(() => {
-        // Cleanup audio elements on unmount
         return () => {
             audioElements.forEach((audio) => {
                 audio.pause();
@@ -76,13 +68,11 @@ export default function History() {
     const handlePlay = (id: string, audioUrl: string, createdAt: string) => {
         setPlayError(null);
 
-        // Check if URL might be expired
         if (isUrlExpired(audioUrl, createdAt)) {
-            setPlayError('Audio link has expired. Recent tracks are playable for about 1 hour after generation.');
+            setPlayError('This audio link has expired. Tracks are playable for about an hour after creation.');
             return;
         }
 
-        // Pause currently playing audio
         if (playingId) {
             const currentAudio = audioElements.get(playingId);
             if (currentAudio) {
@@ -98,13 +88,13 @@ export default function History() {
                 audio = new Audio(audioUrl);
                 audio.onended = () => setPlayingId(null);
                 audio.onerror = () => {
-                    setPlayError('Failed to play audio. The link may have expired.');
+                    setPlayError('Couldn\'t play this track. The link may have expired.');
                     setPlayingId(null);
                 };
                 setAudioElements(new Map(audioElements.set(id, audio)));
             }
             audio.play().catch(() => {
-                setPlayError('Failed to play audio. The link may have expired.');
+                setPlayError('Couldn\'t play this track. The link may have expired.');
                 setPlayingId(null);
             });
             setPlayingId(id);
@@ -134,7 +124,7 @@ export default function History() {
     };
 
     const handleClearAll = () => {
-        if (window.confirm('Are you sure you want to clear all history? This cannot be undone.')) {
+        if (window.confirm('Clear all your history? This can\'t be undone.')) {
             clearLocalHistory();
             setGenerations([]);
         }
@@ -153,10 +143,10 @@ export default function History() {
 
     const getStatusBadge = (status: GenerationStatus) => {
         const styles = {
-            [GenerationStatus.PENDING]: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
-            [GenerationStatus.RUNNING]: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300',
-            [GenerationStatus.COMPLETE]: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300',
-            [GenerationStatus.FAILED]: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300',
+            [GenerationStatus.PENDING]: 'bg-amber-100 text-amber-800',
+            [GenerationStatus.RUNNING]: 'bg-blue-100 text-blue-800',
+            [GenerationStatus.COMPLETE]: 'bg-[#81B29A]/20 text-[#3D5A3D]',
+            [GenerationStatus.FAILED]: 'bg-red-100 text-red-800',
         };
 
         return (
@@ -168,24 +158,36 @@ export default function History() {
 
     if (!isLoaded) {
         return (
-            <Card>
+            <Card className="bg-white/80 backdrop-blur-sm border-[#E8E0D8] shadow-lg">
                 <CardContent className="flex items-center justify-center py-12">
-                    <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+                    <Loader2 className="h-8 w-8 animate-spin text-[#E07A5F]" />
                 </CardContent>
             </Card>
         );
     }
 
     return (
-        <Card>
+        <Card className="bg-white/80 backdrop-blur-sm border-[#E8E0D8] shadow-lg">
             <CardHeader>
                 <div className="flex items-center justify-between">
                     <div>
-                        <CardTitle>Generation History</CardTitle>
-                        <CardDescription>Your previously generated tracks (stored locally in this browser). Audio links expire after ~1 hour.</CardDescription>
+                        <CardTitle className="flex items-center gap-3 text-[#1A1814]">
+                            <div className="w-10 h-10 rounded-xl bg-[#3D405B]/10 flex items-center justify-center">
+                                <Clock className="w-5 h-5 text-[#3D405B]" />
+                            </div>
+                            Your Tracks
+                        </CardTitle>
+                        <CardDescription className="text-[#8C8279] mt-1">
+                            Your previously generated tracks. Audio links expire after about an hour.
+                        </CardDescription>
                     </div>
                     {generations.length > 0 && (
-                        <Button variant="outline" size="sm" onClick={handleClearAll} className="text-red-600 hover:text-red-700">
+                        <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={handleClearAll} 
+                            className="text-red-600 hover:text-red-700 border-red-200 hover:bg-red-50"
+                        >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Clear All
                         </Button>
@@ -193,14 +195,13 @@ export default function History() {
                 </div>
             </CardHeader>
             <CardContent>
-                {/* Play Error Banner */}
                 {playError && (
-                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 text-yellow-800 dark:text-yellow-200 px-4 py-3 rounded-lg flex items-center gap-3 mb-4">
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl flex items-center gap-3 mb-4">
                         <Clock className="w-5 h-5 flex-shrink-0" />
                         <p className="text-sm">{playError}</p>
                         <button
                             onClick={() => setPlayError(null)}
-                            className="ml-auto text-yellow-600 hover:text-yellow-800 dark:text-yellow-400 dark:hover:text-yellow-200"
+                            className="ml-auto text-amber-600 hover:text-amber-800"
                         >
                             ×
                         </button>
@@ -208,52 +209,56 @@ export default function History() {
                 )}
 
                 {generations.length === 0 ? (
-                    <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-                        <p className="text-lg font-medium mb-1">No generations yet.</p>
-                        <p className="text-sm">Upload an image in the Playground to get started!</p>
+                    <div className="text-center py-12 text-[#8C8279]">
+                        <div className="w-16 h-16 bg-[#F5F0EB] rounded-2xl flex items-center justify-center mx-auto mb-4">
+                            <svg className="w-8 h-8 text-[#C4B8A9]" fill="currentColor" viewBox="0 0 24 24">
+                                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                            </svg>
+                        </div>
+                        <p className="text-lg font-medium mb-1 text-[#5C5549]">No tracks yet</p>
+                        <p className="text-sm">Head to the Playground and create your first one!</p>
                     </div>
                 ) : (
                     <div className="space-y-4">
-                        <div className="rounded-lg border dark:border-gray-700">
+                        <div className="rounded-xl border border-[#E8E0D8] overflow-hidden">
                             <Table>
                                 <TableHeader>
-                                    <TableRow>
-                                        <TableHead className="w-20">Image</TableHead>
-                                        <TableHead>Date</TableHead>
-                                        <TableHead>Genre</TableHead>
-                                        <TableHead>Tempo</TableHead>
-                                        <TableHead>Status</TableHead>
-                                        <TableHead className="text-right">Actions</TableHead>
+                                    <TableRow className="bg-[#F5F0EB]/50 hover:bg-[#F5F0EB]/50">
+                                        <TableHead className="w-20 text-[#5C5549]">Image</TableHead>
+                                        <TableHead className="text-[#5C5549]">Date</TableHead>
+                                        <TableHead className="text-[#5C5549]">Genre</TableHead>
+                                        <TableHead className="text-[#5C5549]">Tempo</TableHead>
+                                        <TableHead className="text-[#5C5549]">Status</TableHead>
+                                        <TableHead className="text-right text-[#5C5549]">Actions</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
                                     {generations.slice(0, ITEMS_PER_PAGE).map((gen) => (
-                                        <TableRow key={gen.id}>
+                                        <TableRow key={gen.id} className="border-[#E8E0D8]">
                                             <TableCell>
                                                 {gen.imageUrl ? (
                                                     <img
                                                         src={gen.imageUrl}
                                                         alt="Generation"
-                                                        className="w-16 h-16 object-cover rounded"
+                                                        className="w-16 h-16 object-cover rounded-lg"
                                                     />
                                                 ) : (
-                                                    <div className="w-16 h-16 bg-gray-200 dark:bg-gray-700 rounded flex items-center justify-center">
-                                                        <span className="text-xs text-gray-500 dark:text-gray-400">No img</span>
+                                                    <div className="w-16 h-16 bg-[#F5F0EB] rounded-lg flex items-center justify-center">
+                                                        <span className="text-xs text-[#8C8279]">No img</span>
                                                     </div>
                                                 )}
                                             </TableCell>
-                                            <TableCell className="text-sm">
+                                            <TableCell className="text-sm text-[#5C5549]">
                                                 {formatDate(gen.createdAt)}
                                             </TableCell>
                                             <TableCell>
-                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300">
-                                                    {/* Show final genre or 'Processing...' if still auto */}
+                                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[#E07A5F]/10 text-[#D4583D]">
                                                     {gen.genre === 'auto' || gen.genre === 'AUTO'
-                                                        ? (gen.status === GenerationStatus.COMPLETE ? 'Unknown' : 'Auto')
+                                                        ? (gen.status === GenerationStatus.COMPLETE ? 'Auto' : 'Auto')
                                                         : gen.genre}
                                                 </span>
                                             </TableCell>
-                                            <TableCell className="text-sm">
+                                            <TableCell className="text-sm text-[#5C5549]">
                                                 {gen.tempoBpm ? `${gen.tempoBpm} BPM` : '-'}
                                             </TableCell>
                                             <TableCell>
@@ -263,7 +268,7 @@ export default function History() {
                                                 {gen.status === GenerationStatus.COMPLETE && gen.audioUrl ? (
                                                     isUrlExpired(gen.audioUrl, gen.createdAt) ? (
                                                         <>
-                                                            <span className="text-xs text-gray-500 dark:text-gray-400 inline-flex items-center gap-1">
+                                                            <span className="text-xs text-[#8C8279] inline-flex items-center gap-1">
                                                                 <Clock className="h-3 w-3" />
                                                                 Expired
                                                             </span>
@@ -272,7 +277,7 @@ export default function History() {
                                                                 size="sm"
                                                                 onClick={() => handleDelete(gen.id)}
                                                                 title="Delete"
-                                                                className="text-red-600 hover:text-red-700 ml-2"
+                                                                className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-2"
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
@@ -284,6 +289,7 @@ export default function History() {
                                                                 size="sm"
                                                                 onClick={() => handlePlay(gen.id, gen.audioUrl!, gen.createdAt)}
                                                                 title={playingId === gen.id ? 'Pause' : 'Play'}
+                                                                className="hover:bg-[#E07A5F]/10 text-[#E07A5F]"
                                                             >
                                                                 <Play className={`h-4 w-4 ${playingId === gen.id ? 'fill-current' : ''}`} />
                                                             </Button>
@@ -292,6 +298,7 @@ export default function History() {
                                                                 size="sm"
                                                                 onClick={() => handleDownload(gen.audioUrl!, gen.id)}
                                                                 title="Download"
+                                                                className="hover:bg-[#81B29A]/10 text-[#81B29A]"
                                                             >
                                                                 <Download className="h-4 w-4" />
                                                             </Button>
@@ -300,7 +307,7 @@ export default function History() {
                                                                 size="sm"
                                                                 onClick={() => handleDelete(gen.id)}
                                                                 title="Delete"
-                                                                className="text-red-600 hover:text-red-700"
+                                                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
                                                             >
                                                                 <Trash2 className="h-4 w-4" />
                                                             </Button>
@@ -308,7 +315,7 @@ export default function History() {
                                                     )
                                                 ) : gen.status === GenerationStatus.FAILED ? (
                                                     <>
-                                                        <span className="text-xs text-red-600 dark:text-red-400">
+                                                        <span className="text-xs text-red-600">
                                                             {gen.errorMessage || 'Failed'}
                                                         </span>
                                                         <Button
@@ -316,13 +323,13 @@ export default function History() {
                                                             size="sm"
                                                             onClick={() => handleDelete(gen.id)}
                                                             title="Delete"
-                                                            className="text-red-600 hover:text-red-700 ml-2"
+                                                            className="text-red-600 hover:text-red-700 hover:bg-red-50 ml-2"
                                                         >
                                                             <Trash2 className="h-4 w-4" />
                                                         </Button>
                                                     </>
                                                 ) : (
-                                                    <Loader2 className="h-4 w-4 animate-spin inline" />
+                                                    <Loader2 className="h-4 w-4 animate-spin inline text-[#E07A5F]" />
                                                 )}
                                             </TableCell>
                                         </TableRow>
@@ -332,8 +339,8 @@ export default function History() {
                         </div>
 
                         {generations.length === ITEMS_PER_PAGE && (
-                            <p className="text-sm text-center text-gray-500 dark:text-gray-400">
-                                Showing most recent {ITEMS_PER_PAGE} generations
+                            <p className="text-sm text-center text-[#8C8279]">
+                                Showing your {ITEMS_PER_PAGE} most recent tracks
                             </p>
                         )}
                     </div>
