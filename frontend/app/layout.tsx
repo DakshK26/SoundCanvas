@@ -12,6 +12,9 @@ const outfit = Outfit({
 export const metadata: Metadata = {
   title: "SoundCanvas - AI Music from Images",
   description: "Transform images into unique music compositions with AI",
+  icons: {
+    icon: "/icon.svg",
+  },
 };
 
 export default function RootLayout({

@@ -31,79 +31,39 @@ export default function Home() {
           className="absolute bottom-1/4 right-1/4 w-[250px] h-[250px] rounded-full animate-pulse-glow"
           style={{ background: 'radial-gradient(circle, rgba(129, 178, 154, 0.12) 0%, transparent 60%)', animationDelay: '-3s' }}
         />
+        {/* Center orb */}
+        <div 
+          className="absolute top-1/3 left-1/3 w-[200px] h-[200px] rounded-full animate-pulse-glow"
+          style={{ background: 'radial-gradient(circle, rgba(242, 204, 143, 0.1) 0%, transparent 60%)', animationDelay: '-5s' }}
+        />
+
+        {/* Floating dots - scattered across the page */}
+        <div className="absolute top-[15%] left-[10%] w-3 h-3 rounded-full bg-[#E07A5F]/20 animate-float-gentle" />
+        <div className="absolute top-[25%] left-[20%] w-2 h-2 rounded-full bg-[#81B29A]/25 animate-float-gentle" style={{ animationDelay: '-1s' }} />
+        <div className="absolute top-[20%] left-[35%] w-2.5 h-2.5 rounded-full bg-[#F2CC8F]/30 animate-float-gentle" style={{ animationDelay: '-2s' }} />
+        <div className="absolute top-[35%] left-[8%] w-2 h-2 rounded-full bg-[#E07A5F]/15 animate-float-gentle" style={{ animationDelay: '-3s' }} />
+        <div className="absolute top-[45%] left-[15%] w-3.5 h-3.5 rounded-full bg-[#81B29A]/20 animate-float-gentle" style={{ animationDelay: '-0.5s' }} />
         
-        {/* Floating sound visualization - left */}
-        <div className="absolute left-8 top-1/4 hidden lg:flex flex-col items-center gap-1 animate-float-gentle">
-          <div className="flex items-end gap-1 h-28">
-            {[35, 60, 45, 80, 55, 70, 40, 65, 50, 75, 42].map((h, i) => (
-              <div
-                key={i}
-                className="w-2 sound-bar animate-soundwave"
-                style={{ 
-                  height: `${h}%`,
-                  animationDelay: `${i * 0.1}s`
-                }}
-              />
-            ))}
-          </div>
-        </div>
+        <div className="absolute top-[12%] right-[15%] w-2.5 h-2.5 rounded-full bg-[#F2CC8F]/25 animate-float-gentle" style={{ animationDelay: '-1.5s' }} />
+        <div className="absolute top-[28%] right-[8%] w-2 h-2 rounded-full bg-[#E07A5F]/20 animate-float-gentle" style={{ animationDelay: '-2.5s' }} />
+        <div className="absolute top-[22%] right-[25%] w-3 h-3 rounded-full bg-[#81B29A]/15 animate-float-gentle" style={{ animationDelay: '-4s' }} />
+        <div className="absolute top-[40%] right-[12%] w-2 h-2 rounded-full bg-[#F2CC8F]/20 animate-float-gentle" style={{ animationDelay: '-0.8s' }} />
+        
+        <div className="absolute bottom-[30%] left-[12%] w-2.5 h-2.5 rounded-full bg-[#E07A5F]/25 animate-float-gentle" style={{ animationDelay: '-3.5s' }} />
+        <div className="absolute bottom-[20%] left-[25%] w-2 h-2 rounded-full bg-[#81B29A]/30 animate-float-gentle" style={{ animationDelay: '-1.2s' }} />
+        <div className="absolute bottom-[35%] left-[5%] w-3 h-3 rounded-full bg-[#F2CC8F]/20 animate-float-gentle" style={{ animationDelay: '-2.8s' }} />
+        
+        <div className="absolute bottom-[25%] right-[10%] w-3 h-3 rounded-full bg-[#E07A5F]/15 animate-float-gentle" style={{ animationDelay: '-4.5s' }} />
+        <div className="absolute bottom-[40%] right-[20%] w-2 h-2 rounded-full bg-[#81B29A]/25 animate-float-gentle" style={{ animationDelay: '-1.8s' }} />
+        <div className="absolute bottom-[15%] right-[30%] w-2.5 h-2.5 rounded-full bg-[#F2CC8F]/25 animate-float-gentle" style={{ animationDelay: '-3.2s' }} />
+        <div className="absolute bottom-[50%] right-[5%] w-2 h-2 rounded-full bg-[#E07A5F]/20 animate-float-gentle" style={{ animationDelay: '-0.3s' }} />
 
-        {/* Floating sound visualization - bottom right */}
-        <div className="absolute right-12 bottom-1/3 hidden lg:flex flex-col items-center gap-1 animate-float-gentle" style={{ animationDelay: '-2.5s' }}>
-          <div className="flex items-end gap-1 h-24">
-            {[50, 75, 40, 90, 60, 45, 70, 55, 65, 48].map((h, i) => (
-              <div
-                key={i}
-                className="w-2 animate-soundwave"
-                style={{ 
-                  height: `${h}%`,
-                  background: 'linear-gradient(180deg, #81B29A 0%, #A8D4B8 100%)',
-                  animationDelay: `${i * 0.15}s`,
-                  borderRadius: '2px'
-                }}
-              />
-            ))}
-          </div>
-        </div>
-
-        {/* Circular waveform - decorative */}
-        <div className="absolute top-24 right-1/3 hidden xl:block">
-          <svg width="140" height="140" viewBox="0 0 140 140" className="animate-rotate-slow opacity-15">
-            <circle cx="70" cy="70" r="60" fill="none" stroke="#E07A5F" strokeWidth="1" strokeDasharray="10 5" />
-            <circle cx="70" cy="70" r="45" fill="none" stroke="#81B29A" strokeWidth="1" strokeDasharray="8 6" />
-            <circle cx="70" cy="70" r="30" fill="none" stroke="#F2CC8F" strokeWidth="1" strokeDasharray="6 4" />
-            <circle cx="70" cy="70" r="15" fill="none" stroke="#E07A5F" strokeWidth="1" />
-          </svg>
-        </div>
-
-        {/* Second circular waveform - bottom left */}
-        <div className="absolute bottom-32 left-1/4 hidden xl:block">
-          <svg width="100" height="100" viewBox="0 0 100 100" className="animate-rotate-slow opacity-10" style={{ animationDirection: 'reverse' }}>
-            <circle cx="50" cy="50" r="40" fill="none" stroke="#81B29A" strokeWidth="1" strokeDasharray="8 4" />
-            <circle cx="50" cy="50" r="25" fill="none" stroke="#F2CC8F" strokeWidth="1" strokeDasharray="5 5" />
-          </svg>
-        </div>
-
-        {/* Floating dots - scattered */}
-        <div className="absolute top-1/3 left-1/4 w-3 h-3 rounded-full bg-[#E07A5F]/25 animate-float-gentle" />
-        <div className="absolute bottom-1/4 right-1/3 w-2.5 h-2.5 rounded-full bg-[#81B29A]/35 animate-float-gentle" style={{ animationDelay: '-1s' }} />
-        <div className="absolute top-2/3 left-1/3 w-2 h-2 rounded-full bg-[#F2CC8F]/40 animate-float-gentle" style={{ animationDelay: '-3s' }} />
-        <div className="absolute top-1/4 right-1/4 w-2 h-2 rounded-full bg-[#E07A5F]/20 animate-float-gentle" style={{ animationDelay: '-2s' }} />
-        <div className="absolute bottom-1/3 left-1/5 w-3 h-3 rounded-full bg-[#81B29A]/25 animate-float-gentle" style={{ animationDelay: '-4s' }} />
-        <div className="absolute top-1/2 left-1/6 w-2 h-2 rounded-full bg-[#F2CC8F]/30 animate-float-gentle" style={{ animationDelay: '-1.5s' }} />
-        <div className="absolute bottom-2/3 right-1/5 w-2.5 h-2.5 rounded-full bg-[#E07A5F]/20 animate-float-gentle" style={{ animationDelay: '-3.5s' }} />
-
-        {/* Music note shapes - abstract */}
-        <div className="absolute top-40 left-16 hidden lg:block opacity-10 animate-float-gentle" style={{ animationDelay: '-2s' }}>
-          <svg width="40" height="50" viewBox="0 0 24 24" fill="#E07A5F">
-            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-          </svg>
-        </div>
-        <div className="absolute bottom-48 right-20 hidden lg:block opacity-8 animate-float-gentle" style={{ animationDelay: '-0.5s' }}>
-          <svg width="32" height="40" viewBox="0 0 24 24" fill="#81B29A">
-            <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
-          </svg>
-        </div>
+        {/* Subtle ring shapes */}
+        <div className="absolute top-[18%] left-[18%] w-16 h-16 rounded-full border border-[#E07A5F]/10 animate-float-gentle" style={{ animationDelay: '-2s' }} />
+        <div className="absolute top-[60%] left-[8%] w-12 h-12 rounded-full border border-[#81B29A]/15 animate-float-gentle" style={{ animationDelay: '-3.5s' }} />
+        <div className="absolute top-[30%] right-[10%] w-20 h-20 rounded-full border border-[#F2CC8F]/10 animate-float-gentle" style={{ animationDelay: '-1s' }} />
+        <div className="absolute bottom-[25%] right-[15%] w-14 h-14 rounded-full border border-[#E07A5F]/10 animate-float-gentle" style={{ animationDelay: '-4s' }} />
+        <div className="absolute bottom-[40%] left-[20%] w-10 h-10 rounded-full border border-[#81B29A]/10 animate-float-gentle" style={{ animationDelay: '-2.5s' }} />
       </div>
 
       {/* Main Content */}
@@ -134,10 +94,23 @@ export default function Home() {
         {/* Hero Section */}
         <div className="flex-1 flex items-center justify-center py-12">
           <div className="max-w-3xl mx-auto text-center space-y-8">
-            {/* Main Title */}
+            {/* Main Title with Animated "Sound" */}
             <div className="space-y-4">
               <h1 className="text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight">
-                <span className="gradient-text">Sound</span>
+                {/* Animated "Sound" - each letter has subtle bounce */}
+                <span className="inline-flex items-baseline">
+                  {'Sound'.split('').map((letter, i) => (
+                    <span
+                      key={i}
+                      className="inline-block gradient-text animate-equalizer"
+                      style={{ 
+                        animationDelay: `${i * 0.15}s`,
+                      }}
+                    >
+                      {letter}
+                    </span>
+                  ))}
+                </span>
                 <span className="text-[#1A1814]">Canvas</span>
               </h1>
               <p className="text-xl md:text-2xl text-[#5C5549] font-light max-w-xl mx-auto leading-relaxed">

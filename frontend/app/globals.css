@@ -123,8 +123,21 @@
   to { transform: rotate(360deg); }
 }
 
+@keyframes equalizer-subtle {
+  0%, 100% { 
+    transform: translateY(0);
+  }
+  50% { 
+    transform: translateY(-3px);
+  }
+}
+
 .animate-soundwave {
   animation: soundwave 1.2s ease-in-out infinite;
+}
+
+.animate-equalizer {
+  animation: equalizer-subtle 1.2s ease-in-out infinite;
 }
 
 .animate-pulse-glow {
