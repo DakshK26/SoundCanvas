@@ -294,7 +294,7 @@ export class OrchestratorService {
                 use_sample_drums: true,
                 render_fx: true,
             }, {
-                timeout: 120000, // 2 minutes timeout for audio rendering
+                timeout: 300000, // 5 minutes timeout for audio rendering (was 2 minutes)
             });
 
             if (response.status !== 200) {

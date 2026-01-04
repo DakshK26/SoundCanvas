@@ -31,6 +31,13 @@ async function start() {
 
   const app = express();
 
+  // Set timeout for long-running operations (5 minutes)
+  app.use((req, res, next) => {
+    req.setTimeout(5 * 60 * 1000); // 5 minutes
+    res.setTimeout(5 * 60 * 1000); // 5 minutes
+    next();
+  });
+
   // Enable CORS for all origins (Vercel frontend)
   app.use(cors({
     origin: true,
@@ -103,10 +110,19 @@ async function start() {
   const server = new ApolloServer({
     typeDefs,
     resolvers,
+    // Increase timeout for long-running music generation operations
+    context: ({ req }) => ({ req }),
   });
 
   await server.start();
-  server.applyMiddleware({ app, path: "/graphql" });
+  server.applyMiddleware({
+    app,
+    path: "/graphql",
+    // Disable default body parser timeout to allow long operations
+    bodyParserConfig: {
+      limit: '10mb'
+    }
+  });
 
   app.get("/health", async (_req, res) => {
     try {
@@ -134,7 +150,7 @@ async function start() {
 
   app.listen(Number(PORT), HOST, () => {
     console.log(`Gateway listening on http://${HOST}:${PORT}/graphql`);
-  });
+  }).timeout = 5 * 60 * 1000; // 5 minutes server timeout
 }
 
 start().catch((err) => {
