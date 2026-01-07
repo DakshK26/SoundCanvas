@@ -66,6 +66,7 @@ function PlaygroundContent() {
                 <Playground
                     initialImageUrl={initialImageUrl}
                     initialGenre={genreOverride || undefined}
+                    exampleId={exampleId || undefined}
                 />
             </TabsContent>
 
@@ -81,7 +82,21 @@ function PlaygroundContent() {
 }
 
 function BackendWarmupBanner() {
-    const { status, isWarming, error, retry } = useBackendWarmup();
+    const { status, isWarming, justLoaded, error, retry } = useBackendWarmup();
+
+    if (justLoaded) {
+        return (
+            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-2xl flex items-center gap-3 mb-6">
+                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <div className="flex-1">
+                    <p className="font-medium">Server ready!</p>
+                    <p className="text-sm">You can now generate music.</p>
+                </div>
+            </div>
+        );
+    }
 
     if (status === 'ready' || status === 'idle') {
         return null;
@@ -134,7 +149,7 @@ export default function PlaygroundPage() {
                         <div className="flex items-center gap-3">
                             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#E07A5F] to-[#D4583D] flex items-center justify-center shadow-md">
                                 <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                                    <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
                                 </svg>
                             </div>
                             <h1 className="text-xl font-semibold text-[#1A1814]">

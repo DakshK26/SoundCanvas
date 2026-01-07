@@ -21,9 +21,10 @@ import { addToLocalHistory } from '@/lib/historyStorage';
 interface PlaygroundProps {
     initialImageUrl?: string;
     initialGenre?: string;
+    exampleId?: string;
 }
 
-export default function Playground({ initialImageUrl, initialGenre }: PlaygroundProps) {
+export default function Playground({ initialImageUrl, initialGenre, exampleId }: PlaygroundProps) {
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(initialImageUrl || null);
     const [genre, setGenre] = useState<string>(initialGenre || Genre.AUTO);
@@ -37,6 +38,7 @@ export default function Playground({ initialImageUrl, initialGenre }: Playground
     const [networkError, setNetworkError] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const [fakeLoadingProgress, setFakeLoadingProgress] = useState<number>(0);
 
     const [createGeneration] = useMutation(CREATE_GENERATION);
     const [startGeneration] = useMutation(START_GENERATION);
@@ -162,9 +164,81 @@ export default function Playground({ initialImageUrl, initialGenre }: Playground
         [getGenerationStatus]
     );
 
+    const simulateFakeLoading = async (exampleId: string) => {
+        setErrorMessage(null);
+        setNetworkError(null);
+        setGenerationStatus(Status.PENDING);
+        setFakeLoadingProgress(0);
+
+        // Random delay between 25-45 seconds
+        const totalDelay = Math.floor(Math.random() * (45000 - 25000 + 1)) + 25000;
+        const startTime = Date.now();
+
+        // Simulate progress updates
+        const progressInterval = setInterval(() => {
+            const elapsed = Date.now() - startTime;
+            const progress = Math.min((elapsed / totalDelay) * 100, 95);
+            setFakeLoadingProgress(progress);
+
+            if (progress < 30) {
+                setGenerationStatus(Status.PENDING);
+            } else {
+                setGenerationStatus(Status.RUNNING);
+            }
+        }, 500);
+
+        // Wait for the random delay
+        await new Promise(resolve => setTimeout(resolve, totalDelay));
+
+        clearInterval(progressInterval);
+        setFakeLoadingProgress(100);
+
+        // Set the preloaded audio URL
+        const audioPath = `/examples/${exampleId}.wav`;
+        const imagePath = `/examples/${exampleId}.jpg`;
+
+        // Generate fake parameters based on genre
+        const genreMap: Record<string, { bpm: number, scale: string }> = {
+            'house': { bpm: 125, scale: 'Minor' },
+            'edm_chill': { bpm: 110, scale: 'Major' },
+            'edm_drop': { bpm: 140, scale: 'Minor' },
+            'cinematic': { bpm: 90, scale: 'Dorian' }
+        };
+
+        const fakeParams = genreMap[exampleId] || { bpm: 120, scale: 'Major' };
+
+        setAudioUrl(audioPath);
+        setImageUrl(imagePath);
+        setParams({
+            genre: genre,
+            tempoBpm: fakeParams.bpm,
+            scaleType: fakeParams.scale
+        });
+        setGenerationStatus(Status.COMPLETE);
+
+        // Add to history
+        addToLocalHistory({
+            id: `example-${exampleId}-${Date.now()}`,
+            imageUrl: imagePath,
+            audioUrl: audioPath,
+            genre: genre,
+            tempoBpm: fakeParams.bpm,
+            scaleType: fakeParams.scale,
+            status: Status.COMPLETE,
+            createdAt: new Date().toISOString(),
+            errorMessage: null,
+        });
+    };
+
     const handleGenerate = async () => {
         if (!selectedImage) {
             setNetworkError('Please select an image first');
+            return;
+        }
+
+        // If this is an example, use fake loading with preloaded audio
+        if (exampleId) {
+            await simulateFakeLoading(exampleId);
             return;
         }
 
@@ -248,7 +322,7 @@ export default function Playground({ initialImageUrl, initialGenre }: Playground
                     <CardTitle className="flex items-center gap-3 text-[#1A1814]">
                         <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#E07A5F] to-[#D4583D] flex items-center justify-center shadow-md">
                             <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
+                                <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z" />
                             </svg>
                         </div>
                         Create Your Track
@@ -312,13 +386,12 @@ export default function Playground({ initialImageUrl, initialGenre }: Playground
 
                     {/* Status Display */}
                     {generationStatus && (
-                        <div className={`flex items-center gap-3 p-4 rounded-2xl ${
-                            isGenerating 
-                                ? 'bg-amber-50 border border-amber-200' 
-                                : generationStatus === Status.COMPLETE 
+                        <div className={`flex items-center gap-3 p-4 rounded-2xl ${isGenerating
+                                ? 'bg-amber-50 border border-amber-200'
+                                : generationStatus === Status.COMPLETE
                                     ? 'bg-[#81B29A]/10 border border-[#81B29A]/30'
                                     : 'bg-red-50 border border-red-200'
-                        }`}>
+                            }`}>
                             {isGenerating ? (
                                 <Loader2 className="w-5 h-5 animate-spin text-amber-600" />
                             ) : generationStatus === Status.COMPLETE ? (
@@ -327,9 +400,8 @@ export default function Playground({ initialImageUrl, initialGenre }: Playground
                                 <AlertCircle className="w-5 h-5 text-red-600" />
                             )}
                             <div className="flex-1">
-                                <p className={`font-medium text-sm ${
-                                    isGenerating ? 'text-amber-800' : generationStatus === Status.COMPLETE ? 'text-[#3D5A3D]' : 'text-red-800'
-                                }`}>
+                                <p className={`font-medium text-sm ${isGenerating ? 'text-amber-800' : generationStatus === Status.COMPLETE ? 'text-[#3D5A3D]' : 'text-red-800'
+                                    }`}>
                                     {generationStatus === Status.PENDING && 'Getting things ready...'}
                                     {generationStatus === Status.RUNNING && 'Creating your track...'}
                                     {generationStatus === Status.COMPLETE && 'All done! Your track is ready'}

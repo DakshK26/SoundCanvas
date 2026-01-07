@@ -37,6 +37,7 @@ function isLocalhostEndpoint(): boolean {
 export function useBackendWarmup() {
     const [status, setStatus] = useState<BackendStatus>('idle');
     const [error, setError] = useState<string | null>(null);
+    const [justLoaded, setJustLoaded] = useState(false);
     const attemptRef = useRef(0);
     const maxAttempts = 3;
     const isMountedRef = useRef(true);
@@ -52,14 +53,14 @@ export function useBackendWarmup() {
         }
 
         if (!isMountedRef.current) return false;
-        
+
         attemptRef.current += 1;
         setStatus('warming');
         setError(null);
 
         try {
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000);
+            const timeoutId = setTimeout(() => controller.abort(), 30000);
 
             const response = await fetch(endpoint, {
                 method: 'POST',
@@ -75,6 +76,10 @@ export function useBackendWarmup() {
             if (!isMountedRef.current) return false;
 
             if (response.ok) {
+                if (status === 'warming') {
+                    setJustLoaded(true);
+                    setTimeout(() => setJustLoaded(false), 3000);
+                }
                 setStatus('ready');
                 return true;
             } else {
@@ -94,8 +99,8 @@ export function useBackendWarmup() {
                 if (isMountedRef.current) {
                     setStatus('error');
                     setError(
-                        err.name === 'AbortError' 
-                            ? 'Connection timed out' 
+                        err.name === 'AbortError'
+                            ? 'Connection timed out'
                             : (err.message || 'Failed to connect to backend')
                     );
                 }
@@ -122,6 +127,7 @@ export function useBackendWarmup() {
         status,
         isWarm: status === 'ready',
         isWarming: status === 'warming',
+        justLoaded,
         error,
         retry,
     };
