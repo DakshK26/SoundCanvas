@@ -6,7 +6,7 @@
 # Target: <$5/month for low-traffic personal project
 #
 
-app = 'soundcanvas-backend-20251201195552'
+app = 'soundcanvas-backend'
 primary_region = 'ord'
 
 [build]
