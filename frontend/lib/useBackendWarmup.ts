@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { getGraphQLEndpoint, shouldSkipWarmup } from '@/lib/graphql-endpoint';
 
 // Simple health check query
 const HEALTH_QUERY = `
@@ -12,25 +13,9 @@ const HEALTH_QUERY = `
 export type BackendStatus = 'idle' | 'warming' | 'ready' | 'error';
 
 /**
- * Get the GraphQL endpoint - computed at runtime to ensure env vars are available
- */
-function getGraphQLEndpoint(): string {
-    return process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT || 'http://localhost:4000/graphql';
-}
-
-/**
- * Check if we're using localhost (development without backend)
- * Must be called at runtime, not module initialization
- */
-function isLocalhostEndpoint(): boolean {
-    const endpoint = getGraphQLEndpoint();
-    return endpoint.includes('localhost') || endpoint.includes('127.0.0.1');
-}
-
-/**
  * Hook to warm up the backend on cold start.
  * Pings the GraphQL endpoint on mount to wake up the Fly.io machine.
- * Skips warmup if using localhost (development mode without backend).
+ * Skips warmup only for localhost in non-production environments.
  * 
  * @returns { status, isWarm, error, retry }
  */
@@ -44,10 +29,9 @@ export function useBackendWarmup() {
 
     const warmup = useCallback(async () => {
         const endpoint = getGraphQLEndpoint();
-        const isLocalhost = isLocalhostEndpoint();
 
-        // Skip warmup for localhost
-        if (isLocalhost) {
+        // Skip warmup only for local development.
+        if (shouldSkipWarmup(endpoint)) {
             setStatus('ready');
             return true;
         }

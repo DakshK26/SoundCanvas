@@ -1,6 +1,6 @@
 # SoundCanvas  
 ### AI-Powered Image → Music Generation System  
-*C++17 • TensorFlow • Python DSP • Next.js • GraphQL • Docker • AWS S3/ECS/RDS (PostgreSQL)*
+*C++17 • TensorFlow • Python DSP • Next.js • GraphQL • Docker • AWS S3/ECS/RDS (MySQL)*
 
 ---
 
@@ -84,7 +84,7 @@ soundcanvas/
          │                          │                           │
          ▼                          ▼                           ▼
  ┌─────────────────┐       ┌─────────────────┐         ┌─────────────────────┐
- │ AWS S3 (Images) │       │ AWS S3 (Audio) │         │ AWS RDS PostgreSQL   │
+ │ AWS S3 (Images) │       │ AWS S3 (Audio) │         │ AWS RDS MySQL        │
  └─────────────────┘       └─────────────────┘         │ Job & user metadata │
                                                        └─────────────────────┘
       Orchestrator (Node.js ECS Task)
@@ -149,7 +149,7 @@ soundcanvas/
 ## 4. **GraphQL Gateway**
 - Built with Apollo Server + TypeScript  
 - Provides pre-signed URLs for direct S3 uploads  
-- Stores job state in PostgreSQL  
+- Stores job state in MySQL  
 - Initiates pipeline processing  
 - Queries for status, history, and final audio URLs  
 
@@ -185,7 +185,7 @@ soundcanvas/
   - Raw uploaded images  
   - Final WAV audio files  
 
-- **RDS PostgreSQL**  
+- **RDS MySQL**  
   - Job metadata  
   - Generation history  
   - Status tracking  

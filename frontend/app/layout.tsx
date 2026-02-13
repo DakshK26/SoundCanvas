@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import ApolloProviderWrapper from "@/components/ApolloProvider";
+import BackendWakeupOnLoad from "@/components/BackendWakeupOnLoad";
 
 const outfit = Outfit({
   variable: "--font-outfit",
@@ -29,6 +30,7 @@ export default function RootLayout({
         style={{ fontFamily: "'Outfit', system-ui, sans-serif" }}
       >
         <ApolloProviderWrapper>
+          <BackendWakeupOnLoad />
           {children}
         </ApolloProviderWrapper>
       </body>
