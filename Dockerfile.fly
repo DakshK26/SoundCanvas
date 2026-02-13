@@ -106,7 +106,7 @@ ENV S3_BUCKET_NAME=soundcanvas-uploads
 ENV AWS_ACCESS_KEY_ID=minioadmin
 ENV AWS_SECRET_ACCESS_KEY=minioadmin
 ENV AWS_REGION=us-east-1
-ENV GATEWAY_PUBLIC_URL=https://soundcanvas-backend-20251201195552.fly.dev
+ENV GATEWAY_PUBLIC_URL=https://soundcanvas-backend.fly.dev
 
 # Expose ports
 # 4000: Gateway (Public)
