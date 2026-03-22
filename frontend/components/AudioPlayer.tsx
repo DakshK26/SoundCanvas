@@ -112,15 +112,18 @@ export default function AudioPlayer({ audioUrl, params, imageUrl }: AudioPlayerP
                         <p className="text-sm text-red-600">{error}</p>
                     </div>
                 ) : blobUrl ? (
-                    <audio
-                        controls
-                        controlsList="nodownload noplaybackrate"
-                        className="w-full rounded-xl"
-                        src={blobUrl}
-                        preload="metadata"
-                    >
-                        Your browser does not support the audio element.
-                    </audio>
+                    <div className="pb-12">
+                        <audio
+                            controls
+                            controlsList="nodownload noplaybackrate noremoteplayback"
+                            disableRemotePlayback
+                            className="w-full rounded-xl"
+                            src={blobUrl}
+                            preload="metadata"
+                        >
+                            Your browser does not support the audio element.
+                        </audio>
+                    </div>
                 ) : null}
 
                 {/* Track Details */}

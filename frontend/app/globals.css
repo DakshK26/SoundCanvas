@@ -173,9 +173,17 @@
   border-radius: 2px;
 }
 
-/* Hide the browser's extra audio toolbar (3-dot menu, download, speed controls) */
+/* Push the browser's extra audio toolbar below the control bar */
 audio::-webkit-media-controls-overflow-button {
   display: none !important;
+}
+
+audio::-webkit-media-controls-panel {
+  overflow: visible;
+}
+
+audio::-webkit-media-controls-timeline-container {
+  direction: ltr;
 }
 
 @layer base {

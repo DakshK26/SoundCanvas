@@ -170,8 +170,8 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         setGenerationStatus(Status.PENDING);
         setFakeLoadingProgress(0);
 
-        // Random delay between 25-45 seconds
-        const totalDelay = Math.floor(Math.random() * (45000 - 25000 + 1)) + 25000;
+        // Random delay between 10-18 seconds
+        const totalDelay = Math.floor(Math.random() * (18000 - 10000 + 1)) + 10000;
         const startTime = Date.now();
 
         // Simulate progress updates
