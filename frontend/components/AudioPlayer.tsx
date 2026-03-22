@@ -114,6 +114,7 @@ export default function AudioPlayer({ audioUrl, params, imageUrl }: AudioPlayerP
                 ) : blobUrl ? (
                     <audio
                         controls
+                        controlsList="nodownload noplaybackrate"
                         className="w-full rounded-xl"
                         src={blobUrl}
                         preload="metadata"

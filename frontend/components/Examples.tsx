@@ -7,12 +7,12 @@ import { useRouter } from 'next/navigation';
 // Example images with their preset genres
 const EXAMPLES = [
     {
-        id: 'house',
-        imagePath: '/examples/house.jpg',
-        genre: Genre.HOUSE,
-        genreLabel: 'House',
-        description: 'Energetic beats for the dance floor',
-        color: '#E07A5F',
+        id: 'cinematic',
+        imagePath: '/examples/cinematic.jpg',
+        genre: Genre.CINEMATIC,
+        genreLabel: 'Cinematic',
+        description: 'Epic orchestral soundscapes',
+        color: '#3D405B',
     },
     {
         id: 'edm_chill',
@@ -31,12 +31,12 @@ const EXAMPLES = [
         color: '#F2CC8F',
     },
     {
-        id: 'cinematic',
-        imagePath: '/examples/cinematic.jpg',
-        genre: Genre.CINEMATIC,
-        genreLabel: 'Cinematic',
-        description: 'Epic orchestral soundscapes',
-        color: '#3D405B',
+        id: 'house',
+        imagePath: '/examples/house.jpg',
+        genre: Genre.HOUSE,
+        genreLabel: 'House',
+        description: 'Energetic beats for the dance floor',
+        color: '#E07A5F',
     },
 ];
 

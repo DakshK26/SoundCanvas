@@ -173,6 +173,11 @@
   border-radius: 2px;
 }
 
+/* Hide the browser's extra audio toolbar (3-dot menu, download, speed controls) */
+audio::-webkit-media-controls-overflow-button {
+  display: none !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
