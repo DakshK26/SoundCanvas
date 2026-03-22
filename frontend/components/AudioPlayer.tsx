@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Download, Loader2 } from 'lucide-react';
+import { Download, Loader2, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 
 interface AudioPlayerProps {
     audioUrl: string;
@@ -16,11 +16,26 @@ interface AudioPlayerProps {
     };
 }
 
+function formatTime(seconds: number): string {
+    if (!isFinite(seconds) || seconds < 0) return '0:00';
+    const m = Math.floor(seconds / 60);
+    const s = Math.floor(seconds % 60);
+    return `${m}:${s.toString().padStart(2, '0')}`;
+}
+
 export default function AudioPlayer({ audioUrl, params, imageUrl }: AudioPlayerProps) {
     const [blobUrl, setBlobUrl] = useState<string | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const progressRef = useRef<HTMLDivElement | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [currentTime, setCurrentTime] = useState(0);
+    const [duration, setDuration] = useState(0);
+    const [volume, setVolume] = useState(1);
+    const [isMuted, setIsMuted] = useState(false);
 
     useEffect(() => {
         let objectUrl: string | null = null;
@@ -58,6 +73,68 @@ export default function AudioPlayer({ audioUrl, params, imageUrl }: AudioPlayerP
         };
     }, [audioUrl]);
 
+    useEffect(() => {
+        const audio = audioRef.current;
+        if (!audio) return;
+
+        const onTimeUpdate = () => setCurrentTime(audio.currentTime);
+        const onLoadedMetadata = () => setDuration(audio.duration);
+        const onEnded = () => setIsPlaying(false);
+
+        audio.addEventListener('timeupdate', onTimeUpdate);
+        audio.addEventListener('loadedmetadata', onLoadedMetadata);
+        audio.addEventListener('ended', onEnded);
+
+        return () => {
+            audio.removeEventListener('timeupdate', onTimeUpdate);
+            audio.removeEventListener('loadedmetadata', onLoadedMetadata);
+            audio.removeEventListener('ended', onEnded);
+        };
+    }, [blobUrl]);
+
+    const togglePlay = useCallback(() => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        if (isPlaying) {
+            audio.pause();
+            setIsPlaying(false);
+        } else {
+            audio.play().catch(() => {});
+            setIsPlaying(true);
+        }
+    }, [isPlaying]);
+
+    const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+        const audio = audioRef.current;
+        const bar = progressRef.current;
+        if (!audio || !bar || !duration) return;
+        const rect = bar.getBoundingClientRect();
+        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        audio.currentTime = ratio * duration;
+        setCurrentTime(audio.currentTime);
+    }, [duration]);
+
+    const toggleMute = useCallback(() => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        if (isMuted) {
+            audio.volume = volume;
+            setIsMuted(false);
+        } else {
+            audio.volume = 0;
+            setIsMuted(true);
+        }
+    }, [isMuted, volume]);
+
+    const handleVolumeChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+        const audio = audioRef.current;
+        if (!audio) return;
+        const v = parseFloat(e.target.value);
+        setVolume(v);
+        audio.volume = v;
+        setIsMuted(v === 0);
+    }, []);
+
     const handleDownload = () => {
         try {
             if (!audioBlob) {
@@ -87,6 +164,8 @@ export default function AudioPlayer({ audioUrl, params, imageUrl }: AudioPlayerP
         }
     };
 
+    const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
     return (
         <Card className="bg-gradient-to-br from-[#81B29A]/10 to-[#F2CC8F]/10 border-[#81B29A]/20">
             <CardHeader>
@@ -101,7 +180,6 @@ export default function AudioPlayer({ audioUrl, params, imageUrl }: AudioPlayerP
                 <CardDescription className="text-[#8C8279]">Created from your image</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-                {/* Audio Player */}
                 {isLoading ? (
                     <div className="flex items-center justify-center py-8 bg-white/50 rounded-xl">
                         <Loader2 className="w-6 h-6 animate-spin text-[#81B29A]" />
@@ -112,17 +190,54 @@ export default function AudioPlayer({ audioUrl, params, imageUrl }: AudioPlayerP
                         <p className="text-sm text-red-600">{error}</p>
                     </div>
                 ) : blobUrl ? (
-                    <div className="pb-12">
-                        <audio
-                            controls
-                            controlsList="nodownload noplaybackrate noremoteplayback"
-                            disableRemotePlayback
-                            className="w-full rounded-xl"
-                            src={blobUrl}
-                            preload="metadata"
-                        >
-                            Your browser does not support the audio element.
-                        </audio>
+                    <div className="bg-white/70 rounded-xl p-4 space-y-3">
+                        <audio ref={audioRef} src={blobUrl} preload="metadata" />
+
+                        <div className="flex items-center gap-3">
+                            {/* Play / Pause */}
+                            <button
+                                onClick={togglePlay}
+                                className="w-10 h-10 flex-shrink-0 rounded-full bg-[#E07A5F] hover:bg-[#D4583D] text-white flex items-center justify-center transition-colors shadow-md"
+                            >
+                                {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5 ml-0.5" />}
+                            </button>
+
+                            {/* Time */}
+                            <span className="text-xs text-[#8C8279] tabular-nums w-[4.5rem] text-center flex-shrink-0">
+                                {formatTime(currentTime)} / {formatTime(duration)}
+                            </span>
+
+                            {/* Progress bar */}
+                            <div
+                                ref={progressRef}
+                                onClick={handleProgressClick}
+                                className="flex-1 h-2 bg-[#E8E0D8] rounded-full cursor-pointer group relative"
+                            >
+                                <div
+                                    className="h-full bg-[#81B29A] rounded-full relative"
+                                    style={{ width: `${progress}%` }}
+                                >
+                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 border-[#81B29A] rounded-full shadow-sm opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </div>
+                            </div>
+
+                            {/* Volume */}
+                            <button
+                                onClick={toggleMute}
+                                className="flex-shrink-0 text-[#8C8279] hover:text-[#1A1814] transition-colors"
+                            >
+                                {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+                            </button>
+                            <input
+                                type="range"
+                                min="0"
+                                max="1"
+                                step="0.05"
+                                value={isMuted ? 0 : volume}
+                                onChange={handleVolumeChange}
+                                className="w-16 h-1.5 accent-[#81B29A] flex-shrink-0"
+                            />
+                        </div>
                     </div>
                 ) : null}
 

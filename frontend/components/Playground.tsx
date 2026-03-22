@@ -14,9 +14,10 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Genre, Mode, GenerationStatus as Status } from '@/types/graphql';
-import { Upload, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Upload, Loader2, AlertCircle, CheckCircle2, Clock } from 'lucide-react';
 import AudioPlayer from '@/components/AudioPlayer';
 import { addToLocalHistory } from '@/lib/historyStorage';
+import { useBackendWarmup } from '@/lib/useBackendWarmup';
 
 interface PlaygroundProps {
     initialImageUrl?: string;
@@ -39,6 +40,8 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
     const [isUploading, setIsUploading] = useState(false);
     const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const [fakeLoadingProgress, setFakeLoadingProgress] = useState<number>(0);
+
+    const { isWarm, isWarming } = useBackendWarmup();
 
     const [createGeneration] = useMutation(CREATE_GENERATION);
     const [startGeneration] = useMutation(START_GENERATION);
@@ -236,6 +239,11 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
             return;
         }
 
+        if (!isWarm && !exampleId) {
+            setNetworkError('Please wait for the server to finish waking up before generating.');
+            return;
+        }
+
         // If this is an example, use fake loading with preloaded audio
         if (exampleId) {
             await simulateFakeLoading(exampleId);
@@ -303,7 +311,8 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
     };
 
     const isGenerating = generationStatus === Status.PENDING || generationStatus === Status.RUNNING;
-    const isDisabled = !selectedImage || isUploading || isGenerating;
+    const isServerWarming = isWarming && !exampleId;
+    const isDisabled = !selectedImage || isUploading || isGenerating || isServerWarming;
 
     return (
         <div className="w-full max-w-4xl mx-auto space-y-6">
@@ -434,6 +443,11 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
                             <>
                                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
                                 Creating your track...
+                            </>
+                        ) : isServerWarming ? (
+                            <>
+                                <Clock className="mr-2 h-5 w-5" />
+                                Waiting for server...
                             </>
                         ) : (
                             'Generate Track'
