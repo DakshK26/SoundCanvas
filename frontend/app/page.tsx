@@ -135,11 +135,7 @@ export default function Home() {
               <Link href="/playground">
                 <Button
                   size="lg"
-                  className="text-lg px-10 py-7 text-white rounded-full shadow-xl shadow-[#E07A5F]/25 transition-all hover:scale-105 hover:shadow-2xl"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.12'/%3E%3C/svg%3E"), linear-gradient(to right, #E07A5F, #D4583D)`,
-                    backgroundSize: '120px 120px, 100% 100%',
-                  }}
+                  className="btn-grain text-lg px-10 py-7 bg-gradient-to-r from-[#E07A5F] to-[#D4583D] hover:from-[#D4583D] hover:to-[#C04830] text-white rounded-full shadow-xl shadow-[#E07A5F]/25 transition-all hover:scale-105 hover:shadow-2xl"
                 >
                   Start Creating
                   <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -151,12 +147,7 @@ export default function Home() {
                 <Button
                   variant="outline"
                   size="lg"
-                  className="text-lg px-10 py-7 rounded-full border-2"
-                  style={{
-                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E")`,
-                    backgroundSize: '120px 120px',
-                    backgroundColor: 'white',
-                  }}
+                  className="btn-grain btn-grain-light text-lg px-10 py-7 rounded-full border-2"
                 >
                   See Examples
                 </Button>

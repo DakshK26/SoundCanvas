@@ -266,6 +266,29 @@
   animation: ring-morph 20s ease-in-out infinite;
 }
 
+/* Button grain texture */
+.btn-grain {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 120px 120px;
+  mix-blend-mode: soft-light;
+}
+
+.btn-grain-light::after {
+  mix-blend-mode: multiply;
+  opacity: 0.18;
+}
+
 /* Gradient text */
 .gradient-text {
   background: linear-gradient(135deg, #E07A5F 0%, #D4583D 50%, #81B29A 100%);
