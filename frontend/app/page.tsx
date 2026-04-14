@@ -3,67 +3,67 @@ import { Button } from '@/components/ui/button';
 
 export default function Home() {
   return (
-    <div className="min-h-screen aurora-bg overflow-hidden">
+    <div className="min-h-screen aurora-bg noise-overlay overflow-hidden">
       {/* Abstract Background Elements */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         {/* Large gradient orb - top right */}
         <div
-          className="absolute -top-32 -right-32 w-[500px] h-[500px] rounded-full animate-pulse-glow"
-          style={{ background: 'radial-gradient(circle, rgba(224, 122, 95, 0.18) 0%, transparent 60%)' }}
+          className="absolute -top-32 -right-32 w-[500px] h-[500px] animate-blob-drift"
+          style={{ background: 'radial-gradient(circle, rgba(224, 122, 95, 0.18) 0%, transparent 60%)', animationDuration: '20s' }}
         />
         {/* Sage orb - bottom left */}
         <div
-          className="absolute -bottom-20 -left-20 w-[400px] h-[400px] rounded-full animate-pulse-glow"
-          style={{ background: 'radial-gradient(circle, rgba(129, 178, 154, 0.15) 0%, transparent 60%)', animationDelay: '-2s' }}
+          className="absolute -bottom-20 -left-20 w-[400px] h-[400px] animate-blob-drift"
+          style={{ background: 'radial-gradient(circle, rgba(129, 178, 154, 0.15) 0%, transparent 60%)', animationDelay: '-7s', animationDuration: '24s' }}
         />
         {/* Golden orb - center right */}
         <div
-          className="absolute top-1/2 -right-16 w-[350px] h-[350px] rounded-full animate-pulse-glow"
-          style={{ background: 'radial-gradient(circle, rgba(242, 204, 143, 0.2) 0%, transparent 60%)', animationDelay: '-4s' }}
+          className="absolute top-1/2 -right-16 w-[350px] h-[350px] animate-blob-drift"
+          style={{ background: 'radial-gradient(circle, rgba(242, 204, 143, 0.2) 0%, transparent 60%)', animationDelay: '-3s', animationDuration: '16s' }}
         />
         {/* Extra orb - top left */}
         <div
-          className="absolute top-20 -left-32 w-[300px] h-[300px] rounded-full animate-pulse-glow"
-          style={{ background: 'radial-gradient(circle, rgba(224, 122, 95, 0.1) 0%, transparent 60%)', animationDelay: '-1s' }}
+          className="absolute top-20 -left-32 w-[300px] h-[300px] animate-blob-drift"
+          style={{ background: 'radial-gradient(circle, rgba(224, 122, 95, 0.1) 0%, transparent 60%)', animationDelay: '-11s', animationDuration: '22s' }}
         />
         {/* Extra orb - bottom right */}
         <div
-          className="absolute bottom-1/4 right-1/4 w-[250px] h-[250px] rounded-full animate-pulse-glow"
-          style={{ background: 'radial-gradient(circle, rgba(129, 178, 154, 0.12) 0%, transparent 60%)', animationDelay: '-3s' }}
+          className="absolute bottom-1/4 right-1/4 w-[250px] h-[250px] animate-blob-drift"
+          style={{ background: 'radial-gradient(circle, rgba(129, 178, 154, 0.12) 0%, transparent 60%)', animationDelay: '-5s', animationDuration: '18s' }}
         />
         {/* Center orb */}
         <div
-          className="absolute top-1/3 left-1/3 w-[200px] h-[200px] rounded-full animate-pulse-glow"
-          style={{ background: 'radial-gradient(circle, rgba(242, 204, 143, 0.1) 0%, transparent 60%)', animationDelay: '-5s' }}
+          className="absolute top-1/3 left-1/3 w-[200px] h-[200px] animate-blob-drift"
+          style={{ background: 'radial-gradient(circle, rgba(242, 204, 143, 0.1) 0%, transparent 60%)', animationDelay: '-14s', animationDuration: '26s' }}
         />
 
         {/* Floating dots - scattered across the page */}
-        <div className="absolute top-[15%] left-[10%] w-3 h-3 rounded-full bg-[#E07A5F]/20 animate-float-gentle" />
-        <div className="absolute top-[25%] left-[20%] w-2 h-2 rounded-full bg-[#81B29A]/25 animate-float-gentle" style={{ animationDelay: '-1s' }} />
-        <div className="absolute top-[20%] left-[35%] w-2.5 h-2.5 rounded-full bg-[#F2CC8F]/30 animate-float-gentle" style={{ animationDelay: '-2s' }} />
-        <div className="absolute top-[35%] left-[8%] w-2 h-2 rounded-full bg-[#E07A5F]/15 animate-float-gentle" style={{ animationDelay: '-3s' }} />
-        <div className="absolute top-[45%] left-[15%] w-3.5 h-3.5 rounded-full bg-[#81B29A]/20 animate-float-gentle" style={{ animationDelay: '-0.5s' }} />
+        <div className="absolute top-[15%] left-[10%] w-3 h-3 rounded-full bg-[#E07A5F]/20 animate-float-wander" style={{ animationDuration: '9s' }} />
+        <div className="absolute top-[25%] left-[20%] w-2 h-2 rounded-full bg-[#81B29A]/25 animate-float-wander-reverse" style={{ animationDelay: '-3s', animationDuration: '11s' }} />
+        <div className="absolute top-[20%] left-[35%] w-2.5 h-2.5 rounded-full bg-[#F2CC8F]/30 animate-float-wander" style={{ animationDelay: '-6s', animationDuration: '13s' }} />
+        <div className="absolute top-[35%] left-[8%] w-2 h-2 rounded-full bg-[#E07A5F]/15 animate-float-wander-reverse" style={{ animationDelay: '-2s', animationDuration: '10s' }} />
+        <div className="absolute top-[45%] left-[15%] w-3.5 h-3.5 rounded-full bg-[#81B29A]/20 animate-float-wander" style={{ animationDelay: '-8s', animationDuration: '14s' }} />
 
-        <div className="absolute top-[12%] right-[15%] w-2.5 h-2.5 rounded-full bg-[#F2CC8F]/25 animate-float-gentle" style={{ animationDelay: '-1.5s' }} />
-        <div className="absolute top-[28%] right-[8%] w-2 h-2 rounded-full bg-[#E07A5F]/20 animate-float-gentle" style={{ animationDelay: '-2.5s' }} />
-        <div className="absolute top-[22%] right-[25%] w-3 h-3 rounded-full bg-[#81B29A]/15 animate-float-gentle" style={{ animationDelay: '-4s' }} />
-        <div className="absolute top-[40%] right-[12%] w-2 h-2 rounded-full bg-[#F2CC8F]/20 animate-float-gentle" style={{ animationDelay: '-0.8s' }} />
+        <div className="absolute top-[12%] right-[15%] w-2.5 h-2.5 rounded-full bg-[#F2CC8F]/25 animate-float-wander-reverse" style={{ animationDelay: '-1s', animationDuration: '12s' }} />
+        <div className="absolute top-[28%] right-[8%] w-2 h-2 rounded-full bg-[#E07A5F]/20 animate-float-wander" style={{ animationDelay: '-5s', animationDuration: '9s' }} />
+        <div className="absolute top-[22%] right-[25%] w-3 h-3 rounded-full bg-[#81B29A]/15 animate-float-wander-reverse" style={{ animationDelay: '-9s', animationDuration: '13s' }} />
+        <div className="absolute top-[40%] right-[12%] w-2 h-2 rounded-full bg-[#F2CC8F]/20 animate-float-wander" style={{ animationDelay: '-4s', animationDuration: '11s' }} />
 
-        <div className="absolute bottom-[30%] left-[12%] w-2.5 h-2.5 rounded-full bg-[#E07A5F]/25 animate-float-gentle" style={{ animationDelay: '-3.5s' }} />
-        <div className="absolute bottom-[20%] left-[25%] w-2 h-2 rounded-full bg-[#81B29A]/30 animate-float-gentle" style={{ animationDelay: '-1.2s' }} />
-        <div className="absolute bottom-[35%] left-[5%] w-3 h-3 rounded-full bg-[#F2CC8F]/20 animate-float-gentle" style={{ animationDelay: '-2.8s' }} />
+        <div className="absolute bottom-[30%] left-[12%] w-2.5 h-2.5 rounded-full bg-[#E07A5F]/25 animate-float-wander" style={{ animationDelay: '-7s', animationDuration: '10s' }} />
+        <div className="absolute bottom-[20%] left-[25%] w-2 h-2 rounded-full bg-[#81B29A]/30 animate-float-wander-reverse" style={{ animationDelay: '-2s', animationDuration: '14s' }} />
+        <div className="absolute bottom-[35%] left-[5%] w-3 h-3 rounded-full bg-[#F2CC8F]/20 animate-float-wander" style={{ animationDelay: '-10s', animationDuration: '12s' }} />
 
-        <div className="absolute bottom-[25%] right-[10%] w-3 h-3 rounded-full bg-[#E07A5F]/15 animate-float-gentle" style={{ animationDelay: '-4.5s' }} />
-        <div className="absolute bottom-[40%] right-[20%] w-2 h-2 rounded-full bg-[#81B29A]/25 animate-float-gentle" style={{ animationDelay: '-1.8s' }} />
-        <div className="absolute bottom-[15%] right-[30%] w-2.5 h-2.5 rounded-full bg-[#F2CC8F]/25 animate-float-gentle" style={{ animationDelay: '-3.2s' }} />
-        <div className="absolute bottom-[50%] right-[5%] w-2 h-2 rounded-full bg-[#E07A5F]/20 animate-float-gentle" style={{ animationDelay: '-0.3s' }} />
+        <div className="absolute bottom-[25%] right-[10%] w-3 h-3 rounded-full bg-[#E07A5F]/15 animate-float-wander-reverse" style={{ animationDelay: '-4s', animationDuration: '11s' }} />
+        <div className="absolute bottom-[40%] right-[20%] w-2 h-2 rounded-full bg-[#81B29A]/25 animate-float-wander" style={{ animationDelay: '-6s', animationDuration: '9s' }} />
+        <div className="absolute bottom-[15%] right-[30%] w-2.5 h-2.5 rounded-full bg-[#F2CC8F]/25 animate-float-wander-reverse" style={{ animationDelay: '-1s', animationDuration: '13s' }} />
+        <div className="absolute bottom-[50%] right-[5%] w-2 h-2 rounded-full bg-[#E07A5F]/20 animate-float-wander" style={{ animationDelay: '-8s', animationDuration: '10s' }} />
 
         {/* Subtle ring shapes */}
-        <div className="absolute top-[18%] left-[18%] w-16 h-16 rounded-full border border-[#E07A5F]/10 animate-float-gentle" style={{ animationDelay: '-2s' }} />
-        <div className="absolute top-[60%] left-[8%] w-12 h-12 rounded-full border border-[#81B29A]/15 animate-float-gentle" style={{ animationDelay: '-3.5s' }} />
-        <div className="absolute top-[30%] right-[10%] w-20 h-20 rounded-full border border-[#F2CC8F]/10 animate-float-gentle" style={{ animationDelay: '-1s' }} />
-        <div className="absolute bottom-[25%] right-[15%] w-14 h-14 rounded-full border border-[#E07A5F]/10 animate-float-gentle" style={{ animationDelay: '-4s' }} />
-        <div className="absolute bottom-[40%] left-[20%] w-10 h-10 rounded-full border border-[#81B29A]/10 animate-float-gentle" style={{ animationDelay: '-2.5s' }} />
+        <div className="absolute top-[18%] left-[18%] w-16 h-16 border border-[#E07A5F]/10 animate-ring-morph" style={{ animationDelay: '-5s', animationDuration: '18s' }} />
+        <div className="absolute top-[60%] left-[8%] w-12 h-12 border border-[#81B29A]/15 animate-ring-morph" style={{ animationDelay: '-12s', animationDuration: '22s' }} />
+        <div className="absolute top-[30%] right-[10%] w-20 h-20 border border-[#F2CC8F]/10 animate-ring-morph" style={{ animationDelay: '-3s', animationDuration: '16s' }} />
+        <div className="absolute bottom-[25%] right-[15%] w-14 h-14 border border-[#E07A5F]/10 animate-ring-morph" style={{ animationDelay: '-9s', animationDuration: '24s' }} />
+        <div className="absolute bottom-[40%] left-[20%] w-10 h-10 border border-[#81B29A]/10 animate-ring-morph" style={{ animationDelay: '-7s', animationDuration: '20s' }} />
       </div>
 
       {/* Main Content */}
@@ -135,7 +135,11 @@ export default function Home() {
               <Link href="/playground">
                 <Button
                   size="lg"
-                  className="text-lg px-10 py-7 bg-gradient-to-r from-[#E07A5F] to-[#D4583D] hover:from-[#D4583D] hover:to-[#C04830] text-white rounded-full shadow-xl shadow-[#E07A5F]/25 transition-all hover:scale-105 hover:shadow-2xl"
+                  className="text-lg px-10 py-7 text-white rounded-full shadow-xl shadow-[#E07A5F]/25 transition-all hover:scale-105 hover:shadow-2xl"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.12'/%3E%3C/svg%3E"), linear-gradient(to right, #E07A5F, #D4583D)`,
+                    backgroundSize: '120px 120px, 100% 100%',
+                  }}
                 >
                   Start Creating
                   <svg className="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -148,6 +152,11 @@ export default function Home() {
                   variant="outline"
                   size="lg"
                   className="text-lg px-10 py-7 rounded-full border-2"
+                  style={{
+                    backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.55' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.08'/%3E%3C/svg%3E")`,
+                    backgroundSize: '120px 120px',
+                    backgroundColor: 'white',
+                  }}
                 >
                   See Examples
                 </Button>
