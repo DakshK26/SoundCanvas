@@ -1,0 +1,105 @@
+{
+  "feature_names": [
+    "avg_red",
+    "avg_green",
+    "avg_blue",
+    "brightness",
+    "hue",
+    "saturation",
+    "colorfulness",
+    "contrast"
+  ],
+  "tolerance": 0.01,
+  "images": {
+    "tests/feature_parity/images/blue.png": [
+      0.0,
+      0.0,
+      1.0,
+      0.333333,
+      0.666667,
+      1.0,
+      0.765,
+      0.0
+    ],
+    "tests/feature_parity/images/gradient.png": [
+      0.498162,
+      0.498162,
+      0.235294,
+      0.410539,
+      0.371665,
+      0.706313,
+      1.0,
+      0.192958
+    ],
+    "tests/feature_parity/images/gray.png": [
+      0.501961,
+      0.501961,
+      0.501961,
+      0.501961,
+      0.0,
+      0.0,
+      0.0,
+      0.0
+    ],
+    "tests/feature_parity/images/noise.png": [
+      0.502236,
+      0.488903,
+      0.494008,
+      0.495049,
+      0.501067,
+      0.67433,
+      1.0,
+      0.19103
+    ],
+    "tests/feature_parity/images/red.png": [
+      1.0,
+      0.0,
+      0.0,
+      0.333333,
+      0.0,
+      1.0,
+      0.855296,
+      0.0
+    ],
+    "frontend/public/examples/cinematic.jpg": [
+      0.492804,
+      0.49606,
+      0.513682,
+      0.500849,
+      0.32776,
+      0.385246,
+      0.634659,
+      0.204636
+    ],
+    "frontend/public/examples/edm_chill.jpg": [
+      0.385184,
+      0.264345,
+      0.373877,
+      0.341136,
+      0.722335,
+      0.498215,
+      0.747887,
+      0.144084
+    ],
+    "frontend/public/examples/edm_drop.jpg": [
+      0.084931,
+      0.071098,
+      0.131566,
+      0.095865,
+      0.348375,
+      0.487316,
+      0.803056,
+      0.187711
+    ],
+    "frontend/public/examples/house.jpg": [
+      0.348012,
+      0.262655,
+      0.384296,
+      0.331654,
+      0.678856,
+      0.572949,
+      0.784834,
+      0.146664
+    ]
+  }
+}

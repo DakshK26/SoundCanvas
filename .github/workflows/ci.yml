@@ -1,0 +1,74 @@
+# Runs every service's checks on each push and pull request. The jobs are
+# independent, so they run in parallel and a failure points at one service.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  gateway:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: gateway/package-lock.json
+      - run: npm ci
+      - run: npm run build # TypeScript type-check and compile
+      - run: npm test # worker retry / dead-letter decisions (vitest, AWS mocked)
+
+  cpp-core:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cpp-core
+    steps:
+      - uses: actions/checkout@v4
+      - run: cmake -B build -DSOUNDCANVAS_TESTS=ON -DCMAKE_BUILD_TYPE=Release
+      - run: cmake --build build -j
+      - run: ctest --test-dir build --output-on-failure # includes the C++/Python feature parity check
+
+  ml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # TensorFlow is not needed for these tests, and skipping it saves minutes per run.
+      - run: pip install numpy pillow
+      - run: python -m unittest discover -s ml/tests -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+
+  terraform:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform fmt -check
+      - run: terraform init -backend=false
+      - run: terraform validate

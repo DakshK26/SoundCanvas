@@ -4,9 +4,9 @@
 //   success          -> COMPLETED, message deleted
 //   bad input (4xx)  -> FAILED, message deleted (retrying cannot help)
 //   temporary error  -> message reappears in 30 s for another attempt
-//   3rd failed try   -> FAILED, message left for SQS to move to the dead-letter queue
+//   3rd failed try   -> FAILED, message released for SQS to move to the dead-letter queue
 import { audioKey, getObject, imageKey, putObject } from "./aws/s3";
-import { deleteJob, QueuedJob, retryLater } from "./aws/queue";
+import { deleteJob, QueuedJob, releaseJob } from "./aws/queue";
 import { getGeneration, markCompleted, markFailed, startProcessing } from "./db";
 import { composeMidi, extractFeatures, PermanentError, predictGenre, renderAudio } from "./services";
 
@@ -48,8 +48,11 @@ export async function handleMessage(message: QueuedJob): Promise<void> {
       await deleteJob(message);
     } else if (message.receiveCount >= MAX_ATTEMPTS) {
       await markFailed(message.jobId, reason);
+      // Visible again now, so the next receive moves it to the dead-letter queue. Waiting out
+      // the 10-minute visibility timeout would hold up this browser's later jobs (FIFO group).
+      await releaseJob(message, 0);
     } else {
-      await retryLater(message, RETRY_DELAY_SECONDS);
+      await releaseJob(message, RETRY_DELAY_SECONDS);
     }
   }
 }

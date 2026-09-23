@@ -50,8 +50,11 @@ export async function deleteJob(job: QueuedJob): Promise<void> {
   await sqs.send(new DeleteMessageCommand({ QueueUrl: QUEUE_URL, ReceiptHandle: job.receiptHandle }));
 }
 
-/** Makes the message reappear after a delay, so SQS delivers it again for another attempt. */
-export async function retryLater(job: QueuedJob, delaySeconds: number): Promise<void> {
+/**
+ * Hands the message back to SQS, visible again after a delay. SQS then delivers it
+ * for another attempt, or moves it to the dead-letter queue after the 3rd receive.
+ */
+export async function releaseJob(job: QueuedJob, delaySeconds: number): Promise<void> {
   await sqs.send(new ChangeMessageVisibilityCommand({
     QueueUrl: QUEUE_URL, ReceiptHandle: job.receiptHandle, VisibilityTimeout: delaySeconds,
   }));
