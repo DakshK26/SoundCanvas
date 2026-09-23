@@ -39,7 +39,8 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
     const [networkError, setNetworkError] = useState<string | null>(null);
     const [isUploading, setIsUploading] = useState(false);
     const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
-    const [fakeLoadingProgress, setFakeLoadingProgress] = useState<number>(0);
+    const [usingExampleImage, setUsingExampleImage] = useState<boolean>(Boolean(exampleId));
+    const playsPrerenderedExample = Boolean(exampleId) && usingExampleImage && genre === initialGenre;
 
     const { isWarm, isWarming } = useBackendWarmup();
 
@@ -76,6 +77,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
             const file = acceptedFiles[0];
             setSelectedImage(file);
             setImagePreview(URL.createObjectURL(file));
+            setUsingExampleImage(false);
             setJobId(null);
             setGenerationStatus(null);
             setAudioUrl(null);
@@ -167,36 +169,11 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         [getGenerationStatus]
     );
 
-    const simulateFakeLoading = async (exampleId: string) => {
+    // Plays an example's pre-rendered track straight away, without calling the backend.
+    const showExample = (exampleId: string) => {
         setErrorMessage(null);
         setNetworkError(null);
-        setGenerationStatus(Status.PENDING);
-        setFakeLoadingProgress(0);
 
-        // Random delay between 10-18 seconds
-        const totalDelay = Math.floor(Math.random() * (18000 - 10000 + 1)) + 10000;
-        const startTime = Date.now();
-
-        // Simulate progress updates
-        const progressInterval = setInterval(() => {
-            const elapsed = Date.now() - startTime;
-            const progress = Math.min((elapsed / totalDelay) * 100, 95);
-            setFakeLoadingProgress(progress);
-
-            if (progress < 30) {
-                setGenerationStatus(Status.PENDING);
-            } else {
-                setGenerationStatus(Status.RUNNING);
-            }
-        }, 500);
-
-        // Wait for the random delay
-        await new Promise(resolve => setTimeout(resolve, totalDelay));
-
-        clearInterval(progressInterval);
-        setFakeLoadingProgress(100);
-
-        // Set the preloaded audio URL
         const audioPath = `/examples/${exampleId}.wav`;
         const imagePath = `/examples/${exampleId}.jpg`;
 
@@ -239,14 +216,14 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
             return;
         }
 
-        if (!isWarm && !exampleId) {
-            setNetworkError('Please wait for the server to finish waking up before generating.');
+        // An untouched example plays its pre-rendered track; a new genre generates for real.
+        if (exampleId && playsPrerenderedExample) {
+            showExample(exampleId);
             return;
         }
 
-        // If this is an example, use fake loading with preloaded audio
-        if (exampleId) {
-            await simulateFakeLoading(exampleId);
+        if (!isWarm) {
+            setNetworkError('Please wait for the server to finish waking up before generating.');
             return;
         }
 
@@ -311,7 +288,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
     };
 
     const isGenerating = generationStatus === Status.PENDING || generationStatus === Status.RUNNING;
-    const isServerWarming = isWarming && !exampleId;
+    const isServerWarming = isWarming && !playsPrerenderedExample;
     const isDisabled = !selectedImage || isUploading || isGenerating || isServerWarming;
 
     return (

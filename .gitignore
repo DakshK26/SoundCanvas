@@ -54,6 +54,12 @@ infra/terraform/*.tfstate.backup
 infra/terraform/.terraform.lock.hcl
 infra/terraform/deploy.ps1
 infra/terraform/*.ps1
+infra/terraform/tfplan
+*.tfplan
+
+# Build logs and local render output
+*.log
+output/
 
 # Kaggle credentials
 **/.kaggle/
