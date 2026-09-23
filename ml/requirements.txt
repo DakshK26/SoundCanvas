@@ -1,5 +1,5 @@
-tensorflow~=2.20
+tensorflow~=2.21
 numpy
 pillow
-requests
-flask
+fastapi
+uvicorn
