@@ -1,16 +1,24 @@
+// The 8 numbers that describe an image's color and mood.
+// ml/features.py computes the same 8 in Python to build the training data.
 #pragma once
+
+#include <array>
 #include <string>
 
 struct ImageFeatures {
-    float avgR;         // [0] 0–1 (average red channel)
-    float avgG;         // [1] 0–1 (average green channel)
-    float avgB;         // [2] 0–1 (average blue channel)
-    float brightness;   // [3] 0–1 (mean luminance)
-    float hue;          // [4] 0–1 (HSV hue, normalized)
-    float saturation;   // [5] 0–1 (HSV saturation)
-    float colorfulness; // [6] 0–1 (Hasler & Süsstrunk metric)
-    float contrast;     // [7] 0–1 (grayscale std dev, normalized)
-    float warmth;       // Phase 9: warm colors (red/orange) vs cool (blue/cyan)
+  float avgRed;        // 0 to 1
+  float avgGreen;      // 0 to 1
+  float avgBlue;       // 0 to 1
+  float brightness;    // 0 to 1, mean of the three channel averages
+  float hue;           // 0 to 1 around the color wheel (0 = red, 0.33 = green, 0.66 = blue)
+  float saturation;    // 0 to 1
+  float colorfulness;  // 0 to 1, Hasler and Suesstrunk (2003)
+  float contrast;      // 0 to 0.5, spread of grayscale brightness
+
+  // The features in the order the ml model expects.
+  std::array<float, 8> toArray() const;
+  static ImageFeatures fromArray(const std::array<float, 8>& values);
 };
 
-ImageFeatures extractImageFeatures(const std::string& imagePath);
+// Decodes a JPG or PNG from raw bytes and measures its 8 features.
+ImageFeatures extractFeatures(const std::string& imageBytes);

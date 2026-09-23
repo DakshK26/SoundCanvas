@@ -1,46 +1,15 @@
-FROM gcc:13 AS builder
+# cpp-core: builds the C++ server, then copies just the binary into a small image.
+FROM gcc:13 AS build
+RUN apt-get update && apt-get install -y cmake && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY CMakeLists.txt .
+COPY include include
+COPY src src
+COPY vendor vendor
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
 
-# Install CMake and dependencies
-RUN apt-get update && apt-get install -y \
-    cmake \
-    make \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /build
-
-# Copy source files
-COPY CMakeLists.txt ./
-COPY include ./include
-COPY src ./src
-COPY vendor ./vendor
-
-# Build the project
-RUN mkdir -p build && cd build && \
-    cmake .. && \
-    make -j4
-
-# Runtime stage
-FROM debian:bookworm
-
-WORKDIR /app
-
-# Install runtime dependencies
-RUN apt-get update && apt-get install -y \
-    curl \
-    libstdc++6 \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy the newer libstdc++ from GCC 13 builder
-COPY --from=builder /usr/local/lib64/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6
-
-# Copy binary from builder
-COPY --from=builder /build/build/soundcanvas_core .
-
-# Copy examples directory for default paths
-COPY examples ./examples
-
-# Expose HTTP port
+FROM debian:bookworm-slim
+COPY --from=build /usr/local/lib64/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6
+COPY --from=build /src/build/soundcanvas_core /usr/local/bin/soundcanvas_core
 EXPOSE 8080
-
-# Default command (can be overridden in docker-compose)
-CMD ["./soundcanvas_core", "--serve"]
+CMD ["soundcanvas_core"]

@@ -1,83 +1,56 @@
+// Genre templates: the fixed recipe for each of the five genres.
+// The ml service picks the genre; this file says what that genre sounds like.
 #pragma once
 
 #include <string>
 #include <vector>
-#include <map>
 
-/**
- * Phase 8: Genre-based EDM composition system
- * Enables structured tracks with build/drop/break sections
- */
+enum class Genre { EDM_CHILL, EDM_DROP, RETROWAVE, CINEMATIC, HOUSE };
 
-enum class GenreType {
-    EDM_CHILL = 0,    // Soft pads, melodic arps, chill vibes (100-115 BPM)
-    EDM_DROP = 1,     // Side-chained synths, heavy kick, energy drops (125-135 BPM)
-    RETROWAVE = 2,    // Analog bass, gated snare, 80s synth (90-110 BPM)
-    CINEMATIC = 3,    // Strings, percussion hits, dramatic build (70-90 BPM)
-    HOUSE = 4         // 4-on-floor, driving bass, disco vibes (120-130 BPM)
+// One part of the song, e.g. an 8-bar "drop" at full energy.
+struct Section {
+  std::string name;  // intro, build, drop, break, or outro
+  int bars;
+  float energy;      // 0 (quiet) to 1 (full); decides which parts play
 };
 
-enum class SectionType {
-    INTRO = 0,
-    BUILD = 1,
-    DROP = 2,
-    BREAK = 3,
-    OUTRO = 4
+// Rhythm patterns, one character per 16th-note step (16 characters per bar).
+//   drums:  'x' = hit, '.' = silence
+//   bass:   'R' = root, 'F' = fifth, 'O' = octave up, '-' = hold, '.' = silence
+//   chords: 'x' = play the chord, '-' = hold, '.' = silence
+struct Patterns {
+  std::string kick;
+  std::string snare;
+  std::string hat;
+  std::string openHat;
+  std::string bass;
+  std::string chords;
 };
 
-struct SectionTemplate {
-    SectionType type;
-    int bars;              // Number of bars in this section
-    float energyLevel;     // 0-1: controls pattern complexity, instrument count
-    bool hasDropTrigger;   // Should this section have a dramatic drop?
-    
-    std::string name() const;
-};
-
-struct InstrumentLayer {
-    std::string role;      // "kick", "snare", "bass", "lead", "pad", "fx"
-    int midiProgram;       // GM program number or synth patch ID
-    float minEnergy;       // Only included if section energy >= this
-    bool sidechainTarget;  // Should be ducked by kick (for EDM pump)
+// General MIDI instrument numbers for the four pitched parts.
+struct Instruments {
+  int bass;
+  int chords;
+  int lead;
+  int pad;
 };
 
 struct GenreTemplate {
-    GenreType type;
-    std::string name;
-    
-    // Tempo & feel
-    int minTempo;
-    int maxTempo;
-    
-    // Section structure plan
-    std::vector<SectionTemplate> sectionPlan;
-    
-    // Instrument palette
-    std::vector<InstrumentLayer> layers;
-    
-    // Drop trigger condition
-    float dropEnergyThreshold;  // Only add drop section if image energy > this
-    
-    // Scale preferences
-    std::vector<int> preferredScales;  // List of scaleType indices (0=Major, 1=Minor, etc.)
+  Genre genre;
+  std::string name;
+  int minTempo;                  // beats per minute
+  int maxTempo;
+  std::vector<int> scale;        // see MusicTheory.hpp
+  std::vector<int> progression;  // one chord per bar, repeating
+  std::vector<Section> sections;
+  Patterns patterns;
+  int snareSound;                // which GM drum note plays the snare pattern
+  Instruments instruments;
+  std::vector<int> melody;       // 8 eighth notes per bar, as scale steps; -1 = rest
 };
 
-/**
- * Get the predefined template for a genre type
- */
-const GenreTemplate& getGenreTemplate(GenreType type);
+// Turns "HOUSE" into Genre::HOUSE. Throws on an unknown name.
+Genre parseGenre(const std::string& name);
 
-/**
- * Select genre based on image features (heuristic mapping)
- * - Blue/cool colors → EDM_Chill
- * - Red/warm + high energy → EDM_Drop
- * - High brightness + medium saturation → RetroWave
- * - Low colorfulness + contrast → Cinematic
- */
-GenreType selectGenreFromImage(const struct ImageFeatures& features, float energy);
-
-/**
- * Utility functions
- */
-const char* genreTypeName(GenreType type);
-const char* sectionTypeName(SectionType type);
+// Returns the template for a genre.
+const GenreTemplate& templateFor(Genre genre);

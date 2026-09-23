@@ -1,28 +1,22 @@
 cmake_minimum_required(VERSION 3.15)
-project(soundcanvas_core)
+project(soundcanvas_core CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-include_directories(${CMAKE_SOURCE_DIR}/include)
-include_directories(${CMAKE_SOURCE_DIR}/vendor)
-
-set(SOURCES
+add_executable(soundcanvas_core
     src/main.cpp
-    src/ImageFeatures.cpp
-    src/AudioEngine.cpp
-    src/MusicMapping.cpp
-    src/ModelClient.cpp
     src/HttpServer.cpp
-    src/MusicalStyle.cpp
-    src/AudioRendererClient.cpp
-    src/AudioProducerClient.cpp
-    src/SongSpec.cpp
-    src/MidiWriter.cpp
-    src/Composer.cpp
+    src/ImageFeatures.cpp
     src/GenreTemplate.cpp
     src/SectionPlanner.cpp
-    src/PatternTransform.cpp
+    src/Composer.cpp
+    src/MidiWriter.cpp
 )
 
-add_executable(soundcanvas_core ${SOURCES})
+# include/ holds our headers; vendor/ holds single-file libraries:
+# cpp-httplib (HTTP server), nlohmann/json (JSON), stb_image (JPG/PNG decoding).
+target_include_directories(soundcanvas_core PRIVATE include vendor)
+
+find_package(Threads REQUIRED)
+target_link_libraries(soundcanvas_core PRIVATE Threads::Threads)

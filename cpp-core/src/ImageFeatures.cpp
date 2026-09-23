@@ -1,204 +1,112 @@
+// Measures an image's 8 features in one pass over its pixels.
+// Must stay in sync with ml/features.py, which the model was trained on.
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 #include "ImageFeatures.hpp"
-#include <stdexcept>
-#include <cmath>
-#include <vector>
+
 #include <algorithm>
-#include <iostream>
-#include <cstdio>
+#include <cmath>
+#include <stdexcept>
 
-// Helper: Convert RGB [0,1] to HSV [H: 0-360, S: 0-1, V: 0-1]
-static void rgbToHsv(float r, float g, float b, float& h, float& s, float& v) {
-    float cmax = std::max({r, g, b});
-    float cmin = std::min({r, g, b});
-    float delta = cmax - cmin;
+namespace {
 
-    // Value
-    v = cmax;
+// Hasler and Suesstrunk define colorfulness on 0-255 pixel values, where about
+// 100 already means "extremely colorful". We scale by that so the result is 0 to 1.
+constexpr double COLORFULNESS_SCALE = 255.0 / 100.0;
 
-    // Saturation
-    if (cmax == 0.0f) {
-        s = 0.0f;
-    } else {
-        s = delta / cmax;
-    }
+// ITU-R BT.601 luma weights: how bright each channel looks to the human eye.
+constexpr double LUMA_RED = 0.299, LUMA_GREEN = 0.587, LUMA_BLUE = 0.114;
 
-    // Hue
-    if (delta == 0.0f) {
-        h = 0.0f;  // undefined, but we'll use 0
-    } else if (cmax == r) {
-        h = 60.0f * fmodf(((g - b) / delta), 6.0f);
-    } else if (cmax == g) {
-        h = 60.0f * (((b - r) / delta) + 2.0f);
-    } else {
-        h = 60.0f * (((r - g) / delta) + 4.0f);
-    }
-
-    if (h < 0.0f) h += 360.0f;
+// Returns the standard deviation from a running sum and sum of squares.
+double stdDev(double sum, double sumOfSquares, double count) {
+  double mean = sum / count;
+  return std::sqrt(std::max(0.0, sumOfSquares / count - mean * mean));
 }
 
-ImageFeatures extractImageFeatures(const std::string& imagePath) {
-    // Check if file exists first
-    FILE* f = fopen(imagePath.c_str(), "rb");
-    if (!f) {
-        throw std::runtime_error("Failed to open image file (file not found or permission denied): " + imagePath);
-    }
-    
-    // Read first few bytes to check file format
-    unsigned char header[8];
-    size_t bytesRead = fread(header, 1, 8, f);
-    fclose(f);
-    
-    if (bytesRead < 8) {
-        throw std::runtime_error("Image file too small or empty: " + imagePath);
-    }
-    
-    // Log file header for debugging
-    std::cout << "[ImageFeatures] File header bytes: ";
-    for (size_t i = 0; i < bytesRead; i++) {
-        printf("%02X ", header[i]);
-    }
-    std::cout << std::endl;
-    
-    int width, height, channels;
-    unsigned char* data = stbi_load(imagePath.c_str(), &width, &height, &channels, 3);
-    if (!data) {
-        const char* failReason = stbi_failure_reason();
-        throw std::runtime_error("Failed to load image: " + imagePath + " (reason: " + (failReason ? failReason : "unknown") + ")");
-    }
-    
-    std::cout << "[ImageFeatures] Loaded image: " << width << "x" << height << ", " << channels << " channels" << std::endl;
+// Returns the HSV hue (0 to 1) and saturation (0 to 1) of one pixel.
+void hueAndSaturation(double r, double g, double b, double& hue, double& saturation) {
+  double maxChannel = std::max({r, g, b});
+  double minChannel = std::min({r, g, b});
+  double range = maxChannel - minChannel;
 
-    const int numPixels = width * height;
-    
-    // Accumulate RGB for averages
-    long long sumR = 0, sumG = 0, sumB = 0;
-    
-    // Accumulate HSV for averages
-    double sumHue = 0.0, sumSat = 0.0;
-    
-    // Accumulate for colorfulness metric
-    double sumRG = 0.0, sumYB = 0.0;
-    double sumRG_sq = 0.0, sumYB_sq = 0.0;
-    
-    // Accumulate for contrast
-    std::vector<float> grayValues;
-    grayValues.reserve(numPixels);
-    
-    for (int i = 0; i < numPixels; ++i) {
-        unsigned char rByte = data[3 * i + 0];
-        unsigned char gByte = data[3 * i + 1];
-        unsigned char bByte = data[3 * i + 2];
+  saturation = maxChannel == 0.0 ? 0.0 : range / maxChannel;
 
-        // Normalize to [0, 1]
-        float r = rByte / 255.0f;
-        float g = gByte / 255.0f;
-        float b = bByte / 255.0f;
+  if (range == 0.0) {
+    hue = 0.0;
+  } else if (maxChannel == r) {
+    hue = std::fmod((g - b) / range, 6.0);
+  } else if (maxChannel == g) {
+    hue = (b - r) / range + 2.0;
+  } else {
+    hue = (r - g) / range + 4.0;
+  }
+  hue /= 6.0;  // the color wheel has six 60-degree sectors
+  if (hue < 0.0) hue += 1.0;
+}
 
-        sumR += rByte;
-        sumG += gByte;
-        sumB += bByte;
+}  // namespace
 
-        // HSV conversion
-        float h, s, v;
-        rgbToHsv(r, g, b, h, s, v);
-        sumHue += h;  // H is in [0, 360]
-        sumSat += s;  // S is in [0, 1]
+std::array<float, 8> ImageFeatures::toArray() const {
+  return {avgRed, avgGreen, avgBlue, brightness, hue, saturation, colorfulness, contrast};
+}
 
-        // Colorfulness: opponent color space (Hasler & Süsstrunk 2003)
-        // rg = R - G
-        // yb = 0.5 * (R + G) - B
-        float rg = r - g;
-        float yb = 0.5f * (r + g) - b;
-        
-        sumRG += rg;
-        sumYB += yb;
-        sumRG_sq += rg * rg;
-        sumYB_sq += yb * yb;
+ImageFeatures ImageFeatures::fromArray(const std::array<float, 8>& v) {
+  return {v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]};
+}
 
-        // Grayscale for contrast
-        float gray = 0.299f * r + 0.587f * g + 0.114f * b;
-        grayValues.push_back(gray);
-    }
+ImageFeatures extractFeatures(const std::string& imageBytes) {
+  int width = 0, height = 0, channels = 0;
+  unsigned char* pixels = stbi_load_from_memory(
+      reinterpret_cast<const unsigned char*>(imageBytes.data()),
+      static_cast<int>(imageBytes.size()), &width, &height, &channels, 3);
+  if (!pixels) {
+    throw std::invalid_argument(std::string("Could not decode image: ") + stbi_failure_reason());
+  }
 
-    stbi_image_free(data);
+  double sumR = 0, sumG = 0, sumB = 0, sumHue = 0, sumSat = 0;
+  double sumRG = 0, sumRGSq = 0, sumYB = 0, sumYBSq = 0, sumGray = 0, sumGraySq = 0;
+  const double count = static_cast<double>(width) * height;
 
-    // === Basic RGB features ===
-    float avgR = static_cast<float>(sumR) / (255.0f * numPixels);
-    float avgG = static_cast<float>(sumG) / (255.0f * numPixels);
-    float avgB = static_cast<float>(sumB) / (255.0f * numPixels);
-    float brightness = (avgR + avgG + avgB) / 3.0f;
+  for (long i = 0; i < static_cast<long>(count); ++i) {
+    double r = pixels[3 * i] / 255.0;
+    double g = pixels[3 * i + 1] / 255.0;
+    double b = pixels[3 * i + 2] / 255.0;
+    sumR += r;
+    sumG += g;
+    sumB += b;
 
-    // === HSV features ===
-    float hue = static_cast<float>(sumHue) / numPixels;  // Average hue in [0, 360]
-    hue = hue / 360.0f;  // Normalize to [0, 1]
-    
-    float saturation = static_cast<float>(sumSat) / numPixels;  // Already [0, 1]
+    double hue, saturation;
+    hueAndSaturation(r, g, b, hue, saturation);
+    sumHue += hue;
+    sumSat += saturation;
 
-    // === Colorfulness metric ===
-    // Mean and std dev of rg and yb
-    float meanRG = static_cast<float>(sumRG) / numPixels;
-    float meanYB = static_cast<float>(sumYB) / numPixels;
-    
-    float varianceRG = (static_cast<float>(sumRG_sq) / numPixels) - (meanRG * meanRG);
-    float varianceYB = (static_cast<float>(sumYB_sq) / numPixels) - (meanYB * meanYB);
-    
-    float stdRG = std::sqrt(std::max(0.0f, varianceRG));
-    float stdYB = std::sqrt(std::max(0.0f, varianceYB));
-    
-    // Colorfulness formula: sqrt(std_rg^2 + std_yb^2) + 0.3 * sqrt(mean_rg^2 + mean_yb^2)
-    float colorfulness = std::sqrt(stdRG * stdRG + stdYB * stdYB) + 
-                        0.3f * std::sqrt(meanRG * meanRG + meanYB * meanYB);
-    
-    // Normalize colorfulness: typical range is 0-100, clamp to [0, 1]
-    colorfulness = std::min(colorfulness / 100.0f, 1.0f);
+    // Colorfulness uses two "opponent" color axes: red vs green, and yellow vs blue.
+    double redGreen = r - g;
+    double yellowBlue = 0.5 * (r + g) - b;
+    sumRG += redGreen;
+    sumRGSq += redGreen * redGreen;
+    sumYB += yellowBlue;
+    sumYBSq += yellowBlue * yellowBlue;
 
-    // === Contrast: standard deviation of grayscale ===
-    float meanGray = 0.0f;
-    for (float g : grayValues) {
-        meanGray += g;
-    }
-    meanGray /= numPixels;
+    double gray = LUMA_RED * r + LUMA_GREEN * g + LUMA_BLUE * b;
+    sumGray += gray;
+    sumGraySq += gray * gray;
+  }
+  stbi_image_free(pixels);
 
-    float varianceGray = 0.0f;
-    for (float g : grayValues) {
-        float diff = g - meanGray;
-        varianceGray += diff * diff;
-    }
-    varianceGray /= numPixels;
+  double spread = std::hypot(stdDev(sumRG, sumRGSq, count), stdDev(sumYB, sumYBSq, count));
+  double offset = std::hypot(sumRG / count, sumYB / count);
+  double colorfulness = std::min((spread + 0.3 * offset) * COLORFULNESS_SCALE, 1.0);
 
-    float contrast = std::sqrt(varianceGray);  // Already normalized to [0, 1] range
-
-    // === Phase 9: Warmth calculation ===
-    // Warmth: ratio of warm colors (red/orange: hue 0-60 deg) vs cool (blue/cyan: 180-240 deg)
-    // Higher warmth = more red/orange tones
-    float warmth = 0.5f;  // Default neutral
-    if (saturation > 0.1f) {  // Only consider colored pixels
-        // Hue in [0, 1] maps to [0, 360] degrees
-        float hueDeg = hue * 360.0f;
-        
-        // Warm: 0-60 (red-orange-yellow) and 300-360 (red-magenta)
-        // Cool: 180-240 (cyan-blue)
-        if ((hueDeg >= 0.0f && hueDeg <= 60.0f) || (hueDeg >= 300.0f && hueDeg <= 360.0f)) {
-            warmth = 0.7f + (avgR * 0.3f);  // Warm side (0.7-1.0)
-        } else if (hueDeg >= 180.0f && hueDeg <= 240.0f) {
-            warmth = 0.3f - (avgB * 0.3f);  // Cool side (0.0-0.3)
-        } else {
-            warmth = 0.5f;  // Neutral (green/yellow-green)
-        }
-    }
-
-    return ImageFeatures{
-        avgR, 
-        avgG, 
-        avgB, 
-        brightness,
-        hue,
-        saturation,
-        colorfulness,
-        contrast,
-        warmth
-    };
+  ImageFeatures features;
+  features.avgRed = static_cast<float>(sumR / count);
+  features.avgGreen = static_cast<float>(sumG / count);
+  features.avgBlue = static_cast<float>(sumB / count);
+  features.brightness = (features.avgRed + features.avgGreen + features.avgBlue) / 3.0f;
+  features.hue = static_cast<float>(sumHue / count);
+  features.saturation = static_cast<float>(sumSat / count);
+  features.colorfulness = static_cast<float>(colorfulness);
+  features.contrast = static_cast<float>(stdDev(sumGray, sumGraySq, count));
+  return features;
 }
