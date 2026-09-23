@@ -1,116 +1,64 @@
-version: "3.8"
+# Runs the whole backend locally: LocalStack stands in for S3 and SQS, and a
+# MySQL container stands in for RDS. Start with `docker compose up --build`
+# from this folder, then point the frontend at http://localhost:4000/.
+
+x-gateway: &gateway
+  build: ../gateway
+  restart: on-failure # waits out MySQL's first-start setup
+  environment:
+    AWS_REGION: us-east-2
+    AWS_ACCESS_KEY_ID: test # LocalStack accepts any credentials
+    AWS_SECRET_ACCESS_KEY: test
+    AWS_ENDPOINT_URL: http://localhost.localstack.cloud:4566
+    S3_BUCKET: soundcanvas-local
+    SQS_QUEUE_URL: http://localhost.localstack.cloud:4566/000000000000/soundcanvas-jobs.fifo
+    DB_HOST: mysql
+    DB_USER: soundcanvas
+    DB_PASSWORD: soundcanvas
+    DB_NAME: soundcanvas
+    CPP_CORE_URL: http://cpp-core:8080
+    ML_URL: http://ml:5000
+    AUDIO_PRODUCER_URL: http://audio-producer:9001
+  depends_on: [mysql, localstack]
 
 services:
-  # MySQL Database
-  db:
-    image: mysql:8
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=soundcanvas
-      - MYSQL_USER=soundcanvas
-      - MYSQL_PASSWORD=soundcanvas
-    ports:
-      - "3306:3306"
-    volumes:
-      - soundcanvas-db:/var/lib/mysql
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "soundcanvas", "-psoundcanvas"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+  gateway-api:
+    <<: *gateway
+    ports: ["4000:4000"]
 
-  # GraphQL Gateway
-  gateway:
-    build: ../gateway
-    environment:
-      - PORT=4000
-      - CPP_SERVICE_URL=http://cpp-core:8080
-      - SC_AUDIO_PRODUCER_URL=http://audio-producer:9001
-      - SC_DATA_ROOT=/data
-      - DB_HOST=db
-      - DB_PORT=3306
-      - DB_USER=soundcanvas
-      - DB_PASSWORD=soundcanvas
-      - DB_NAME=soundcanvas
-      # AWS S3 Configuration
-      - USE_S3=true
-      - AWS_REGION=${AWS_REGION:-us-east-2}
-      - S3_BUCKET_NAME=${S3_BUCKET_NAME:-soundcanvas-uploads-dk}
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-    depends_on:
-      db:
-        condition: service_healthy  # ← Add this!
-      cpp-core:
-        condition: service_started
-    volumes:
-      - soundcanvas-data:/data
-    ports:
-      - "4000:4000"
+  gateway-worker:
+    <<: *gateway
+    command: ["npm", "run", "worker"]
 
-  # C++ Core Service
   cpp-core:
     build: ../cpp-core
-    command: ["./soundcanvas_core", "--serve"]
-    ports:
-      - "8080:8080"
-    environment:
-      - SC_TF_SERVING_URL=http://tf-serving:8501/v1/models/soundcanvas:predict
-      - SC_AUDIO_RENDERER_URL=http://audio-renderer:9000
-      - SC_AUDIO_PRODUCER_URL=http://audio-producer:9001
-      - SC_DEFAULT_MODE=model
-      - SC_OUTPUT_DIR=/data/audio
-      - SC_HTTP_PORT=8080
-    volumes:
-      - soundcanvas-data:/data
-    depends_on:
-      - tf-serving
-      - audio-renderer
-      - audio-producer
 
-  # TensorFlow Serving (Custom for Apple Silicon)
-  tf-serving:
-    build:
-      context: ../ml
-      dockerfile: Dockerfile.tfserving
-    ports:
-      - "8501:8501"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8501/v1/models/soundcanvas || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+  ml:
+    build: ../ml
 
-  # Audio Renderer Service (FluidSynth)
-  audio-renderer:
-    build: ../audio-renderer
-    environment:
-      - SF2_PATH=/sf/FluidR3_GM.sf2
-    volumes:
-      - soundcanvas-data:/data
-    ports:
-      - "9000:9000"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9000/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
-  # Audio Producer Service (Multi-stem mixing & mastering)
   audio-producer:
     build: ../audio-producer
-    environment:
-      - SF2_PATH=/sf/FluidR3_GM.sf2
-    volumes:
-      - soundcanvas-data:/data
-    ports:
-      - "9001:9001"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9001/health || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
 
-volumes:
-  soundcanvas-db:
-  soundcanvas-data:
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: soundcanvas
+      MYSQL_USER: soundcanvas
+      MYSQL_PASSWORD: soundcanvas
+
+  localstack:
+    image: localstack/localstack:3
+    environment:
+      SERVICES: s3,sqs
+    ports: ["4566:4566"]
+    volumes:
+      - ./localstack-init.sh:/etc/localstack/init/ready.d/init.sh
+    networks:
+      default:
+        # localhost.localstack.cloud resolves to 127.0.0.1 on the internet, so the
+        # browser reaches LocalStack through the published port. These aliases make
+        # the same presigned URLs work from inside the gateway containers.
+        aliases:
+          - localhost.localstack.cloud
+          - soundcanvas-local.localhost.localstack.cloud
