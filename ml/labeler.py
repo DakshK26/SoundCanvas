@@ -8,8 +8,8 @@ its test accuracy means agreement with these rules. To check the rules against
 real taste, we hand-labeled 300 other images (label_images.py): 150 fine-tune
 the model and 150 test it (see splits.py and evaluate.py).
 
-The thresholds were picked by looking at the feature spread across our 3,000
-images, so that no single genre takes over the dataset.
+The thresholds were picked by looking at feature spreads so that no single
+genre takes over. On our 3,000 Flickr8k photos each genre gets 11% to 27%.
 """
 
 # The model's output order. cpp-core has a matching template for each name.

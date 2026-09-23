@@ -186,6 +186,12 @@ To run everything locally instead, use `docker compose up --build` in
 
 ## The genre model (`ml/`)
 
+The images are 3,000 photos sampled (seed 42) from the Kaggle
+[Flickr8k](https://www.kaggle.com/datasets/adityajn105/flickr8k) dataset:
+everyday photos of people, pets, sports, concerts, beaches and city nights,
+close to what users upload. `download_images.py` fetches them. (An earlier
+landscape dataset was mostly dramatic skies, so nearly everything felt cinematic.)
+
 No public dataset says "this photo sounds like House", so training uses two
 kinds of labels:
 
@@ -212,7 +218,7 @@ Pipeline:
    layers, 5-way softmax). Six settings are tried (32/64/128 units, learning
    rate 0.001/0.01), each with early stopping on validation accuracy, and the best
    validation score wins. Class weights make rare genres count as much as common
-   ones; EDM Drop is only 7.5% of the images.
+   ones; EDM Drop is only 11% of the images.
 3. `train.py`, **stage 2**: the stage-1 model keeps training on the human
    fine-tune images at a lower learning rate, stopping when the 30 held-back
    images stop improving. This is the served model.
@@ -222,16 +228,16 @@ Pipeline:
 ```sh
 cd ml
 pip install -r requirements.txt
+python download_images.py                  # optional: the images are already in data/raw_images (needs kaggle.json)
 python label_images.py                     # optional: label the 300 images at http://localhost:8765
 python build_dataset.py && python train.py && python evaluate.py
 ```
 
-**Stage 1 result: 90.4% top-1 accuracy on the 541-image rule test** (92.6% on
-validation). Per genre: EDM Chill 87.2%, EDM Drop 90.5%, Retrowave 89.2%,
-Cinematic 94.6%, House 89.3%. This measures agreement with the rules, not
-human judgment; the human test measures that. The previous version (no class
-weights, fixed 100 epochs, an earlier split) scored 89.7% overall but only
-77.8% on EDM Drop.
+**Stage 1 result: 88.2% top-1 accuracy on the 541-image rule test** (94.1% on
+validation). Per genre: EDM Chill 79.8%, EDM Drop 91.7%, Retrowave 80.1%,
+Cinematic 96.4%, House 93.0%. This measures agreement with the rules, not
+human judgment; the human test measures that. Most mistakes are between
+neighbouring moods: Retrowave and EDM Chill images guessed as Cinematic.
 
 ## Repository layout
 
