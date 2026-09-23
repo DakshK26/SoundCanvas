@@ -1,5 +1,6 @@
 'use client';
 
+// Makes the Apollo GraphQL client available to every component in the app.
 import { ApolloProvider } from '@apollo/client';
 import apolloClient from '@/lib/apollo-client';
 

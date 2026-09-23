@@ -1,275 +1,138 @@
-# SoundCanvas  
-### AI-Powered Image → Music Generation System  
-*C++17 • TensorFlow • Python DSP • Next.js • GraphQL • Docker • AWS S3/ECS/RDS (MySQL)*
+# SoundCanvas
 
----
+SoundCanvas turns a picture into an original instrumental song. It measures the
+image's color, brightness and contrast, picks a genre with a TensorFlow model,
+composes a MIDI arrangement in C++, and renders and masters it to a WAV in Python.
 
-## Overview
+It runs as four microservices on AWS: ECS Fargate, S3, SQS FIFO and RDS MySQL,
+all defined in Terraform.
 
-SoundCanvas is a full-stack, cloud-native system that transforms any input image into a fully mixed, mastered instrumental track.  
-It combines machine learning, algorithmic music theory, digital signal processing, and a distributed microservice architecture deployed on AWS.
+## Architecture
 
-The system analyzes visual features, predicts musical parameters using TensorFlow, composes structured multi-genre MIDI, renders audio using a Python DSP engine with sample-based drums and FX, and delivers professionally mixed tracks through a modern web interface.
+```mermaid
+flowchart LR
+  Browser[Next.js frontend] -->|GraphQL| Api[gateway API]
+  Browser -->|presigned PUT and GET| S3[(S3 images and WAVs)]
+  Api -->|job rows| Rds[(RDS MySQL)]
+  Api -->|SendMessage| Sqs[[SQS FIFO queue]]
+  Sqs -->|ReceiveMessage| Worker[gateway worker]
+  Sqs -.->|after 3 failed tries| Dlq[[dead-letter queue]]
+  Worker -->|image bytes| CppFeatures["cpp-core POST /features"]
+  Worker -->|8 features| Ml["ml POST /predict"]
+  Worker -->|features and genre| CppCompose["cpp-core POST /compose"]
+  Worker -->|MIDI| Audio["audio-producer POST /render"]
+  Worker --> S3
+  Worker --> Rds
+```
 
----
+Only the gateway touches AWS. The other three services are stateless: bytes in, result out.
 
-# System Goals
+## How a song gets made
 
-- Convert images into high-quality instrumental tracks  
-- Provide musical diversity across Rap, House, R&B, EDM, and Chill genres  
-- Use machine learning to map visual features into musical expression  
-- Generate production-ready audio (mastered to -14 LUFS)  
-- Run as a scalable, secure, containerized cloud platform  
-- Support browser-based user interaction with direct S3 uploads  
+1. **Create.** The browser calls `createGeneration(genre)`. The API adds a
+   `generations` row with status `PENDING` and returns a job id and a presigned S3 upload URL.
+2. **Upload.** The browser PUTs the image straight to S3, so image bytes never pass through the API.
+3. **Queue.** `startGeneration(jobId)` sets the status to `QUEUED` and sends `{ jobId }` to SQS.
+4. **Process.** The worker receives the message and sets `PROCESSING`. It then:
+   - downloads the image from S3
+   - gets the image's 8 features from cpp-core (`/features`)
+   - asks ml for a genre (`/predict`), unless the user already picked one
+   - composes the song as MIDI in cpp-core (`/compose`)
+   - renders and masters it to WAV in audio-producer (`/render`)
+   - uploads the WAV to S3 and sets `COMPLETED`
 
----
+   If any step fails, the worker sets `FAILED` with the error message.
+5. **Play.** The browser polls `generation(jobId)`. Once the job is complete, the
+   response includes a presigned download URL for the WAV.
 
-## Monorepo Layout
+The queue is **strict FIFO**. Every message shares one group, so jobs run in
+the order they were started. The job id is the deduplication id, so starting a
+job twice queues it once. If the worker crashes mid-job, the message reappears
+after the 10-minute visibility timeout. After 3 tries it moves to the
+dead-letter queue.
+
+## The four services
+
+| Service | Language | What it does |
+| --- | --- | --- |
+| `gateway/` | TypeScript | `api.ts`: the GraphQL API (Apollo). `worker.ts`: the SQS job loop. One image, run as two containers. |
+| `cpp-core/` | C++17 | `POST /features` measures an image; `POST /compose` writes a MIDI song for given features and genre. |
+| `ml/` | Python, TensorFlow | `POST /predict` returns a genre and confidence from the 8 features. |
+| `audio-producer/` | Python | `POST /render` plays the MIDI with FluidSynth, synthesizes drums and FX, then mixes and masters it with ffmpeg. |
+
+The **8 image features**, in order: average red, green and blue, brightness,
+hue, saturation, colorfulness and contrast. Each is scaled 0 to 1. The C++
+version (`cpp-core/src/ImageFeatures.cpp`) serves requests. The Python copy
+(`ml/features.py`) builds the training data, and the two must match.
+
+**Composition** (`cpp-core/src/Composer.cpp`): each genre is a template in
+`GenreTemplate.cpp` with a tempo range, scale, chord progression, song sections,
+16-step drum and bass patterns, and General MIDI instruments. The music theory
+numbers, such as scale intervals and drum note numbers, live in
+`MusicTheory.hpp`, each with a note on where it comes from.
+
+The image then shapes the template:
+- Brighter images play faster, within the genre's range.
+- Warmer images use a higher key.
+- More energetic images make the drops louder.
+
+## AWS resources (`infra/terraform/`)
+
+| File | Resources | Why |
+| --- | --- | --- |
+| `network.tf` | VPC, 2 public + 2 private subnets, NAT gateway, ALB, security groups | Only the load balancer is public. Containers and the database sit in private subnets. |
+| `storage.tf` | S3 bucket with CORS, RDS MySQL | S3 holds the image and WAV files. RDS holds the `generations` table with each job's status. |
+| `queue.tf` | SQS FIFO queue plus dead-letter queue | Hands jobs from the API to the worker in order. |
+| `ecs.tf` | ECR repositories, ECS cluster, 5 Fargate services, Cloud Map | Runs the containers. The worker finds `cpp-core.soundcanvas.local` and the other services by name. |
+| `iam.tf` | Execution role, API role, worker role | Each container gets only the permissions its code uses. cpp-core, ml and audio-producer get none. |
+
+Deploy:
+
+```sh
+cd infra/terraform
+cp terraform.tfvars.example terraform.tfvars   # set bucket name, frontend URL, certificate
+terraform init && terraform apply
+# Build and push each image to the ECR repositories printed by `terraform output`,
+# then set the frontend's NEXT_PUBLIC_GRAPHQL_ENDPOINT to the api_url output.
+```
+
+To run everything locally instead, use `docker compose up --build` in
+`infra/`. LocalStack stands in for S3 and SQS, and a MySQL container stands in for RDS.
+
+## The genre model (`ml/`)
+
+The model learns the genre rules in `ml/labeler.py`, a set of if-statements on
+the image features, so the service can serve a small neural network in place
+of hand-written rules.
+
+1. `build_dataset.py` computes the features of 3,000 images in
+   `ml/data/raw_images/` and labels each with the rules. It shuffles them with a
+   fixed seed and splits them into **70% training, 10% validation and 20% test**.
+2. `train.py` trains a Keras classifier: 8 inputs, normalization, two hidden
+   layers of 64 units, and a 5-way softmax. The model size and epoch count were
+   chosen on the validation split only.
+3. `evaluate.py` runs the model once on the 600 held-out test images and
+   prints the accuracy, the accuracy per genre, and a confusion matrix.
+
+```sh
+cd ml
+pip install -r requirements.txt
+python build_dataset.py && python train.py && python evaluate.py
+```
+
+**Result: 89.7% top-1 accuracy on the test split.** This measures how often
+the model agrees with the rule-based labels, not a human judgment of the right
+genre. Per genre: EDM Chill 85.6%, EDM Drop 77.8%, Retrowave 89.9%, Cinematic
+94.2%, House 92.5%. EDM Drop has the fewest examples (45 test images) and
+scores lowest.
+
+## Repository layout
 
 ```text
-soundcanvas/
-├── cpp-core/                      # C++17 composition engine
-│   ├── include/
-│   ├── src/
-│   └── build/
-│
-├── ml/                            # TensorFlow model + training/serving
-│   ├── src/
-│   ├── data/
-│   └── models/exported_model_versioned/
-│
-├── audio-producer/                # Python DSP / audio rendering microservice
-│   ├── drum_sampler.py
-│   ├── fx_player.py
-│   ├── stem_mixer.py
-│   ├── mastering.py
-│   └── assets/
-│
-├── gateway/                       # GraphQL API + orchestration (Node.js / TS)
-│   ├── schema.ts
-│   ├── resolvers/
-│   └── orchestrator.ts
-│
-├── frontend/                      # Next.js + Tailwind frontend
-│   ├── components/
-│   └── pages/
-│
-├── infra/                         # Docker & Terraform infrastructure
-│   ├── docker-compose.yml
-│   ├── terraform/
-│   └── ecr_push.sh
-
+frontend/        Next.js app: Playground, Examples, History
+gateway/         GraphQL API + SQS worker (TypeScript)
+cpp-core/        image features + MIDI composer (C++17)
+ml/              genre classifier: dataset, training, evaluation, FastAPI service
+audio-producer/  MIDI -> mastered WAV (FluidSynth, numpy, ffmpeg)
+infra/           Terraform for AWS, docker-compose for local runs
 ```
-# AWS Deployment Architecture
-```
-                     ┌─────────────────────────────┐
-                     │         Client Browser       │
-                     └──────────────┬───────────────┘
-                                    │ HTTPS
-                                    ▼
-                     ┌─────────────────────────────┐
-                     │    Frontend (Next.js App)    │
-                     │  (e.g., served via S3/CF)    │
-                     └──────────────┬───────────────┘
-                                    │ GraphQL HTTPS
-                                    ▼
-                     ┌─────────────────────────────┐
-                     │  API Gateway (ECS Service)   │
-                     │ Apollo GraphQL + TypeScript  │
-                     └──────────────┬───────────────┘
-                                    │
-         ┌──────────────────────────┼───────────────────────────┐
-         │                          │                           │
-         │                    Pre-signed S3 URLs                │
-         │                          │                           │
-         ▼                          ▼                           ▼
- ┌─────────────────┐       ┌─────────────────┐         ┌─────────────────────┐
- │ AWS S3 (Images) │       │ AWS S3 (Audio) │         │ AWS RDS MySQL        │
- └─────────────────┘       └─────────────────┘         │ Job & user metadata │
-                                                       └─────────────────────┘
-      Orchestrator (Node.js ECS Task)
-               │
-               ▼
- ┌───────────────────────────────┐
- │   Backend ECS Services        │
- │                               │
- │  • TensorFlow Inference       │
- │  • C++ Composition Engine     │
- │  • Python Audio Producer      │
- └───────────────────────────────┘
-```
-
- Logs & Metrics:
-   • CloudWatch Logs for all ECS tasks
-   • Application-level logging from C++, Node.js, and Python
-
-
-**Inputs:**  
-`[avgR, avgG, avgB, brightness, hue, saturation, colorfulness, contrast]`  
-
-**Outputs:**  
-`[tempo, baseFrequency, energy, timbreBrightness, reverb, scaleType, patternType]`  
-
----
-
-## 2. **C++17 Composition Engine**
-- Extracts visual features using stb_image  
-- Communicates with the TensorFlow inference service  
-- Chooses genre: Rap, House, R&B, EDM Chill, EDM Drop  
-- Builds full song structure:
-  - Intro → Section A → Section B → Outro  
-- Implements:
-  - Chord progressions  
-  - Melodic phrases  
-  - Syncopation, swing, groove templates  
-  - Drum pattern logic  
-
-**Output:** Multi-track MIDI (Format 1)
-
----
-
-## 3. **Python DSP Engine (Audio Producer)**
-- Sample-based drums using Freesound API kits (Trap 808, House, R&B Soft)  
-- Instrument rendering via FluidSynth  
-- Precise MIDI-based sidechain compression  
-- FX system:
-  - Risers  
-  - Sweeps  
-  - Impacts  
-- Mixing:
-  - Per-genre EQ and compression  
-  - Stereo widening  
-  - Convolution reverb  
-- Mastering chain to streaming loudness (-14 LUFS)  
-
-**Output:** Fully mixed WAV file
-
----
-
-## 4. **GraphQL Gateway**
-- Built with Apollo Server + TypeScript  
-- Provides pre-signed URLs for direct S3 uploads  
-- Stores job state in MySQL  
-- Initiates pipeline processing  
-- Queries for status, history, and final audio URLs  
-
-**Key Mutations & Queries:**  
-- `createGeneration`  
-- `startGeneration`  
-- `generationStatus`  
-- `myGenerations`  
-
----
-
-## 5. **Frontend (Next.js + Tailwind + GraphQL)**
-- Drag-and-drop image upload  
-- Uploads directly to S3 via pre-signed URL  
-- Displays real-time status from GraphQL polling  
-- Streams final audio directly from S3  
-- Includes generation history page  
-
----
-
-# Cloud Infrastructure (AWS)
-
-**Provisioned using Terraform**  
-
-### Components:
-- **ECS Fargate**  
-  - C++ Engine container  
-  - Python DSP container  
-  - TensorFlow inference container  
-  - GraphQL gateway container  
-
-- **S3**  
-  - Raw uploaded images  
-  - Final WAV audio files  
-
-- **RDS MySQL**  
-  - Job metadata  
-  - Generation history  
-  - Status tracking  
-
-- **ECR**
-  - Stores all container images  
-
-- **IAM + Secret Management**
-  - Least-privilege execution roles  
-  - Environment variables only (never stored in Git)  
-
-- **CloudWatch Logs**
-  - Full centralized logging  
-
----
-
-# Technologies Used and What They Do
-
-### Machine Learning
-- **TensorFlow**: Predict musical parameters from image features  
-- **NumPy / Python**: Preprocessing and dataset generation  
-
-### Algorithmic Composition (C++)
-- **CMake + C++17**: High-performance feature extraction & composition  
-- **stb_image**: Image decoding  
-- **nlohmann/json**: API communication  
-- **httplib**: Microservice requests  
-- **Custom Theory Engine**: Chords, scales, tempo mapping  
-
-### Audio Production (Python)
-- **FluidSynth**: Instrument rendering  
-- **soundfile / librosa**: Audio manipulation  
-- **Custom DSP**: Mastering, FX, sidechain  
-- **Freesound API**: Sample retrieval  
-
-### Web Back-End
-- **Node.js + TypeScript**  
-- **Apollo GraphQL Server**  
-- **AWS SDK v3** for S3, RDS, Secrets  
-
-### Front-End
-- **Next.js / React**  
-- **TailwindCSS**  
-- **Apollo Client**  
-
-### Cloud & DevOps
-- **AWS ECS Fargate**: Microservice execution  
-- **AWS RDS PostgreSQL**: Persistent data  
-- **AWS S3**: File storage  
-- **AWS ECR**: Image registry  
-- **Terraform**: Infrastructure-as-code  
-- **Docker / Docker Compose**: Local microservice graph  
-
----
-
-# What the Project Accomplishes
-
-SoundCanvas achieves a fully automated, production-quality pipeline from image to music:
-
-1. **Understands visual content**  
-2. **Predicts expressive musical parameters**  
-3. **Composes structured, multi-genre MIDI**  
-4. **Renders realistic instruments using sample libraries**  
-5. **Applies professional mixing and mastering**  
-6. **Runs on scalable cloud infrastructure**  
-7. **Delivers music directly to users through a modern web interface**
-
-This creates a generative system capable of producing **full-length, cohesive, genre-varied instrumentals** directly from images.
-
----
-
-# Acknowledgements
-
-This project integrates principles from music information retrieval, DSP engineering, distributed systems, ML model serving, and cloud architecture.
-
-All components are custom-built and modular to support future extensions such as:
-- More genres  
-- Recurrent musical motifs  
-- Style transfer  
-- Real-time generation  
-- User accounts and playlists  
-
----
-
-# License
-
-MIT License.

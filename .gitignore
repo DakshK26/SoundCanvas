@@ -1,64 +1,44 @@
-# Node / frontend
+# Build output and dependencies
 node_modules/
 dist/
 build/
+cmake-build-*/
+.next/
+*.o
+*.a
+*.so
+*.exe
 
 # Python
 __pycache__/
 *.pyc
 .venv/
 venv/
+*.ipynb_checkpoints/
 
-# C++ / build
-build/
-cmake-build-*/
-*.o
-*.a
-*.so
-*.exe
-
-# IDEs
+# Editors
 .vscode/
 .idea/
 *.swp
 
-# Python notebooks
-*.ipynb_checkpoints/
-
-# Env files
+# Local settings and secrets (the .env.example files are committed as templates)
 .env
+.env.*
 *.env
 !.env.example
-config/*.env
-config/env.local
-infra/.env
-infra/*.env
-!infra/.env.example
-
-# Environment variables 
-.env
-*.env
-gateway/.env
-gateway/.env.*
-!gateway/.env.example
-
-# AWS credentials
 aws_credentials.txt
 freesound.json
+kaggle.json
+**/.kaggle/
+.vercel
 
-# Terraform sensitive files
+# Terraform state and local variables
 infra/terraform/*.tfvars
 infra/terraform/.terraform/
 infra/terraform/*.tfstate
 infra/terraform/*.tfstate.backup
 infra/terraform/.terraform.lock.hcl
-infra/terraform/deploy.ps1
 infra/terraform/*.ps1
 
-# Kaggle credentials
-**/.kaggle/
-kaggle.json
-.vercel
-
-# Personal notes and todos
+# Personal notes
 fix.txt
