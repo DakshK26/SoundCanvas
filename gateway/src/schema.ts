@@ -1,74 +1,36 @@
-import { gql } from "apollo-server-express";
+// The GraphQL API the frontend talks to.
+export const typeDefs = `#graphql
+  enum Genre { EDM_CHILL EDM_DROP RETROWAVE CINEMATIC HOUSE }
 
-export const typeDefs = gql`
-  scalar Upload
-
-  # ============================================================================
-  # Phase 10+: S3-Based Generation Types
-  # ============================================================================
-
-  enum GenerationStatus {
-    PENDING
-    RUNNING
-    COMPLETE
-    FAILED
-  }
-
-  type GenerationParams {
-    genre: String!
-    tempoBpm: Float!
-    mood: String
-    scaleType: String
-  }
+  "PENDING: waiting for the image upload. QUEUED: in SQS. PROCESSING: the worker has it."
+  enum Status { PENDING QUEUED PROCESSING COMPLETED FAILED }
 
   type Generation {
     id: ID!
-    userId: String
-    imageKey: String!
-    audioKey: String
-    genre: String!
-    tempoBpm: Float!
-    status: GenerationStatus!
+    status: Status!
+    genre: Genre
+    "How sure the model was, 0 to 1. Null when the user picked the genre."
+    confidence: Float
+    imageUrl: String!
+    "Set once the status is COMPLETED."
+    audioUrl: String
     errorMessage: String
     createdAt: String!
-    imageUrl: String
-    audioUrl: String
   }
 
-  input CreateGenerationInput {
-    genreOverride: String
-    mode: String
-  }
-
-  type CreateGenerationPayload {
+  type NewGeneration {
     jobId: ID!
-    imageUploadUrl: String!
-    imageId: String!
+    "Presigned S3 URL. PUT the image here, then call startGeneration."
+    uploadUrl: String!
   }
-
-  type GenerationStatusResponse {
-    status: GenerationStatus!
-    audioUrl: String
-    imageUrl: String
-    params: GenerationParams
-    errorMessage: String
-  }
-
-  type MutationResponse {
-    success: Boolean!
-  }
-
-  # ============================================================================
-  # Queries and Mutations
-  # ============================================================================
 
   type Query {
-    generationStatus(jobId: ID!): GenerationStatusResponse!
-    myGenerations(limit: Int): [Generation!]!
+    generation(jobId: ID!): Generation
   }
 
   type Mutation {
-    createGeneration(input: CreateGenerationInput!): CreateGenerationPayload!
-    startGeneration(jobId: ID!): MutationResponse!
+    "Leave genre empty to let the model choose."
+    createGeneration(genre: Genre): NewGeneration!
+    startGeneration(jobId: ID!): Generation!
   }
 `;

@@ -90,4 +90,4 @@ async def render(request: Request, genre: str) -> Response:
 
 @app.get("/health")
 def health():
-    return {"status": "ok"}
+    return {"ok": True}

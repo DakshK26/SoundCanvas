@@ -1,257 +1,69 @@
-import mysql from "mysql2/promise";
+// The `generations` table in RDS MySQL: one row per job, tracking its status.
+// Image and audio files live in S3 under keys derived from the job id (see aws/s3.ts).
+import mysql, { ResultSetHeader, RowDataPacket } from "mysql2/promise";
+import { requireEnv } from "./env";
 
-let pool: mysql.Pool;
-
-export async function initDb() {
-  // Support both RDS and local MySQL
-  const isRDS = process.env.RDS_ENDPOINT !== undefined;
-
-  if (isRDS) {
-    // AWS RDS configuration
-    const [host, portStr] = process.env.RDS_ENDPOINT!.split(':');
-    const port = portStr ? parseInt(portStr) : 3306;
-
-    pool = mysql.createPool({
-      host: host,
-      port: port,
-      user: process.env.RDS_USERNAME || 'admin',
-      password: process.env.RDS_PASSWORD,
-      database: process.env.RDS_DB_NAME || 'soundcanvas',
-      connectionLimit: 10,
-      ssl: process.env.RDS_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
-    });
-
-    console.log(`✓ Connected to RDS MySQL: ${host}:${port}`);
-  } else {
-    // Local MySQL configuration (backwards compatible)
-    pool = mysql.createPool({
-      host: process.env.DB_HOST || "localhost",
-      port: Number(process.env.DB_PORT || "3306"),
-      user: process.env.DB_USER || "soundcanvas",
-      password: process.env.DB_PASSWORD || "soundcanvas",
-      database: process.env.DB_NAME || "soundcanvas",
-      connectionLimit: 10,
-    });
-
-    console.log(`✓ Connected to local MySQL: ${process.env.DB_HOST || 'localhost'}`);
-  }
-
-  await createTables();
-}
-
-async function createTables() {
-  // Phase 5: Legacy table for backwards compatibility
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS sound_generations (
-      id INT AUTO_INCREMENT PRIMARY KEY,
-      image_path VARCHAR(255) NOT NULL,
-      audio_path VARCHAR(255) NOT NULL,
-      mode ENUM('heuristic','model') NOT NULL,
-      tempo_bpm FLOAT NOT NULL,
-      base_frequency FLOAT NOT NULL,
-      brightness FLOAT NOT NULL,
-      volume FLOAT NOT NULL,
-      duration_seconds FLOAT NOT NULL,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-  `);
-
-  // Phase 10: New generations table for S3-based workflow
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS generations (
-      id VARCHAR(36) PRIMARY KEY,
-      user_id VARCHAR(255) DEFAULT 'default-user',
-      image_key VARCHAR(512) NOT NULL,
-      audio_key VARCHAR(512),
-      genre VARCHAR(50) NOT NULL,
-      tempo_bpm FLOAT DEFAULT 0,
-      mood FLOAT DEFAULT 0.5,
-      scale_type VARCHAR(50),
-      status ENUM('PENDING','RUNNING','COMPLETE','FAILED') NOT NULL DEFAULT 'PENDING',
-      mode ENUM('heuristic','model') NOT NULL DEFAULT 'model',
-      error_message TEXT,
-      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      
-      INDEX idx_user_created (user_id, created_at DESC),
-      INDEX idx_status (status)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-  `);
-
-  console.log('✓ Database tables created/verified');
-}
-
-// ============================================================================
-// Phase 10: Generations CRUD
-// ============================================================================
+export type Status = "PENDING" | "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
 
 export interface Generation {
   id: string;
-  user_id: string;
-  image_key: string;
-  audio_key: string | null;
-  genre: string;
-  tempo_bpm: number;
-  mood: number;
-  scale_type: string | null;
-  status: 'PENDING' | 'RUNNING' | 'COMPLETE' | 'FAILED';
-  mode: 'heuristic' | 'model';
+  status: Status;
+  genre: string | null; // the user's pick, or the model's prediction once processed
+  confidence: number | null; // the model's confidence; null when the user picked the genre
   error_message: string | null;
   created_at: Date;
-  updated_at: Date;
 }
 
-export async function insertGeneration(gen: {
-  id: string;
-  user_id: string;
-  image_key: string;
-  genre: string;
-  tempo_bpm?: number;
-  mood?: number;
-  scale_type?: string;
-  mode?: 'heuristic' | 'model';
-}): Promise<void> {
+const pool = mysql.createPool({
+  host: requireEnv("DB_HOST"),
+  user: requireEnv("DB_USER"),
+  password: requireEnv("DB_PASSWORD"),
+  database: requireEnv("DB_NAME"),
+});
+
+/** Creates the table on first start. */
+export async function createTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS generations (
+      id            CHAR(36) PRIMARY KEY,
+      status        ENUM('PENDING','QUEUED','PROCESSING','COMPLETED','FAILED') NOT NULL,
+      genre         VARCHAR(20),
+      confidence    FLOAT,
+      error_message TEXT,
+      created_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at    TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )`);
+}
+
+/** Adds a new job waiting for its image upload. */
+export async function insertGeneration(id: string, genre: string | null): Promise<void> {
+  await pool.query("INSERT INTO generations (id, status, genre) VALUES (?, 'PENDING', ?)", [id, genre]);
+}
+
+/** Looks up one job. */
+export async function getGeneration(id: string): Promise<Generation | null> {
+  const [rows] = await pool.query<RowDataPacket[]>("SELECT * FROM generations WHERE id = ?", [id]);
+  return (rows[0] as Generation) ?? null;
+}
+
+/** Moves a job from PENDING to QUEUED. Returns false if it was already started. */
+export async function markQueued(id: string): Promise<boolean> {
+  const [result] = await pool.query<ResultSetHeader>(
+    "UPDATE generations SET status = 'QUEUED' WHERE id = ? AND status = 'PENDING'", [id]);
+  return result.affectedRows === 1;
+}
+
+export async function markProcessing(id: string): Promise<void> {
+  await pool.query("UPDATE generations SET status = 'PROCESSING' WHERE id = ?", [id]);
+}
+
+export async function markCompleted(id: string, genre: string, confidence: number | null): Promise<void> {
   await pool.query(
-    `INSERT INTO generations (id, user_id, image_key, genre, tempo_bpm, mood, scale_type, mode, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')`,
-    [
-      gen.id,
-      gen.user_id,
-      gen.image_key,
-      gen.genre,
-      gen.tempo_bpm || 0,
-      gen.mood || 0.5,
-      gen.scale_type || null,
-      gen.mode || 'model',
-    ]
-  );
+    "UPDATE generations SET status = 'COMPLETED', genre = ?, confidence = ? WHERE id = ?",
+    [genre, confidence, id]);
 }
 
-export async function getGenerationById(id: string): Promise<Generation | null> {
-  const [rows] = await pool.query<any[]>(
-    'SELECT * FROM generations WHERE id = ?',
-    [id]
-  );
-  return rows.length > 0 ? rows[0] : null;
-}
-
-export async function getUserGenerations(userId: string, limit = 20): Promise<Generation[]> {
-  const [rows] = await pool.query<any[]>(
-    `SELECT * FROM generations 
-     WHERE user_id = ? 
-     ORDER BY created_at DESC 
-     LIMIT ?`,
-    [userId, limit]
-  );
-  return rows;
-}
-
-export async function updateGenerationStatus(
-  id: string,
-  status: 'PENDING' | 'RUNNING' | 'COMPLETE' | 'FAILED',
-  updates?: {
-    audio_key?: string;
-    error_message?: string;
-    tempo_bpm?: number;
-    scale_type?: string;
-    genre?: string; // Add genre update for when backend decides final genre
-  }
-): Promise<void> {
-  // First, get the current status to enforce state machine
-  const current = await getGenerationById(id);
-  if (!current) {
-    throw new Error(`Generation ${id} not found`);
-  }
-
-  // Define allowed state transitions
-  const allowedTransitions: Record<string, string[]> = {
-    PENDING: ['RUNNING', 'FAILED'],
-    RUNNING: ['COMPLETE', 'FAILED'],
-    COMPLETE: [], // Terminal state - no transitions allowed
-    FAILED: [], // Terminal state - no transitions allowed
-  };
-
-  const allowed = allowedTransitions[current.status] || [];
-  if (!allowed.includes(status)) {
-    console.error(
-      `❌ Invalid state transition for job ${id}: ${current.status} -> ${status}. Allowed: [${allowed.join(', ')}]`
-    );
-    throw new Error(
-      `Invalid state transition: ${current.status} -> ${status}. Job ${id} is in terminal state or transition not allowed.`
-    );
-  }
-
-  // Enforce invariants for COMPLETE status
-  if (status === 'COMPLETE') {
-    if (!updates?.audio_key) {
-      throw new Error(
-        `Cannot mark job ${id} as COMPLETE without audio_key. This indicates a pipeline bug.`
-      );
-    }
-  }
-
-  const params: any[] = [status];
-  let sql = 'UPDATE generations SET status = ?';
-
-  if (updates?.audio_key) {
-    sql += ', audio_key = ?';
-    params.push(updates.audio_key);
-  }
-  if (updates?.error_message !== undefined) {
-    sql += ', error_message = ?';
-    params.push(updates.error_message);
-  }
-  if (updates?.tempo_bpm) {
-    sql += ', tempo_bpm = ?';
-    params.push(updates.tempo_bpm);
-  }
-  if (updates?.scale_type) {
-    sql += ', scale_type = ?';
-    params.push(updates.scale_type);
-  }
-  if (updates?.genre) {
-    sql += ', genre = ?';
-    params.push(updates.genre);
-  }
-
-  sql += ' WHERE id = ?';
-  params.push(id);
-
-  await pool.query(sql, params);
-
-  console.log(`✓ State transition for job ${id}: ${current.status} -> ${status}`);
-}
-
-/**
- * Update generation fields without changing status
- * Use this when you want to update tempo, genre, scale etc. while job is still RUNNING
- */
-export async function updateGenerationFields(
-  id: string,
-  updates: {
-    tempo_bpm?: number;
-    scale_type?: string;
-    genre?: string;
-  }
-): Promise<void> {
-  const params: any[] = [];
-  let sql = 'UPDATE generations SET updated_at = CURRENT_TIMESTAMP';
-
-  if (updates.tempo_bpm !== undefined) {
-    sql += ', tempo_bpm = ?';
-    params.push(updates.tempo_bpm);
-  }
-  if (updates.scale_type !== undefined) {
-    sql += ', scale_type = ?';
-    params.push(updates.scale_type);
-  }
-  if (updates.genre !== undefined) {
-    sql += ', genre = ?';
-    params.push(updates.genre);
-  }
-
-  sql += ' WHERE id = ?';
-  params.push(id);
-
-  await pool.query(sql, params);
+export async function markFailed(id: string, message: string): Promise<void> {
+  await pool.query(
+    "UPDATE generations SET status = 'FAILED', error_message = ? WHERE id = ?", [message, id]);
 }

@@ -1,25 +1,17 @@
-FROM node:20-slim
-
+# gateway: one image, two containers. ECS runs it as the API (the default CMD)
+# and as the worker (command override: npm run worker).
+FROM node:20-slim AS build
 WORKDIR /app
-
-# Copy package files
-COPY package.json package-lock.json* ./
-
-# Install dependencies
-RUN npm install
-
-# Copy TypeScript config and source
+COPY package.json package-lock.json ./
+RUN npm ci
 COPY tsconfig.json ./
 COPY src ./src
-
-# Build TypeScript to JavaScript
 RUN npm run build
 
-# Set production environment
-ENV NODE_ENV=production
-
-# Expose GraphQL port
+FROM node:20-slim
+WORKDIR /app
+COPY package.json package-lock.json ./
+RUN npm ci --omit=dev
+COPY --from=build /app/dist ./dist
 EXPOSE 4000
-
-# Start the server
-CMD ["npm", "start"]
+CMD ["npm", "run", "api"]
