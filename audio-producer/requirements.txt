@@ -1,10 +1,6 @@
-flask>=3.0.0
-numpy>=1.26.0
-scipy>=1.11.4
-pydub>=0.25.1
-
-# Phase 9: Additional dependencies for genre diversity
-mido>=1.2.10
-soundfile>=0.12.1
-pyyaml>=6.0
-requests>=2.31.0
+fastapi~=0.115
+uvicorn~=0.32
+numpy~=2.1
+scipy~=1.14
+soundfile~=0.12
+mido~=1.3
