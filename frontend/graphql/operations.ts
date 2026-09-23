@@ -1,11 +1,12 @@
+// The three GraphQL calls the Playground makes, in order:
+// create a job, upload the image to S3 and start the job, then poll until it finishes.
 import { gql } from '@apollo/client';
 
 export const CREATE_GENERATION = gql`
-  mutation CreateGeneration($input: CreateGenerationInput!) {
-    createGeneration(input: $input) {
+  mutation CreateGeneration($genre: Genre) {
+    createGeneration(genre: $genre) {
       jobId
-      imageUploadUrl
-      imageId
+      uploadUrl
     }
   }
 `;
@@ -13,42 +14,23 @@ export const CREATE_GENERATION = gql`
 export const START_GENERATION = gql`
   mutation StartGeneration($jobId: ID!) {
     startGeneration(jobId: $jobId) {
-      success
-    }
-  }
-`;
-
-export const GENERATION_STATUS = gql`
-  query GenerationStatus($jobId: ID!) {
-    generationStatus(jobId: $jobId) {
-      status
-      audioUrl
-      imageUrl
-      params {
-        genre
-        tempoBpm
-        mood
-        scaleType
-      }
-      errorMessage
-    }
-  }
-`;
-
-export const MY_GENERATIONS = gql`
-  query MyGenerations($limit: Int) {
-    myGenerations(limit: $limit) {
       id
-      userId
-      imageKey
-      audioKey
-      genre
-      tempoBpm
       status
+    }
+  }
+`;
+
+export const GET_GENERATION = gql`
+  query Generation($jobId: ID!) {
+    generation(jobId: $jobId) {
+      id
+      status
+      genre
+      confidence
+      imageUrl
+      audioUrl
       errorMessage
       createdAt
-      imageUrl
-      audioUrl
     }
   }
 `;

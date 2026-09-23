@@ -1,5 +1,7 @@
 'use client';
 
+// The Examples tab: four sample images with pre-rendered songs in /public/examples.
+// Clicking one opens it in the Playground, where it plays instantly.
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Genre } from '@/types/graphql';
 import { useRouter } from 'next/navigation';

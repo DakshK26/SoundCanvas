@@ -1,5 +1,6 @@
 'use client';
 
+// The History tab: songs made in this browser, read from localStorage.
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -12,22 +13,23 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Play, Download, Loader2, Trash2, Clock } from 'lucide-react';
-import { GenerationStatus } from '@/types/graphql';
-import { getLocalHistory, clearLocalHistory, removeFromLocalHistory, LocalGeneration } from '@/lib/historyStorage';
+import { Generation, GenerationStatus } from '@/types/graphql';
+import { getLocalHistory, clearLocalHistory, removeFromLocalHistory } from '@/lib/historyStorage';
 
 const ITEMS_PER_PAGE = 20;
+const LINK_LIFETIME_MINUTES = 15; // matches the gateway's presigned URL expiry (gateway/src/aws/s3.ts)
 
+/** S3 links stop working after 15 minutes; example songs are local files and never expire. */
 function isUrlExpired(url: string, createdAt: string): boolean {
-    const createdTime = new Date(createdAt).getTime();
-    const now = Date.now();
-    const ageInMinutes = (now - createdTime) / (1000 * 60);
-    return ageInMinutes > 55;
+    if (url.startsWith('/examples/')) return false;
+    const ageInMinutes = (Date.now() - new Date(createdAt).getTime()) / 60000;
+    return ageInMinutes > LINK_LIFETIME_MINUTES;
 }
 
 export default function History() {
     const [playingId, setPlayingId] = useState<string | null>(null);
     const [audioElements, setAudioElements] = useState<Map<string, HTMLAudioElement>>(new Map());
-    const [generations, setGenerations] = useState<LocalGeneration[]>([]);
+    const [generations, setGenerations] = useState<Generation[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
     const [playError, setPlayError] = useState<string | null>(null);
 
@@ -69,7 +71,7 @@ export default function History() {
         setPlayError(null);
 
         if (isUrlExpired(audioUrl, createdAt)) {
-            setPlayError('This audio link has expired. Tracks are playable for about an hour after creation.');
+            setPlayError(`This audio link has expired. Tracks are playable for ${LINK_LIFETIME_MINUTES} minutes after creation.`);
             return;
         }
 
@@ -144,8 +146,9 @@ export default function History() {
     const getStatusBadge = (status: GenerationStatus) => {
         const styles = {
             [GenerationStatus.PENDING]: 'bg-amber-100 text-amber-800',
-            [GenerationStatus.RUNNING]: 'bg-blue-100 text-blue-800',
-            [GenerationStatus.COMPLETE]: 'bg-[#81B29A]/20 text-[#3D5A3D]',
+            [GenerationStatus.QUEUED]: 'bg-amber-100 text-amber-800',
+            [GenerationStatus.PROCESSING]: 'bg-blue-100 text-blue-800',
+            [GenerationStatus.COMPLETED]: 'bg-[#81B29A]/20 text-[#3D5A3D]',
             [GenerationStatus.FAILED]: 'bg-red-100 text-red-800',
         };
 
@@ -178,7 +181,7 @@ export default function History() {
                             Your Tracks
                         </CardTitle>
                         <CardDescription className="text-[#8C8279] mt-1">
-                            Your previously generated tracks. Audio links expire after about an hour.
+                            Your previously generated tracks. Audio links expire after {LINK_LIFETIME_MINUTES} minutes.
                         </CardDescription>
                     </div>
                     {generations.length > 0 && (
@@ -227,7 +230,7 @@ export default function History() {
                                         <TableHead className="w-20 text-[#5C5549]">Image</TableHead>
                                         <TableHead className="text-[#5C5549]">Date</TableHead>
                                         <TableHead className="text-[#5C5549]">Genre</TableHead>
-                                        <TableHead className="text-[#5C5549]">Tempo</TableHead>
+                                        <TableHead className="text-[#5C5549]">Chosen by</TableHead>
                                         <TableHead className="text-[#5C5549]">Status</TableHead>
                                         <TableHead className="text-right text-[#5C5549]">Actions</TableHead>
                                     </TableRow>
@@ -253,19 +256,17 @@ export default function History() {
                                             </TableCell>
                                             <TableCell>
                                                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-[#E07A5F]/10 text-[#D4583D]">
-                                                    {gen.genre === 'auto' || gen.genre === 'AUTO'
-                                                        ? (gen.status === GenerationStatus.COMPLETE ? 'Unknown' : 'Auto')
-                                                        : gen.genre}
+                                                    {gen.genre ?? '-'}
                                                 </span>
                                             </TableCell>
                                             <TableCell className="text-sm text-[#5C5549]">
-                                                {gen.tempoBpm ? `${gen.tempoBpm} BPM` : '-'}
+                                                {gen.confidence == null ? 'You' : `Model, ${Math.round(gen.confidence * 100)}%`}
                                             </TableCell>
                                             <TableCell>
                                                 {getStatusBadge(gen.status)}
                                             </TableCell>
                                             <TableCell className="text-right space-x-2">
-                                                {gen.status === GenerationStatus.COMPLETE && gen.audioUrl ? (
+                                                {gen.status === GenerationStatus.COMPLETED && gen.audioUrl ? (
                                                     isUrlExpired(gen.audioUrl, gen.createdAt) ? (
                                                         <>
                                                             <span className="text-xs text-[#8C8279] inline-flex items-center gap-1">

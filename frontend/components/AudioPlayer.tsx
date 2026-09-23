@@ -1,5 +1,7 @@
 'use client';
 
+// Plays and downloads a finished song. The WAV is fetched once into a blob, so
+// playback and download keep working after the presigned S3 link expires.
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,13 +9,8 @@ import { Download, Loader2, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 
 interface AudioPlayerProps {
     audioUrl: string;
-    imageUrl?: string | null;
-    params?: {
-        genre?: string;
-        tempoBpm?: number;
-        mood?: string;
-        scaleType?: string;
-    };
+    genre: string | null;
+    confidence: number | null; // null when the user picked the genre
 }
 
 function formatTime(seconds: number): string {
@@ -23,7 +20,7 @@ function formatTime(seconds: number): string {
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function AudioPlayer({ audioUrl, params, imageUrl }: AudioPlayerProps) {
+export default function AudioPlayer({ audioUrl, genre, confidence }: AudioPlayerProps) {
     const [blobUrl, setBlobUrl] = useState<string | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [isLoading, setIsLoading] = useState(true);
@@ -57,9 +54,9 @@ export default function AudioPlayer({ audioUrl, params, imageUrl }: AudioPlayerP
                 objectUrl = URL.createObjectURL(blob);
                 setBlobUrl(objectUrl);
                 setIsLoading(false);
-            } catch (err: any) {
+            } catch (err) {
                 console.error('Error loading audio:', err);
-                setError(err.message || 'Failed to load audio file');
+                setError((err as Error).message);
                 setIsLoading(false);
             }
         };
@@ -175,7 +172,7 @@ export default function AudioPlayer({ audioUrl, params, imageUrl }: AudioPlayerP
                             <path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/>
                         </svg>
                     </div>
-                    Here's your track
+                    Here&apos;s your track
                 </CardTitle>
                 <CardDescription className="text-[#8C8279]">Created from your image</CardDescription>
             </CardHeader>
@@ -242,32 +239,18 @@ export default function AudioPlayer({ audioUrl, params, imageUrl }: AudioPlayerP
                 ) : null}
 
                 {/* Track Details */}
-                {params && (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 bg-white/60 rounded-xl">
-                        {params.genre && (
-                            <div>
-                                <p className="text-xs text-[#8C8279] uppercase tracking-wide">Genre</p>
-                                <p className="font-semibold text-[#1A1814]">{params.genre}</p>
-                            </div>
-                        )}
-                        {params.tempoBpm && (
-                            <div>
-                                <p className="text-xs text-[#8C8279] uppercase tracking-wide">Tempo</p>
-                                <p className="font-semibold text-[#1A1814]">{params.tempoBpm} BPM</p>
-                            </div>
-                        )}
-                        {params.scaleType && (
-                            <div>
-                                <p className="text-xs text-[#8C8279] uppercase tracking-wide">Scale</p>
-                                <p className="font-semibold text-[#1A1814]">{params.scaleType}</p>
-                            </div>
-                        )}
-                        {params.mood && (
-                            <div>
-                                <p className="text-xs text-[#8C8279] uppercase tracking-wide">Mood</p>
-                                <p className="font-semibold text-[#1A1814]">{params.mood}</p>
-                            </div>
-                        )}
+                {genre && (
+                    <div className="grid grid-cols-2 gap-4 p-4 bg-white/60 rounded-xl">
+                        <div>
+                            <p className="text-xs text-[#8C8279] uppercase tracking-wide">Genre</p>
+                            <p className="font-semibold text-[#1A1814]">{genre}</p>
+                        </div>
+                        <div>
+                            <p className="text-xs text-[#8C8279] uppercase tracking-wide">Chosen by</p>
+                            <p className="font-semibold text-[#1A1814]">
+                                {confidence == null ? 'You' : `Model (${Math.round(confidence * 100)}% confident)`}
+                            </p>
+                        </div>
                     </div>
                 )}
 

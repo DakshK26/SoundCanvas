@@ -1,64 +1,29 @@
-// GraphQL Types
+// Types matching the gateway's GraphQL schema (gateway/src/schema.ts).
 
 export enum GenerationStatus {
-    PENDING = 'PENDING',
-    RUNNING = 'RUNNING',
-    COMPLETE = 'COMPLETE',
+    PENDING = 'PENDING',       // waiting for the image upload
+    QUEUED = 'QUEUED',         // on the SQS queue
+    PROCESSING = 'PROCESSING', // the worker is making the song
+    COMPLETED = 'COMPLETED',
     FAILED = 'FAILED',
 }
 
 export enum Genre {
-    AUTO = 'AUTO',
-    HOUSE = 'HOUSE',
+    AUTO = 'AUTO', // frontend only: sent as "no genre" so the model picks
     EDM_CHILL = 'EDM_CHILL',
     EDM_DROP = 'EDM_DROP',
+    RETROWAVE = 'RETROWAVE',
     CINEMATIC = 'CINEMATIC',
-}
-
-export enum Mode {
-    MODEL = 'model',
-}
-
-export interface CreateGenerationInput {
-    genreOverride?: string;
-    mode?: string;
-}
-
-export interface CreateGenerationPayload {
-    jobId: string;
-    imageUploadUrl: string;
-    imageId: string;
-}
-
-export interface GenerationParams {
-    genre: string;
-    tempoBpm: number;
-    mood?: string;
-    scaleType?: string;
-}
-
-export interface GenerationStatusResponse {
-    status: GenerationStatus;
-    audioUrl?: string;
-    imageUrl?: string;
-    params?: GenerationParams;
-    errorMessage?: string;
+    HOUSE = 'HOUSE',
 }
 
 export interface Generation {
     id: string;
-    userId?: string;
-    imageKey: string;
-    audioKey?: string;
-    genre: string;
-    tempoBpm: number;
     status: GenerationStatus;
-    errorMessage?: string;
+    genre: string | null;
+    confidence: number | null; // null when the user picked the genre
+    imageUrl: string;
+    audioUrl: string | null;
+    errorMessage: string | null;
     createdAt: string;
-    imageUrl?: string;
-    audioUrl?: string;
-}
-
-export interface MutationResponse {
-    success: boolean;
 }

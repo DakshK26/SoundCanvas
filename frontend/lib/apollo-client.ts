@@ -1,20 +1,13 @@
+// Apollo client pointed at the gateway's GraphQL API (the load balancer URL in AWS).
 import { ApolloClient, InMemoryCache, HttpLink } from '@apollo/client';
-import { getGraphQLEndpoint } from '@/lib/graphql-endpoint';
-
-const httpLink = new HttpLink({
-    uri: getGraphQLEndpoint(),
-});
 
 const apolloClient = new ApolloClient({
-    link: httpLink,
+    link: new HttpLink({ uri: process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT }),
     cache: new InMemoryCache(),
+    // Job status changes on the server, so always ask for the latest.
     defaultOptions: {
-        watchQuery: {
-            fetchPolicy: 'network-only',
-        },
-        query: {
-            fetchPolicy: 'network-only',
-        },
+        watchQuery: { fetchPolicy: 'network-only' },
+        query: { fetchPolicy: 'network-only' },
     },
 });
 

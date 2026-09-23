@@ -114,7 +114,7 @@ export default function Home() {
                 <span className="text-[#1A1814]">Canvas</span>
               </h1>
               <p className="text-xl md:text-2xl text-[#5C5549] font-light max-w-xl mx-auto leading-relaxed">
-                Turn your images into original music. Just upload a photo and we'll create a track that matches its vibe.
+                Turn your images into original music. Just upload a photo and we&apos;ll create a track that matches its vibe.
               </p>
             </div>
 

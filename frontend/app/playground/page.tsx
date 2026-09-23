@@ -1,15 +1,16 @@
 'use client';
 
+// The app page: Playground, Examples and History tabs. The URL keeps the tab
+// and any chosen example, so an example link opens straight into the Playground.
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import Playground from '@/components/Playground';
 import History from '@/components/History';
 import Examples from '@/components/Examples';
-import { useBackendWarmup } from '@/lib/useBackendWarmup';
 
 // Map example IDs to their image paths
 const EXAMPLE_IMAGES: Record<string, string> = {
@@ -81,58 +82,6 @@ function PlaygroundContent() {
     );
 }
 
-function BackendWarmupBanner() {
-    const { status, isWarming, justLoaded, error, retry } = useBackendWarmup();
-
-    if (justLoaded) {
-        return (
-            <div className="bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-2xl flex items-center gap-3 mb-6">
-                <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <div className="flex-1">
-                    <p className="font-medium">Server ready!</p>
-                    <p className="text-sm">You can now generate music.</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (status === 'ready' || status === 'idle') {
-        return null;
-    }
-
-    if (status === 'error') {
-        return (
-            <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-2xl flex items-center gap-3 mb-6">
-                <AlertCircle className="w-5 h-5 flex-shrink-0" />
-                <div className="flex-1">
-                    <p className="font-medium">Unable to connect to server</p>
-                    <p className="text-sm">{error || 'The backend service is unavailable.'}</p>
-                </div>
-                <Button variant="outline" size="sm" onClick={retry} className="border-red-300 hover:bg-red-100">
-                    <RefreshCw className="w-4 h-4 mr-2" />
-                    Retry
-                </Button>
-            </div>
-        );
-    }
-
-    if (isWarming) {
-        return (
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-2xl flex items-center gap-3 mb-6">
-                <Loader2 className="w-5 h-5 animate-spin flex-shrink-0" />
-                <div className="flex-1">
-                    <p className="font-medium">Waking up the server...</p>
-                    <p className="text-sm">This may take a few seconds on the first visit.</p>
-                </div>
-            </div>
-        );
-    }
-
-    return null;
-}
-
 export default function PlaygroundPage() {
     return (
         <div className="min-h-screen aurora-bg">
@@ -162,7 +111,6 @@ export default function PlaygroundPage() {
 
             {/* Main Content */}
             <main className="container mx-auto px-4 py-8">
-                <BackendWarmupBanner />
                 <Suspense fallback={
                     <div className="flex items-center justify-center py-12">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#E07A5F]"></div>
