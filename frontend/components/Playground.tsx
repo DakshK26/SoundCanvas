@@ -1,8 +1,9 @@
 'use client';
 
 // The Playground: pick an image and a genre, then follow the job until the song is ready.
-// A real upload goes: createGeneration -> PUT the image to S3 -> startGeneration -> poll generation.
-// Examples skip the backend and play their pre-rendered songs from /public/examples.
+// A real upload goes: createGeneration -> POST the image to S3 -> startGeneration -> poll generation.
+// Examples skip the backend and play their pre-rendered songs from /public/examples
+// (changing an example's genre makes a real job from the example image instead).
 import { useState, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useMutation, useLazyQuery } from '@apollo/client';
@@ -19,9 +20,12 @@ import {
 import { Generation, Genre, GenerationStatus as Status } from '@/types/graphql';
 import { Upload, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import AudioPlayer from '@/components/AudioPlayer';
-import { addToLocalHistory } from '@/lib/historyStorage';
 
 const POLL_INTERVAL_MS = 2500;
+
+// The upload types the gateway accepts; S3 rejects an upload whose type differs from the one requested.
+const IMAGE_TYPES: Record<string, 'JPEG' | 'PNG'> = { 'image/jpeg': 'JPEG', 'image/png': 'PNG' };
+const MAX_IMAGE_MB = 10; // matches MAX_UPLOAD_BYTES in gateway/src/aws/s3.ts
 
 const STATUS_TEXT: Record<Status, string> = {
     [Status.PENDING]: 'Uploading your image...',
@@ -86,7 +90,6 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
                 setStatus(latest.status);
                 if (latest.status === Status.COMPLETED || latest.status === Status.FAILED) {
                     stopPolling();
-                    addToLocalHistory(latest);
                 }
             } catch {
                 setNetworkError('Having trouble checking the status. Retrying...');
@@ -101,6 +104,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
             status: Status.COMPLETED,
             genre,
             confidence: null,
+            feedback: null,
             imageUrl: `/examples/${id}.jpg`,
             audioUrl: `/examples/${id}.wav`,
             errorMessage: null,
@@ -108,37 +112,49 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         };
         setGeneration(example);
         setStatus(Status.COMPLETED);
-        addToLocalHistory(example);
+    };
+
+    /** Turns an example image into a File so it can go through the real pipeline. */
+    const loadExampleImage = async (id: string): Promise<File> => {
+        const response = await fetch(`/examples/${id}.jpg`);
+        return new File([await response.blob()], `${id}.jpg`, { type: 'image/jpeg' });
     };
 
     /** Creates the job, uploads the image straight to S3, then queues the job. */
     const generate = async (image: File) => {
-        const { data } = await createGeneration({
-            variables: { genre: genre === Genre.AUTO ? null : genre },
-        });
-        const { jobId, uploadUrl } = data.createGeneration;
+        const imageType = IMAGE_TYPES[image.type];
+        if (!imageType) throw new Error('Please choose a JPG or PNG image');
+        if (image.size > MAX_IMAGE_MB * 1024 * 1024) throw new Error(`Images must be under ${MAX_IMAGE_MB} MB`);
 
-        const upload = await fetch(uploadUrl, {
-            method: 'PUT',
-            body: image,
-            headers: { 'Content-Type': image.type },
+        const { data } = await createGeneration({
+            variables: { genre: genre === Genre.AUTO ? null : genre, imageType },
         });
-        if (!upload.ok) throw new Error(`Image upload failed (${upload.status})`);
+        const { jobId, upload } = data.createGeneration;
+
+        // A presigned POST: the signed fields (key, Content-Type, signature...) go first; S3 requires the file last.
+        const form = new FormData();
+        for (const { name, value } of upload.fields) form.append(name, value);
+        form.append('file', image);
+        const response = await fetch(upload.url, { method: 'POST', body: form });
+        if (!response.ok) throw new Error(`Image upload failed (${response.status})`);
 
         await startGeneration({ variables: { jobId } });
         setStatus(Status.QUEUED);
         pollUntilDone(jobId);
     };
 
+    // An untouched example plays its pre-rendered song; a new genre generates for real.
+    const playsPrerenderedExample = !selectedImage && Boolean(exampleId) && genre === initialGenre;
+
     const handleGenerate = async () => {
         reset();
-        if (!selectedImage) {
+        if (playsPrerenderedExample) {
             showExample(exampleId!);
             return;
         }
         setStatus(Status.PENDING);
         try {
-            await generate(selectedImage);
+            await generate(selectedImage ?? await loadExampleImage(exampleId!));
         } catch (error) {
             setNetworkError((error as Error).message);
             setStatus(null);
@@ -155,7 +171,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
                 <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-2xl flex items-start gap-3">
                     <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />
                     <div className="flex-1">
-                        <p className="font-medium">Connection Issue</p>
+                        <p className="font-medium">Problem</p>
                         <p className="text-sm">{networkError}</p>
                     </div>
                 </div>
@@ -298,6 +314,9 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
                             audioUrl={generation.audioUrl}
                             genre={generation.genre}
                             confidence={generation.confidence}
+                            rating={generation.id.startsWith('example-')
+                                ? undefined
+                                : { jobId: generation.id, feedback: generation.feedback }}
                         />
                     )}
                 </CardContent>

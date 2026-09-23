@@ -65,10 +65,11 @@ export async function getGeneration(id: string): Promise<Generation | null> {
   return (rows[0] as Generation) ?? null;
 }
 
-/** One browser's songs, newest first. */
+/** One browser's songs, newest first. PENDING jobs are skipped: their image was never uploaded. */
 export async function listGenerations(clientId: string, limit: number): Promise<Generation[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
-    "SELECT * FROM generations WHERE client_id = ? ORDER BY created_at DESC LIMIT ?", [clientId, limit]);
+    `SELECT * FROM generations WHERE client_id = ? AND status <> 'PENDING'
+     ORDER BY created_at DESC LIMIT ?`, [clientId, limit]);
   return rows as Generation[];
 }
 

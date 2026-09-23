@@ -17,11 +17,14 @@ export enum Genre {
     HOUSE = 'HOUSE',
 }
 
+export type Feedback = 'UP' | 'DOWN';
+
 export interface Generation {
     id: string;
     status: GenerationStatus;
     genre: string | null;
     confidence: number | null; // null when the user picked the genre
+    feedback: Feedback | null;
     imageUrl: string;
     audioUrl: string | null;
     errorMessage: string | null;
