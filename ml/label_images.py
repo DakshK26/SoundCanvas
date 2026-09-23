@@ -8,19 +8,12 @@ The rule label is never shown, so the answers are independent of labeler.py.
 
 Run:  python label_images.py   then open http://localhost:8765
 """
-import csv
 import json
-import random
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from pathlib import Path
 
 from labeler import GENRES
+from splits import HUMAN_SET_SIZE, IMAGES_DIR, human_set, load_human_labels, save_human_labels
 
-DATA_DIR = Path(__file__).parent / "data"
-IMAGES_DIR = DATA_DIR / "raw_images"
-LABELS_PATH = DATA_DIR / "human_labels.csv"
-HUMAN_SET_SIZE = 300  # ~18 minutes of labeling; enough for a 150/150 fine-tune/test split
-SEED = 42
 PORT = 8765
 
 # What each genre sounds like, shown next to the buttons as a labeling guide.
@@ -31,27 +24,6 @@ GENRE_GUIDE = {
     "CINEMATIC": "film score: dramatic, epic, moody",
     "HOUSE": "upbeat dance music: bright, fun, social",
 }
-
-
-def human_set() -> list[str]:
-    """The images to hand-label: a fixed random sample, identical on every run."""
-    names = sorted(path.name for path in IMAGES_DIR.glob("*.jpg"))
-    return sorted(random.Random(SEED).sample(names, HUMAN_SET_SIZE))
-
-
-def load_labels() -> dict[str, str]:
-    """Image filename -> genre for every image labeled so far."""
-    if not LABELS_PATH.exists():
-        return {}
-    with LABELS_PATH.open(newline="") as file:
-        return {row["image"]: row["genre"] for row in csv.DictReader(file)}
-
-
-def save_labels(labels: dict[str, str]) -> None:
-    with LABELS_PATH.open("w", newline="") as file:
-        writer = csv.writer(file)
-        writer.writerow(["image", "genre"])
-        writer.writerows(sorted(labels.items()))
 
 
 PAGE = """<!doctype html>
@@ -118,7 +90,7 @@ class LabelingHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/":
-            data = {"images": self.images, "labels": load_labels(), "genres": GENRES, "guide": GENRE_GUIDE}
+            data = {"images": self.images, "labels": load_human_labels(), "genres": GENRES, "guide": GENRE_GUIDE}
             self.respond(200, "text/html", PAGE.replace("__DATA__", json.dumps(data)).encode())
         elif self.path.startswith("/images/") and self.path[len("/images/"):] in self.images:
             self.respond(200, "image/jpeg", (IMAGES_DIR / self.path[len("/images/"):]).read_bytes())
@@ -131,12 +103,12 @@ class LabelingHandler(BaseHTTPRequestHandler):
         if body["image"] not in self.images or body["genre"] not in GENRES + [""]:
             self.respond(400, "text/plain", b"bad label")
             return
-        labels = load_labels()
+        labels = load_human_labels()
         if body["genre"]:
             labels[body["image"]] = body["genre"]
         else:
             labels.pop(body["image"], None)
-        save_labels(labels)
+        save_human_labels(labels)
         self.respond(200, "text/plain", b"ok")
 
     def respond(self, status: int, content_type: str, body: bytes):

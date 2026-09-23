@@ -1,10 +1,12 @@
 """
 Rule-based genre labeler.
 
-We have no human-labeled "this photo sounds like House" data, so these
-hand-written rules label the training images. The TensorFlow model then
-learns to reproduce them, which means its accuracy is its agreement with
-these rules.
+No public dataset says "this photo sounds like House", and hand-labeling
+thousands of images was not practical, so these hand-written rules label the
+2,700 rule-set images. The stage-1 model learns to reproduce them, which is why
+its test accuracy means agreement with these rules. To check the rules against
+real taste, we hand-labeled 300 other images (label_images.py): 150 fine-tune
+the model and 150 test it (see splits.py and evaluate.py).
 
 The thresholds were picked by looking at the feature spread across our 3,000
 images, so that no single genre takes over the dataset.

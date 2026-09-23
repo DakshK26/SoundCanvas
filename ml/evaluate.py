@@ -1,10 +1,14 @@
 """
-Step 3 of training: measure the model on the held-out test split.
+Step 3 of training: score the models on the two test sets they never saw.
 
-The test images were never used for training or for choosing settings, so
-this is the honest score. It prints overall top-1 accuracy (how often the
-model's first choice matches the rule label), accuracy per genre, and a
-confusion matrix.
+  Rule test (540 images, rule labels): how well the model learned the rules.
+      This is the headline "top-1 accuracy": how often the model's first
+      choice matches the label.
+  Human test (150 images, our labels): how well it matches people, which is
+      what the product actually needs.
+
+It also scores the rules themselves on the human test. The stage-1 model can
+only copy the rules, so that number is roughly its ceiling on human taste.
 """
 from pathlib import Path
 
@@ -12,33 +16,50 @@ import numpy as np
 import tensorflow as tf
 
 from labeler import GENRES
-
-DATASET_PATH = Path(__file__).parent / "data" / "dataset.npz"
-MODEL_PATH = Path(__file__).parent / "models" / "genre_classifier.keras"
+from train import DATASET_PATH, RULES_MODEL_PATH, SERVED_MODEL_PATH
 
 
-def main():
-    """Print test accuracy, per-genre accuracy, and the confusion matrix."""
-    data = np.load(DATASET_PATH)
-    model = tf.keras.models.load_model(MODEL_PATH)
+def accuracy(actual: np.ndarray, predicted: np.ndarray) -> str:
+    return f"{np.mean(actual == predicted):.1%}"
 
-    predicted = model.predict(data["x_test"], verbose=0).argmax(axis=1)
-    actual = data["y_test"]
 
-    print(f"Test images: {len(actual)}")
-    print(f"Top-1 accuracy: {np.mean(predicted == actual):.1%}\n")
-
-    print("Accuracy per genre:")
+def print_breakdown(title: str, actual: np.ndarray, predicted: np.ndarray) -> None:
+    """Accuracy per genre, then a confusion matrix (rows = label, columns = model guess)."""
+    print(f"\n{title}")
     for index, genre in enumerate(GENRES):
         mask = actual == index
-        print(f"  {genre:10s} {np.mean(predicted[mask] == index):6.1%}  ({mask.sum()} images)")
-
-    # Rows are the rule label, columns are the model's guess.
-    print("\nConfusion matrix (rows = rule label, columns = model guess):")
+        if mask.any():
+            print(f"  {genre:10s} {np.mean(predicted[mask] == index):6.1%}  ({mask.sum()} images)")
     print(" " * 11 + " ".join(f"{g[:9]:>9s}" for g in GENRES))
     for row, genre in enumerate(GENRES):
         counts = [np.sum((actual == row) & (predicted == col)) for col in range(len(GENRES))]
         print(f"{genre:10s} " + " ".join(f"{c:9d}" for c in counts))
+
+
+def predict(model_path: Path, features: np.ndarray) -> np.ndarray:
+    return tf.keras.models.load_model(model_path).predict(features, verbose=0).argmax(axis=1)
+
+
+def main():
+    data = np.load(DATASET_PATH)
+    has_humans = "y_human_test" in data
+    models = {"stage 1 (rules)": RULES_MODEL_PATH}
+    if has_humans:
+        models["stage 2 (served)"] = SERVED_MODEL_PATH
+
+    print(f"{'':18s} {'rule test':>10s} {'human test':>11s}")
+    for name, path in models.items():
+        rule_score = accuracy(data["y_test"], predict(path, data["x_test"]))
+        human_score = accuracy(data["y_human_test"], predict(path, data["x_human_test"])) if has_humans else "-"
+        print(f"{name:18s} {rule_score:>10s} {human_score:>11s}")
+    if has_humans:
+        print(f"{'the rules':18s} {'-':>10s} {accuracy(data['y_human_test'], data['y_human_test_rules']):>11s}")
+
+    print_breakdown(f"stage 1 on the rule test ({len(data['y_test'])} images):",
+                    data["y_test"], predict(RULES_MODEL_PATH, data["x_test"]))
+    if has_humans:
+        print_breakdown(f"stage 2 on the human test ({len(data['y_human_test'])} images):",
+                        data["y_human_test"], predict(SERVED_MODEL_PATH, data["x_human_test"]))
 
 
 if __name__ == "__main__":

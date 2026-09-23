@@ -1,49 +1,57 @@
 """
-Step 1 of training: turn the raw images into a labeled dataset.
+Step 1 of training: turn the raw images into labeled feature arrays.
 
-For each image in data/raw_images we compute its 8 features and a genre label
-from the rules in labeler.py. We shuffle once with a fixed seed and split
-70% train, 10% validation, 20% test. The result is saved to data/dataset.npz.
+For every image we compute its 8 features (features.py). Images in the rule
+set get a label from labeler.py; images in the human set get the label we
+picked by hand (label_images.py). See splits.py for which image goes where.
+
+Saved to data/dataset.npz:
+  x_train, y_train, x_val, y_val, x_test, y_test   rule-labeled splits
+  x_tune, y_tune                                    150 hand-labeled, for fine-tuning
+  x_human_test, y_human_test                        150 hand-labeled, for testing
+  y_human_test_rules                                what the rules say for those 150
+The human arrays are only written once all 300 images are hand-labeled.
 """
-from pathlib import Path
-
 import numpy as np
 
 from features import compute_features
 from labeler import GENRES, label_genre
+from splits import DATA_DIR, HUMAN_SET_SIZE, IMAGES_DIR, human_splits, load_human_labels, rule_splits
 
-IMAGES_DIR = Path(__file__).parent / "data" / "raw_images"
-DATASET_PATH = Path(__file__).parent / "data" / "dataset.npz"
-SEED = 42
-TRAIN_FRACTION = 0.7
-VALIDATION_FRACTION = 0.1  # the remaining 20% is the test set
+DATASET_PATH = DATA_DIR / "dataset.npz"
+
+
+def features_for(names: list[str]) -> np.ndarray:
+    return np.stack([compute_features(IMAGES_DIR / name) for name in names])
+
+
+def rule_labels(features: np.ndarray) -> np.ndarray:
+    return np.array([GENRES.index(label_genre(row)) for row in features])
 
 
 def main():
-    """Build and save the train, validation, and test splits."""
-    paths = sorted(IMAGES_DIR.glob("*.jpg"))
-    features = np.stack([compute_features(path) for path in paths])
-    labels = np.array([GENRES.index(label_genre(row)) for row in features])
-
-    order = np.random.default_rng(SEED).permutation(len(paths))
-    train_end = int(TRAIN_FRACTION * len(order))
-    val_end = train_end + int(VALIDATION_FRACTION * len(order))
-    splits = {
-        "train": order[:train_end],
-        "val": order[train_end:val_end],
-        "test": order[val_end:],
-    }
-
     arrays = {}
-    for name, indices in splits.items():
-        arrays[f"x_{name}"] = features[indices]
-        arrays[f"y_{name}"] = labels[indices]
-    np.savez(DATASET_PATH, **arrays)
+    for split, names in rule_splits().items():
+        arrays[f"x_{split}"] = features_for(names)
+        arrays[f"y_{split}"] = rule_labels(arrays[f"x_{split}"])
+        counts = np.bincount(arrays[f"y_{split}"], minlength=len(GENRES))
+        print(f"rule {split:5s} {len(names):5d} images  " +
+              "  ".join(f"{g}={c}" for g, c in zip(GENRES, counts)))
 
-    print(f"{len(paths)} images -> train {len(splits['train'])}, "
-          f"val {len(splits['val'])}, test {len(splits['test'])}")
-    for index, genre in enumerate(GENRES):
-        print(f"  {genre:10s} {np.sum(labels == index)} images")
+    human_labels = load_human_labels()
+    if len(human_labels) < HUMAN_SET_SIZE:
+        print(f"human set: {len(human_labels)}/{HUMAN_SET_SIZE} hand-labeled, so it is left out "
+              f"(finish with label_images.py, then run this again)")
+    else:
+        tune, test = human_splits()
+        for key, names in (("tune", tune), ("human_test", test)):
+            arrays[f"x_{key}"] = features_for(names)
+            arrays[f"y_{key}"] = np.array([GENRES.index(human_labels[name]) for name in names])
+        arrays["y_human_test_rules"] = rule_labels(arrays["x_human_test"])
+        print(f"human set: {len(tune)} fine-tune, {len(test)} test")
+
+    np.savez(DATASET_PATH, **arrays)
+    print(f"saved {DATASET_PATH}")
 
 
 if __name__ == "__main__":
