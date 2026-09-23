@@ -35,6 +35,7 @@ async function start() {
   app.use((req, res, next) => {
     req.setTimeout(5 * 60 * 1000); // 5 minutes
     res.setTimeout(5 * 60 * 1000); // 5 minutes
+    noteUserActivity(req);
     next();
   });
 
@@ -150,7 +151,47 @@ async function start() {
 
   app.listen(Number(PORT), HOST, () => {
     console.log(`Gateway listening on http://${HOST}:${PORT}/graphql`);
+    startIdleKeepalive();
   }).timeout = 5 * 60 * 1000; // 5 minutes server timeout
+}
+
+// Fly stops an idle machine after a few minutes with no proxy traffic.
+// Health checks do not count. After a real request, ping the public URL
+// for 15 minutes so the machine stays up, then let Fly stop it.
+const KEEPALIVE_WINDOW_MS = 15 * 60 * 1000;
+const KEEPALIVE_INTERVAL_MS = 3 * 60 * 1000;
+let lastUserRequestAt = 0;
+
+function noteUserActivity(req: { path?: string; get?: (name: string) => string | undefined }) {
+  if (req.path === "/health") return;
+  if (req.get?.("x-soundcanvas-keepalive") === "1") return;
+  lastUserRequestAt = Date.now();
+}
+
+function startIdleKeepalive() {
+  const publicUrl = (process.env.GATEWAY_PUBLIC_URL || "").replace(/\/$/, "");
+  if (!publicUrl) {
+    console.log("[Keepalive] GATEWAY_PUBLIC_URL unset, idle pings disabled");
+    return;
+  }
+
+  setInterval(() => {
+    if (!lastUserRequestAt) return;
+    const idleMs = Date.now() - lastUserRequestAt;
+    if (idleMs > KEEPALIVE_WINDOW_MS) return;
+
+    fetch(`${publicUrl}/health`, {
+      headers: { "x-soundcanvas-keepalive": "1" },
+    })
+      .then((res) => {
+        console.log(`[Keepalive] ping ${res.status} (${Math.round(idleMs / 1000)}s since last user request)`);
+      })
+      .catch((err: any) => {
+        console.warn(`[Keepalive] ping failed: ${err?.message || err}`);
+      });
+  }, KEEPALIVE_INTERVAL_MS);
+
+  console.log("[Keepalive] enabled for 15 minutes after the last user request");
 }
 
 start().catch((err) => {
