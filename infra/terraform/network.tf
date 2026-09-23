@@ -153,8 +153,7 @@ resource "aws_lb_target_group" "api" {
   vpc_id      = aws_vpc.main.id
 
   health_check {
-    path    = "/"
-    matcher = "200,400" # Apollo answers a GET with no query with 400, which still means it is up
+    path = "/health" # a plain route in gateway/src/api.ts
   }
 }
 

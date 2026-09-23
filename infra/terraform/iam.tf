@@ -1,6 +1,6 @@
 # Permissions. Each container gets only what its code uses:
 #   gateway-api:    presign S3 uploads/downloads, send to the queue
-#   gateway-worker: read/write S3 objects, receive and delete queue messages
+#   gateway-worker: read/write S3 objects, receive, delete and delay queue messages
 #   cpp-core, ml, audio-producer: no AWS permissions (they only answer HTTP)
 # Database access is controlled by the network (security groups) and the password, not IAM.
 
@@ -81,7 +81,7 @@ resource "aws_iam_role_policy" "worker" {
       },
       {
         Effect   = "Allow"
-        Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage"]
+        Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility"] # the last one delays a retry
         Resource = aws_sqs_queue.jobs.arn
       },
     ]

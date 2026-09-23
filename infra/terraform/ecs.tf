@@ -14,6 +14,7 @@ locals {
     { name = "DB_HOST", value = aws_db_instance.main.address },
     { name = "DB_USER", value = aws_db_instance.main.username },
     { name = "DB_NAME", value = aws_db_instance.main.db_name },
+    { name = "FRONTEND_ORIGIN", value = var.frontend_origin },
     { name = "CPP_CORE_URL", value = "http://cpp-core.${local.namespace}:8080" },
     { name = "ML_URL", value = "http://ml.${local.namespace}:5000" },
     { name = "AUDIO_PRODUCER_URL", value = "http://audio-producer.${local.namespace}:9001" },
@@ -117,7 +118,7 @@ resource "aws_ecs_service" "service" {
   name            = each.key
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.service[each.key].arn
-  desired_count   = 1 # one task each; a single worker processes jobs one at a time, in FIFO order
+  desired_count   = 1 # the starting count; auto scaling below adjusts it
   launch_type     = "FARGATE"
 
   network_configuration {
@@ -143,5 +144,61 @@ resource "aws_ecs_service" "service" {
     }
   }
 
+  lifecycle {
+    ignore_changes = [desired_count] # owned by auto scaling after the first deploy
+  }
+
   depends_on = [aws_lb_listener.https]
+}
+
+# Auto scaling: each service below runs between 1 and 5 tasks.
+resource "aws_appautoscaling_target" "service" {
+  for_each           = setunion(local.internal_services, ["gateway-worker"])
+  service_namespace  = "ecs"
+  scalable_dimension = "ecs:service:DesiredCount"
+  resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.service[each.key].name}"
+  min_capacity       = 1
+  max_capacity       = 5
+}
+
+# Workers scale on queue depth, aiming for about 5 jobs waiting. (This tracks the
+# total backlog; a refinement is backlog per worker, computed with metric math.)
+# Jobs from one browser share a message group and still run one at a time;
+# extra workers help when many browsers are waiting.
+resource "aws_appautoscaling_policy" "worker_queue_depth" {
+  name               = "${var.app_name}-worker-queue-depth"
+  policy_type        = "TargetTrackingScaling"
+  service_namespace  = aws_appautoscaling_target.service["gateway-worker"].service_namespace
+  scalable_dimension = aws_appautoscaling_target.service["gateway-worker"].scalable_dimension
+  resource_id        = aws_appautoscaling_target.service["gateway-worker"].resource_id
+
+  target_tracking_scaling_policy_configuration {
+    target_value = 5
+    customized_metric_specification {
+      namespace   = "AWS/SQS"
+      metric_name = "ApproximateNumberOfMessagesVisible"
+      statistic   = "Average"
+      dimensions {
+        name  = "QueueName"
+        value = aws_sqs_queue.jobs.name
+      }
+    }
+  }
+}
+
+# The internal services scale on CPU, so more workers don't overload them.
+resource "aws_appautoscaling_policy" "service_cpu" {
+  for_each           = local.internal_services
+  name               = "${var.app_name}-${each.key}-cpu"
+  policy_type        = "TargetTrackingScaling"
+  service_namespace  = aws_appautoscaling_target.service[each.key].service_namespace
+  scalable_dimension = aws_appautoscaling_target.service[each.key].scalable_dimension
+  resource_id        = aws_appautoscaling_target.service[each.key].resource_id
+
+  target_tracking_scaling_policy_configuration {
+    target_value = 60 # percent average CPU; leaves headroom while new tasks start
+    predefined_metric_specification {
+      predefined_metric_type = "ECSServiceAverageCPUUtilization"
+    }
+  }
 }

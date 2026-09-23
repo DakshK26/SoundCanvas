@@ -1,6 +1,7 @@
 # Runs the whole backend locally: LocalStack stands in for S3 and SQS, and a
 # MySQL container stands in for RDS. Start with `docker compose up --build`
-# from this folder, then point the frontend at http://localhost:4000/.
+# from this folder, then run the frontend on http://localhost:3000 with
+# NEXT_PUBLIC_GRAPHQL_ENDPOINT=http://localhost:4000/graphql.
 
 x-gateway: &gateway
   build: ../gateway
@@ -16,6 +17,7 @@ x-gateway: &gateway
     DB_USER: soundcanvas
     DB_PASSWORD: soundcanvas
     DB_NAME: soundcanvas
+    FRONTEND_ORIGIN: http://localhost:3000
     CPP_CORE_URL: http://cpp-core:8080
     ML_URL: http://ml:5000
     AUDIO_PRODUCER_URL: http://audio-producer:9001

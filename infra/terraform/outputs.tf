@@ -2,7 +2,7 @@
 
 output "api_url" {
   description = "Set this as NEXT_PUBLIC_GRAPHQL_ENDPOINT in the frontend (after pointing a DNS name at it that matches the certificate)."
-  value       = "https://${aws_lb.api.dns_name}/"
+  value       = "https://${aws_lb.api.dns_name}/graphql"
 }
 
 output "ecr_repositories" {

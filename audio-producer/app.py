@@ -16,9 +16,9 @@ from pathlib import Path
 
 import mido
 import soundfile as sf
-from fastapi import FastAPI, Request, Response
+from fastapi import FastAPI, HTTPException, Request, Response
 
-from drums import KICK, render_drums
+from drums import KICK, KITS, render_drums
 from fx import render_fx
 from mixer import master, mix
 from synth import SAMPLE_RATE
@@ -85,6 +85,9 @@ def render_song(midi_bytes: bytes, genre: str) -> bytes:
 
 @app.post("/render")
 async def render(request: Request, genre: str) -> Response:
+    # 400 tells the worker retrying is pointless; any other failure is a 500 and gets retried.
+    if genre not in KITS:
+        raise HTTPException(400, f"Unknown genre {genre}")
     return Response(render_song(await request.body(), genre), media_type="audio/wav")
 
 

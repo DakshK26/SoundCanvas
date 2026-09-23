@@ -32,10 +32,18 @@ void handleCompose(const httplib::Request& req, httplib::Response& res) {
   res.set_content(composeMidi(plan), "audio/midi");
 }
 
-// Any error becomes a 500 with the message, so the worker can mark the job failed.
+// Bad input (an undecodable image, malformed JSON, an unknown genre) is a 400:
+// the worker gives up on the job, since retrying cannot fix it.
+// Anything else is a 500, which the worker treats as temporary and retries.
 void handleError(const httplib::Request&, httplib::Response& res, std::exception_ptr error) {
   try {
     std::rethrow_exception(error);
+  } catch (const std::invalid_argument& e) {
+    res.status = 400;
+    res.set_content(e.what(), "text/plain");
+  } catch (const json::exception& e) {
+    res.status = 400;
+    res.set_content(e.what(), "text/plain");
   } catch (const std::exception& e) {
     std::cerr << "[cpp-core] " << e.what() << std::endl;
     res.status = 500;
