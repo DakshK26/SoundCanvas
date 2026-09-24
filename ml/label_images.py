@@ -9,12 +9,15 @@ The rule label is never shown, so the answers are independent of labeler.py.
 Run:  python label_images.py   then open http://localhost:8765
 """
 import json
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from urllib.parse import parse_qs, urlparse
 
 from labeler import GENRES
 from splits import HUMAN_SET_SIZE, IMAGES_DIR, human_set, load_human_labels, save_human_labels
 
 PORT = 8765
+SAVE_LOCK = threading.Lock()
 
 # What each genre sounds like, shown next to the buttons as a labeling guide.
 GENRE_GUIDE = {
@@ -34,7 +37,7 @@ PAGE = """<!doctype html>
   small { display: block; color: #aaa; }
 </style></head><body>
 <h3 id="progress"></h3>
-<img id="image"><div id="buttons"></div>
+<img id="image"><p id="name"></p><div id="buttons"></div>
 <p>Keys 1-5 pick a genre. Backspace goes back one.</p>
 <script>
 const DATA = __DATA__;
@@ -48,7 +51,13 @@ function show() {
                                 : `${done} / ${DATA.images.length} labeled`;
   const image = document.getElementById("image");
   image.style.display = index >= DATA.images.length ? "none" : "";
-  if (index < DATA.images.length) image.src = "/images/" + DATA.images[index];
+  const name = document.getElementById("name");
+  if (index < DATA.images.length) {
+    image.src = "/images/" + DATA.images[index];
+    name.textContent = DATA.images[index];
+  } else {
+    name.textContent = "";
+  }
 }
 
 async function save(name, genre) {
@@ -89,8 +98,15 @@ class LabelingHandler(BaseHTTPRequestHandler):
     images = human_set()
 
     def do_GET(self):
-        if self.path == "/":
-            data = {"images": self.images, "labels": load_human_labels(), "genres": GENRES, "guide": GENRE_GUIDE}
+        parsed = urlparse(self.path)
+        if parsed.path == "/":
+            # ?names=a.jpg,b.jpg limits this tab to those images, so several labelers can work at once.
+            wanted = parse_qs(parsed.query).get("names", [None])[0]
+            images = self.images
+            if wanted:
+                allowed = set(self.images)
+                images = [name for name in wanted.split(",") if name in allowed]
+            data = {"images": images, "labels": load_human_labels(), "genres": GENRES, "guide": GENRE_GUIDE}
             self.respond(200, "text/html", PAGE.replace("__DATA__", json.dumps(data)).encode())
         elif self.path.startswith("/images/") and self.path[len("/images/"):] in self.images:
             self.respond(200, "image/jpeg", (IMAGES_DIR / self.path[len("/images/"):]).read_bytes())
@@ -103,12 +119,13 @@ class LabelingHandler(BaseHTTPRequestHandler):
         if body["image"] not in self.images or body["genre"] not in GENRES + [""]:
             self.respond(400, "text/plain", b"bad label")
             return
-        labels = load_human_labels()
-        if body["genre"]:
-            labels[body["image"]] = body["genre"]
-        else:
-            labels.pop(body["image"], None)
-        save_human_labels(labels)
+        with SAVE_LOCK:  # read-modify-write of the CSV must not interleave across threads
+            labels = load_human_labels()
+            if body["genre"]:
+                labels[body["image"]] = body["genre"]
+            else:
+                labels.pop(body["image"], None)
+            save_human_labels(labels)
         self.respond(200, "text/plain", b"ok")
 
     def respond(self, status: int, content_type: str, body: bytes):
@@ -123,4 +140,5 @@ class LabelingHandler(BaseHTTPRequestHandler):
 
 if __name__ == "__main__":
     print(f"Labeling {HUMAN_SET_SIZE} images. Open http://localhost:{PORT}")
-    HTTPServer(("localhost", PORT), LabelingHandler).serve_forever()
+    # Threaded so one stalled connection can't block every other request.
+    ThreadingHTTPServer(("localhost", PORT), LabelingHandler).serve_forever()

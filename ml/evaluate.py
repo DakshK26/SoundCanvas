@@ -1,11 +1,11 @@
 """
 Step 3 of training: score the models on the two test sets they never saw.
 
-  Rule test (540 images, rule labels): how well the model learned the rules.
-      This is the headline "top-1 accuracy": how often the model's first
-      choice matches the label.
-  Human test (150 images, our labels): how well it matches people, which is
-      what the product actually needs.
+  Rule test (541 images, rule labels): how well the served model learned the
+      rules. This is the headline "top-1 accuracy": how often the model's
+      first choice matches the label.
+  Human test (60 images, labeled by eye): how well each model matches
+      colour-and-mood judgements, for the stage-2 experiment.
 
 It also scores the rules themselves on the human test. The stage-1 model can
 only copy the rules, so that number is roughly its ceiling on human taste.
@@ -16,7 +16,7 @@ import numpy as np
 import tensorflow as tf
 
 from labeler import GENRES
-from train import DATASET_PATH, RULES_MODEL_PATH, SERVED_MODEL_PATH
+from train import DATASET_PATH, HUMAN_MODEL_PATH, SERVED_MODEL_PATH
 
 
 def accuracy(actual: np.ndarray, predicted: np.ndarray) -> str:
@@ -42,10 +42,10 @@ def predict(model_path: Path, features: np.ndarray) -> np.ndarray:
 
 def main():
     data = np.load(DATASET_PATH)
-    has_humans = "y_human_test" in data
-    models = {"stage 1 (rules)": RULES_MODEL_PATH}
+    has_humans = "y_human_test" in data and HUMAN_MODEL_PATH.exists()
+    models = {"stage 1 (served)": SERVED_MODEL_PATH}
     if has_humans:
-        models["stage 2 (served)"] = SERVED_MODEL_PATH
+        models["stage 2 (human)"] = HUMAN_MODEL_PATH
 
     print(f"{'':18s} {'rule test':>10s} {'human test':>11s}")
     for name, path in models.items():
@@ -56,10 +56,10 @@ def main():
         print(f"{'the rules':18s} {'-':>10s} {accuracy(data['y_human_test'], data['y_human_test_rules']):>11s}")
 
     print_breakdown(f"stage 1 on the rule test ({len(data['y_test'])} images):",
-                    data["y_test"], predict(RULES_MODEL_PATH, data["x_test"]))
+                    data["y_test"], predict(SERVED_MODEL_PATH, data["x_test"]))
     if has_humans:
         print_breakdown(f"stage 2 on the human test ({len(data['y_human_test'])} images):",
-                        data["y_human_test"], predict(SERVED_MODEL_PATH, data["x_human_test"]))
+                        data["y_human_test"], predict(HUMAN_MODEL_PATH, data["x_human_test"]))
 
 
 if __name__ == "__main__":

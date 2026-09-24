@@ -7,9 +7,10 @@ picked by hand (label_images.py). See splits.py for which image goes where.
 
 Saved to data/dataset.npz:
   x_train, y_train, x_val, y_val, x_test, y_test   rule-labeled splits
-  x_tune, y_tune                                    150 hand-labeled, for fine-tuning
-  x_human_test, y_human_test                        150 hand-labeled, for testing
-  y_human_test_rules                                what the rules say for those 150
+  x_tune, y_tune                                    210 hand-labeled, for fine-tuning
+  x_human_val, y_human_val                          30 hand-labeled, for stopping fine-tuning
+  x_human_test, y_human_test                        60 hand-labeled, for testing
+  y_human_test_rules                                what the rules say for those 60
 The human arrays are only written once all 300 images are hand-labeled.
 """
 import numpy as np
@@ -43,12 +44,12 @@ def main():
         print(f"human set: {len(human_labels)}/{HUMAN_SET_SIZE} hand-labeled, so it is left out "
               f"(finish with label_images.py, then run this again)")
     else:
-        tune, test = human_splits()
-        for key, names in (("tune", tune), ("human_test", test)):
+        tune, val, test = human_splits()
+        for key, names in (("tune", tune), ("human_val", val), ("human_test", test)):
             arrays[f"x_{key}"] = features_for(names)
             arrays[f"y_{key}"] = np.array([GENRES.index(human_labels[name]) for name in names])
         arrays["y_human_test_rules"] = rule_labels(arrays["x_human_test"])
-        print(f"human set: {len(tune)} fine-tune, {len(test)} test")
+        print(f"human set: {len(tune)} fine-tune, {len(val)} validation, {len(test)} test")
 
     np.savez(DATASET_PATH, **arrays)
     print(f"saved {DATASET_PATH}")

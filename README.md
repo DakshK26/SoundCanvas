@@ -197,8 +197,13 @@ kinds of labels:
 
 - **Rule labels** (`labeler.py`): hand-written if-statements on the features
   (e.g. dark and intense means EDM Drop). Cheap, so they label 2,700 images.
-- **Human labels** (`label_images.py`): 300 other images we labeled by hand in a
-  small local web tool that never shows the rule label.
+- **Human labels** (`label_images.py`): 300 other images labeled by eye in a
+  small local web tool that never shows the rule label. They were labeled by
+  colour and mood, not by subject (an AI agent looked at each photo and its 8
+  feature values and matched it to the genre descriptions). A first attempt
+  labeled by subject ("people partying means House"). The model scored at
+  chance on those labels, because 8 whole-image colour statistics can't see
+  subjects.
 
 `splits.py` fixes which image goes where, with seed 42. The human set is taken
 out first, so no hand-labeled image is ever trained on with a rule label:
@@ -206,22 +211,29 @@ out first, so no hand-labeled image is ever trained on with a rule label:
 | Set | Images | Used for |
 | --- | --- | --- |
 | Rule train | 1,889 | Stage 1 training |
-| Rule validation | 270 | Choosing the model size, learning rate and when to stop |
+| Rule validation | 270 | Choosing the model size and when to stop |
 | Rule test | 541 | The headline accuracy (agreement with the rules) |
-| Human fine-tune | 150 | Stage 2 training (120) and deciding when to stop (30) |
-| Human test | 150 | Agreement with people |
+| Human fine-tune | 210 | Stage 2 training |
+| Human validation | 30 | Deciding when stage 2 stops |
+| Human test | 60 | Agreement with the eye labels |
+
+Both sets split 70/10/20 into train, validation and test.
 
 Pipeline:
 
 1. `build_dataset.py` computes each image's 8 features and its label.
-2. `train.py`, **stage 1**: a Keras network (normalization, two ReLU hidden
-   layers, 5-way softmax). Six settings are tried (32/64/128 units, learning
-   rate 0.001/0.01), each with early stopping on validation accuracy, and the best
-   validation score wins. Class weights make rare genres count as much as common
-   ones; EDM Drop is only 11% of the images.
-3. `train.py`, **stage 2**: the stage-1 model keeps training on the human
-   fine-tune images at a lower learning rate, stopping when the 30 held-back
-   images stop improving. This is the served model.
+2. `train.py`, **stage 1** (the served model, `models/genre_classifier.keras`):
+   a Keras network (normalization, ReLU hidden layers, 5-way softmax). The
+   training split gets 10 nudged copies of each image (each feature moved by
+   about 5% of its spread), labeled with the same rules. The rules draw sharp
+   lines like "brightness below 0.30", and the extra points near real images
+   show the network where those lines are. Only training data is augmented;
+   validation and test are real images. Four sizes are tried (2 or 3 layers of
+   64 or 128 units), each with early stopping on validation accuracy, and the
+   best validation score wins.
+3. `train.py`, **stage 2** (an experiment, `models/genre_classifier_human.keras`):
+   the stage-1 model keeps training on the 210 human fine-tune images at a
+   lower learning rate, stopping on the 30 human validation images.
 4. `evaluate.py` scores both models on both test sets, and scores the rules
    themselves against the human labels.
 
@@ -233,11 +245,17 @@ python label_images.py                     # optional: label the 300 images at h
 python build_dataset.py && python train.py && python evaluate.py
 ```
 
-**Stage 1 result: 88.2% top-1 accuracy on the 541-image rule test** (94.1% on
-validation). Per genre: EDM Chill 79.8%, EDM Drop 91.7%, Retrowave 80.1%,
-Cinematic 96.4%, House 93.0%. This measures agreement with the rules, not
-human judgment; the human test measures that. Most mistakes are between
-neighbouring moods: Retrowave and EDM Chill images guessed as Cinematic.
+**Result: 92.2% top-1 accuracy on the 541-image rule test** (96.7% on
+validation), up from 88.2% before augmentation. Per genre: EDM Chill 86.5%,
+EDM Drop 96.7%, Retrowave 87.9%, Cinematic 97.8%, House 93.0%. Most remaining
+mistakes are between neighbouring moods: Retrowave and EDM Chill images
+guessed as Cinematic. Other ideas were tried and chosen against on validation:
+bigger networks without augmentation, and encoding hue as a circle.
+
+This measures agreement with the rules. On the 60 human test images, stage 1
+scores 50% (the rules themselves score 48%). Stage 2 reaches 82% there but
+drops to 54% on the rule test, and it has only 2 Retrowave examples to learn
+from, so stage 1 is served.
 
 ## Repository layout
 

@@ -3,10 +3,10 @@ Which image goes where. Shared by label_images.py and build_dataset.py so they a
 
 The 3,000 images are split once, with fixed seeds:
 
-  300 human set, hand-labeled by us in label_images.py
-      150 fine-tune: teach the model human taste (30 of these are held back
-                     to decide when to stop fine-tuning)
-      150 human test: never trained on; the "does it match people?" score
+  300 human set, labeled by eye in label_images.py
+      70% fine-tune (210): teach the model human taste
+      10% validation (30): decide when to stop fine-tuning
+      20% human test (60): never trained on; the "does it match people?" score
   2,700 rule set, labeled by labeler.py
       70% train, 10% validation (for choosing settings), 20% test
 
@@ -24,8 +24,9 @@ IMAGES_DIR = DATA_DIR / "raw_images"
 HUMAN_LABELS_PATH = DATA_DIR / "human_labels.csv"
 
 SEED = 42
-HUMAN_SET_SIZE = 300  # ~18 minutes of labeling; enough for a 150/150 fine-tune/test split
-HUMAN_TUNE_SIZE = 150
+HUMAN_SET_SIZE = 300  # ~18 minutes of labeling
+HUMAN_TUNE_SIZE = 210  # 70%
+HUMAN_VALIDATION_SIZE = 30  # 10%; the remaining 60 (20%) are the human test set
 RULE_TRAIN_FRACTION = 0.7
 RULE_VALIDATION_FRACTION = 0.1  # the remaining 20% is the rule test set
 
@@ -39,11 +40,13 @@ def human_set() -> list[str]:
     return sorted(random.Random(SEED).sample(all_images(), HUMAN_SET_SIZE))
 
 
-def human_splits() -> tuple[list[str], list[str]]:
-    """(fine-tune, test) halves of the human set."""
+def human_splits() -> tuple[list[str], list[str], list[str]]:
+    """(fine-tune, validation, test) parts of the human set."""
     shuffled = list(human_set())
     random.Random(SEED).shuffle(shuffled)
-    return sorted(shuffled[:HUMAN_TUNE_SIZE]), sorted(shuffled[HUMAN_TUNE_SIZE:])
+    val_end = HUMAN_TUNE_SIZE + HUMAN_VALIDATION_SIZE
+    return (sorted(shuffled[:HUMAN_TUNE_SIZE]), sorted(shuffled[HUMAN_TUNE_SIZE:val_end]),
+            sorted(shuffled[val_end:]))
 
 
 def rule_splits() -> dict[str, list[str]]:

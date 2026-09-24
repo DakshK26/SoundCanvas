@@ -5,8 +5,8 @@ No public dataset says "this photo sounds like House", and hand-labeling
 thousands of images was not practical, so these hand-written rules label the
 2,700 rule-set images. The stage-1 model learns to reproduce them, which is why
 its test accuracy means agreement with these rules. To check the rules against
-real taste, we hand-labeled 300 other images (label_images.py): 150 fine-tune
-the model and 150 test it (see splits.py and evaluate.py).
+real taste, 300 other images were labeled by eye (label_images.py): 210
+fine-tune, 30 validation, 60 test (see splits.py and evaluate.py).
 
 The thresholds were picked by looking at feature spreads so that no single
 genre takes over. On our 3,000 Flickr8k photos each genre gets 11% to 27%.
