@@ -25,6 +25,26 @@ resource "aws_s3_bucket_cors_configuration" "media" {
   }
 }
 
+# Uploads and songs are deleted after 30 days; the history list hides older jobs
+# to match (FILE_RETENTION_DAYS in gateway/src/db.ts).
+resource "aws_s3_bucket_lifecycle_configuration" "media" {
+  bucket = aws_s3_bucket.media.id
+
+  dynamic "rule" {
+    for_each = ["images/", "audio/"]
+    content {
+      id     = "expire-${trimsuffix(rule.value, "/")}"
+      status = "Enabled"
+      filter {
+        prefix = rule.value
+      }
+      expiration {
+        days = 30
+      }
+    }
+  }
+}
+
 resource "aws_db_subnet_group" "main" {
   name       = var.app_name
   subnet_ids = aws_subnet.private[*].id
@@ -36,6 +56,9 @@ resource "aws_db_instance" "main" {
   engine_version    = "8.0"
   instance_class    = "db.t4g.micro" # smallest current-generation size; plenty for one table
   allocated_storage = 20             # GB, the MySQL minimum
+  storage_encrypted = true
+  # Single-AZ: a failure means minutes of downtime while RDS recovers, which a
+  # prototype accepts. multi_az = true adds a standby for about twice the cost.
 
   db_name  = var.app_name
   username = var.app_name
@@ -45,5 +68,9 @@ resource "aws_db_instance" "main" {
   db_subnet_group_name   = aws_db_subnet_group.main.name
   vpc_security_group_ids = [aws_security_group.db.id]
   publicly_accessible    = false
-  skip_final_snapshot    = true # prototype: no snapshot kept on destroy
+
+  backup_retention_period  = 7 # days of daily snapshots, restorable to any point in time
+  delete_automated_backups = false
+  deletion_protection      = var.deletion_protection
+  skip_final_snapshot      = true # the automated backups above outlive the instance for 7 days
 }

@@ -27,7 +27,23 @@ variable "certificate_arn" {
 }
 
 variable "image_tag" {
-  description = "Docker image tag to deploy from each ECR repository."
+  description = "Image tag to deploy from each ECR repository: the git commit SHA, so every deploy names exactly what runs."
   type        = string
-  default     = "latest"
+}
+
+variable "github_repository" {
+  description = "The GitHub repository (owner/name) whose deploy workflow may assume the deploy role."
+  type        = string
+}
+
+variable "alarm_email" {
+  description = "Email address for alarm notifications. Leave empty to create the alarms without a subscriber."
+  type        = string
+  default     = ""
+}
+
+variable "deletion_protection" {
+  description = "Stops the database being deleted by accident. Set to false before a deliberate `terraform destroy`."
+  type        = bool
+  default     = true
 }

@@ -1,12 +1,13 @@
 # Containers: an ECR repository per image, one ECS cluster, and a Fargate
-# service per container. The gateway image runs twice, as the API and as the worker.
+# service per container. The gateway image runs three ways: as the API, as the
+# worker, and as a one-off migration task that the deploy workflow runs first.
 # The worker finds the internal services by name through Cloud Map
 # (for example http://cpp-core.soundcanvas.local:8080).
 
 locals {
   namespace = "${var.app_name}.local"
 
-  # Settings shared by the gateway API and worker (see gateway/.env.example).
+  # Settings shared by the gateway API, worker and migration (see gateway/.env.example).
   gateway_env = [
     { name = "AWS_REGION", value = var.aws_region },
     { name = "S3_BUCKET", value = aws_s3_bucket.media.bucket },
@@ -23,42 +24,87 @@ locals {
     { name = "DB_PASSWORD", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::" },
   ]
 
+  # A container health check: ECS replaces a task whose /health stops answering.
+  # (The API is checked by the load balancer instead; the worker has no port.)
+  python_health = "import sys, urllib.request; sys.exit(urllib.request.urlopen('http://localhost:%d/health').status != 200)"
+
   # cpu is in 1/1024ths of a vCPU; memory is in MB. Sizes follow what each service does:
   # the gateway only waits on I/O, TensorFlow needs memory, and audio rendering is the heaviest step.
   services = {
     gateway-api = {
-      repo = "gateway", port = 4000, cpu = 256, memory = 512, command = null
-      env  = local.gateway_env, secrets = local.gateway_secrets, role = aws_iam_role.api.arn
+      repo   = "gateway", port = 4000, cpu = 256, memory = 512, command = null
+      env    = local.gateway_env, secrets = local.gateway_secrets, role = aws_iam_role.api.arn
+      health = null, stop_timeout = null
     }
     gateway-worker = {
       repo = "gateway", port = null, cpu = 256, memory = 512, command = ["npm", "run", "worker"]
       env  = local.gateway_env, secrets = local.gateway_secrets, role = aws_iam_role.worker.arn
+      # On a deploy or scale-in, ECS sends SIGTERM and waits this long (the Fargate maximum)
+      # before killing the task, so the worker can finish the song it is making.
+      health = null, stop_timeout = 120
     }
     cpp-core = {
-      repo = "cpp-core", port = 8080, cpu = 512, memory = 1024, command = null
-      env  = [], secrets = [], role = null
+      repo   = "cpp-core", port = 8080, cpu = 512, memory = 1024, command = null
+      env    = [], secrets = [], role = null
+      health = ["CMD", "curl", "-f", "http://localhost:8080/health"], stop_timeout = null
     }
     ml = {
-      repo = "ml", port = 5000, cpu = 512, memory = 2048, command = null
-      env  = [], secrets = [], role = null
+      repo   = "ml", port = 5000, cpu = 512, memory = 2048, command = null
+      env    = [], secrets = [], role = null
+      health = ["CMD", "python", "-c", format(local.python_health, 5000)], stop_timeout = null
     }
     audio-producer = {
-      repo = "audio-producer", port = 9001, cpu = 1024, memory = 2048, command = null
-      env  = [], secrets = [], role = null
+      repo   = "audio-producer", port = 9001, cpu = 1024, memory = 2048, command = null
+      env    = [], secrets = [], role = null
+      health = ["CMD", "python", "-c", format(local.python_health, 9001)], stop_timeout = null
     }
   }
+
+  # Every task definition: the long-running services plus the migration, which has no service.
+  tasks = merge(local.services, {
+    migrate = {
+      repo   = "gateway", port = null, cpu = 256, memory = 512, command = ["npm", "run", "migrate"]
+      env    = local.gateway_env, secrets = local.gateway_secrets, role = null
+      health = null, stop_timeout = null
+    }
+  })
 
   # The services the worker calls by name.
   internal_services = toset(["cpp-core", "ml", "audio-producer"])
 }
 
+# Tags are immutable, so an image tag (the git SHA) always means the same code.
 resource "aws_ecr_repository" "repo" {
-  for_each = toset(["gateway", "cpp-core", "ml", "audio-producer"])
-  name     = "${var.app_name}/${each.key}"
+  for_each             = toset(["gateway", "cpp-core", "ml", "audio-producer"])
+  name                 = "${var.app_name}/${each.key}"
+  image_tag_mutability = "IMMUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true # checks each pushed image for known vulnerabilities
+  }
+}
+
+# Every deploy pushes new images; keep the last 20 of each so old ones can be rolled back to.
+resource "aws_ecr_lifecycle_policy" "repo" {
+  for_each   = aws_ecr_repository.repo
+  repository = each.value.name
+  policy = jsonencode({
+    rules = [{
+      rulePriority = 1
+      description  = "Keep the 20 most recent images"
+      selection    = { tagStatus = "any", countType = "imageCountMoreThan", countNumber = 20 }
+      action       = { type = "expire" }
+    }]
+  })
 }
 
 resource "aws_ecs_cluster" "main" {
   name = var.app_name
+
+  setting {
+    name  = "containerInsights" # per-service CPU, memory and task-count metrics
+    value = "enabled"
+  }
 }
 
 resource "aws_cloudwatch_log_group" "ecs" {
@@ -84,8 +130,8 @@ resource "aws_service_discovery_service" "internal" {
   }
 }
 
-resource "aws_ecs_task_definition" "service" {
-  for_each                 = local.services
+resource "aws_ecs_task_definition" "task" {
+  for_each                 = local.tasks
   family                   = "${var.app_name}-${each.key}"
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
@@ -102,6 +148,13 @@ resource "aws_ecs_task_definition" "service" {
     portMappings = each.value.port == null ? [] : [{ containerPort = each.value.port }]
     environment  = each.value.env
     secrets      = each.value.secrets
+    stopTimeout  = each.value.stop_timeout
+    healthCheck = each.value.health == null ? null : {
+      command     = each.value.health
+      interval    = 30 # seconds between checks
+      retries     = 3
+      startPeriod = 60 # ml loads TensorFlow before it answers
+    }
     logConfiguration = {
       logDriver = "awslogs"
       options = {
@@ -113,13 +166,26 @@ resource "aws_ecs_task_definition" "service" {
   }])
 }
 
+moved { # renamed when the migration task was added
+  from = aws_ecs_task_definition.service
+  to   = aws_ecs_task_definition.task
+}
+
 resource "aws_ecs_service" "service" {
   for_each        = local.services
   name            = each.key
   cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.service[each.key].arn
+  task_definition = aws_ecs_task_definition.task[each.key].arn
   desired_count   = 1 # the starting count; auto scaling below adjusts it
   launch_type     = "FARGATE"
+
+  # A deploy whose new tasks keep failing is stopped and rolled back to the last working version,
+  # and `terraform apply` waits for that outcome, so the deploy workflow fails instead of reporting success.
+  deployment_circuit_breaker {
+    enable   = true
+    rollback = true
+  }
+  wait_for_steady_state = true
 
   network_configuration {
     subnets         = aws_subnet.private[*].id
@@ -161,26 +227,59 @@ resource "aws_appautoscaling_target" "service" {
   max_capacity       = 5
 }
 
-# Workers scale on queue depth, aiming for about 5 jobs waiting. (This tracks the
-# total backlog; a refinement is backlog per worker, computed with metric math.)
+# Workers scale on backlog per worker: waiting jobs divided by running workers,
+# aiming for 2. A song takes about a minute, so that keeps the wait near two minutes.
 # Jobs from one browser share a message group and still run one at a time;
 # extra workers help when many browsers are waiting.
-resource "aws_appautoscaling_policy" "worker_queue_depth" {
-  name               = "${var.app_name}-worker-queue-depth"
+resource "aws_appautoscaling_policy" "worker_backlog" {
+  name               = "${var.app_name}-worker-backlog"
   policy_type        = "TargetTrackingScaling"
   service_namespace  = aws_appautoscaling_target.service["gateway-worker"].service_namespace
   scalable_dimension = aws_appautoscaling_target.service["gateway-worker"].scalable_dimension
   resource_id        = aws_appautoscaling_target.service["gateway-worker"].resource_id
 
   target_tracking_scaling_policy_configuration {
-    target_value = 5
+    target_value = 2
     customized_metric_specification {
-      namespace   = "AWS/SQS"
-      metric_name = "ApproximateNumberOfMessagesVisible"
-      statistic   = "Average"
-      dimensions {
-        name  = "QueueName"
-        value = aws_sqs_queue.jobs.name
+      metrics {
+        id          = "waiting"
+        return_data = false
+        metric_stat {
+          stat = "Sum"
+          metric {
+            namespace   = "AWS/SQS"
+            metric_name = "ApproximateNumberOfMessagesVisible"
+            dimensions {
+              name  = "QueueName"
+              value = aws_sqs_queue.jobs.name
+            }
+          }
+        }
+      }
+      metrics {
+        id          = "workers"
+        return_data = false
+        metric_stat {
+          stat = "Average"
+          metric {
+            namespace   = "ECS/ContainerInsights"
+            metric_name = "RunningTaskCount"
+            dimensions {
+              name  = "ClusterName"
+              value = aws_ecs_cluster.main.name
+            }
+            dimensions {
+              name  = "ServiceName"
+              value = aws_ecs_service.service["gateway-worker"].name
+            }
+          }
+        }
+      }
+      metrics {
+        id          = "backlog_per_worker"
+        label       = "Waiting jobs per running worker"
+        expression  = "waiting / workers"
+        return_data = true
       }
     }
   }

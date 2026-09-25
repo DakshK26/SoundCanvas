@@ -54,7 +54,9 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# Private subnets reach out (to pull images from ECR, call S3 and SQS) through one NAT gateway.
+# Private subnets reach out (to pull images from ECR, call SQS) through one NAT gateway.
+# One NAT in one AZ is a trade-off: if that AZ fails, tasks lose outbound access until it
+# recovers. A NAT per AZ removes that at roughly $32 a month each.
 resource "aws_eip" "nat" {
   domain = "vpc"
 }
@@ -78,8 +80,18 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private.id
 }
 
+# S3 traffic (every image and song) goes through this free gateway endpoint
+# instead of the NAT, which charges per GB.
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${var.aws_region}.s3"
+  vpc_endpoint_type = "Gateway"
+  route_table_ids   = [aws_route_table.private.id]
+}
+
 # Security groups: the internet can reach only the load balancer; the load
-# balancer can reach only the API; tasks can reach each other and the database.
+# balancer can reach only the API; tasks reach each other only on the service ports.
+# Traffic inside the VPC is plain HTTP: it never leaves these private subnets.
 resource "aws_security_group" "alb" {
   name   = "${var.app_name}-alb"
   vpc_id = aws_vpc.main.id
@@ -109,12 +121,15 @@ resource "aws_security_group" "tasks" {
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
   }
-  ingress {
-    description = "Worker to cpp-core, ml and audio-producer"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    self        = true
+  dynamic "ingress" {
+    for_each = { cpp-core = 8080, ml = 5000, audio-producer = 9001 }
+    content {
+      description = "Worker to ${ingress.key}"
+      from_port   = ingress.value
+      to_port     = ingress.value
+      protocol    = "tcp"
+      self        = true
+    }
   }
   egress {
     from_port   = 0
@@ -143,6 +158,8 @@ resource "aws_lb" "api" {
   load_balancer_type = "application"
   subnets            = aws_subnet.public[*].id
   security_groups    = [aws_security_group.alb.id]
+
+  drop_invalid_header_fields = true # rejects malformed headers used in request smuggling
 }
 
 resource "aws_lb_target_group" "api" {
@@ -162,6 +179,7 @@ resource "aws_lb_listener" "https" {
   port              = 443
   protocol          = "HTTPS"
   certificate_arn   = var.certificate_arn
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06" # TLS 1.2 and 1.3 only, AWS's recommended policy
 
   default_action {
     type             = "forward"

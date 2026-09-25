@@ -12,11 +12,11 @@ resource "aws_sqs_queue" "jobs" {
   name       = "${var.app_name}-jobs.fifo"
   fifo_queue = true
 
-  # A song takes about a minute, and the worker's service timeouts cap a job at
-  # 8 minutes. If a message is not deleted within 10 minutes, the worker is
-  # assumed to have crashed and the message is handed out again.
-  visibility_timeout_seconds = 600
-  receive_wait_time_seconds  = 20 # long polling, matching the worker
+  # While a worker runs a job it extends this every minute (the heartbeat in
+  # gateway/src/pipeline.ts). If the worker dies, the heartbeat stops and the
+  # message is handed out again within 2 minutes, instead of waiting out a long fixed timeout.
+  visibility_timeout_seconds = 120 # VISIBILITY_TIMEOUT_SECONDS in pipeline.ts must match
+  receive_wait_time_seconds  = 20  # long polling, matching the worker
 
   # After 3 failed attempts, a message moves to the dead-letter queue
   # (MAX_ATTEMPTS in gateway/src/pipeline.ts must match).

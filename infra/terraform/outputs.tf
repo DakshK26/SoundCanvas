@@ -1,4 +1,4 @@
-# Values printed after `terraform apply`.
+# Values printed after `terraform apply`. The deploy workflow reads some of them too.
 
 output "api_url" {
   description = "Set this as NEXT_PUBLIC_GRAPHQL_ENDPOINT in the frontend (after pointing a DNS name at it that matches the certificate)."
@@ -20,4 +20,22 @@ output "queue_url" {
 
 output "database_endpoint" {
   value = aws_db_instance.main.address
+}
+
+output "deploy_role_arn" {
+  description = "Set this as the AWS_DEPLOY_ROLE_ARN variable of the GitHub production environment."
+  value       = aws_iam_role.deploy.arn
+}
+
+# Where the deploy workflow runs the one-off migration task.
+output "cluster_name" {
+  value = aws_ecs_cluster.main.name
+}
+
+output "private_subnet_ids" {
+  value = join(",", aws_subnet.private[*].id)
+}
+
+output "tasks_security_group_id" {
+  value = aws_security_group.tasks.id
 }

@@ -1,4 +1,7 @@
 # Copy to terraform.tfvars (gitignored) and fill in.
-bucket_name     = "soundcanvas-media-yourname"
-frontend_origin = "https://soundcanvas.vercel.app"
-certificate_arn = "arn:aws:acm:us-east-2:123456789012:certificate/xxxxxxxx"
+# image_tag is passed on the command line: terraform apply -var image_tag=$(git rev-parse HEAD)
+bucket_name       = "soundcanvas-media-yourname"
+frontend_origin   = "https://soundcanvas.vercel.app"
+certificate_arn   = "arn:aws:acm:us-east-2:123456789012:certificate/xxxxxxxx"
+github_repository = "yourname/SoundCanvas"
+alarm_email       = "you@example.com"

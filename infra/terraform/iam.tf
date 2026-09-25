@@ -1,7 +1,7 @@
 # Permissions. Each container gets only what its code uses:
-#   gateway-api:    presign S3 uploads/downloads, send to the queue
+#   gateway-api:    presign S3 uploads/downloads, check an upload exists, send to the queue
 #   gateway-worker: read/write S3 objects, receive, delete and delay queue messages
-#   cpp-core, ml, audio-producer: no AWS permissions (they only answer HTTP)
+#   cpp-core, ml, audio-producer, migrate: no AWS permissions
 # Database access is controlled by the network (security groups) and the password, not IAM.
 
 data "aws_iam_policy_document" "ecs_assume" {
@@ -56,6 +56,14 @@ resource "aws_iam_role_policy" "api" {
         Resource = "${aws_s3_bucket.media.arn}/*"
       },
       {
+        # Checking the image was uploaded: without list permission S3 answers
+        # "access denied" instead of "not found" for a missing file.
+        Effect    = "Allow"
+        Action    = "s3:ListBucket"
+        Resource  = aws_s3_bucket.media.arn
+        Condition = { StringLike = { "s3:prefix" = "images/*" } }
+      },
+      {
         Effect   = "Allow"
         Action   = "sqs:SendMessage"
         Resource = aws_sqs_queue.jobs.arn
@@ -80,10 +88,44 @@ resource "aws_iam_role_policy" "worker" {
         Resource = "${aws_s3_bucket.media.arn}/*"
       },
       {
-        Effect   = "Allow"
-        Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility"] # the last one delays a retry
+        Effect = "Allow"
+        # ChangeMessageVisibility keeps a running job hidden and delays a retry.
+        Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility"]
         Resource = aws_sqs_queue.jobs.arn
       },
     ]
   })
+}
+
+# The deploy workflow (.github/workflows/deploy.yml) signs in with GitHub's OIDC
+# token, so no long-lived AWS keys are stored in GitHub. Only runs in the
+# repository's "production" environment, which requires a manual approval, may assume it.
+resource "aws_iam_openid_connect_provider" "github" {
+  url            = "https://token.actions.githubusercontent.com"
+  client_id_list = ["sts.amazonaws.com"]
+}
+
+resource "aws_iam_role" "deploy" {
+  name = "${var.app_name}-deploy"
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Action    = "sts:AssumeRoleWithWebIdentity"
+      Principal = { Federated = aws_iam_openid_connect_provider.github.arn }
+      Condition = {
+        StringEquals = {
+          "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+          "token.actions.githubusercontent.com:sub" = "repo:${var.github_repository}:environment:production"
+        }
+      }
+    }]
+  })
+}
+
+# The workflow runs `terraform apply`, which creates and changes every resource
+# here (IAM roles included), so it needs broad rights. The trust policy above is what limits who gets them.
+resource "aws_iam_role_policy_attachment" "deploy" {
+  role       = aws_iam_role.deploy.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
