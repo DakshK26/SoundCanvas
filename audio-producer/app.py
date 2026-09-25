@@ -25,7 +25,7 @@ from synth import SAMPLE_RATE
 
 SOUNDFONT = os.environ.get("SOUNDFONT_PATH", "/usr/share/sounds/sf2/FluidR3_GM.sf2")
 DRUM_CHANNEL = 9  # MIDI channel 10, counted from zero; reserved for percussion
-MAX_MIDI_BYTES = 1024 * 1024  # a composed song is tens of KB; anything near 1 MB is not ours
+MAX_MIDI_BYTES = 1024 * 1024  # a composed song is under 20 KB; anything near 1 MB is not ours
 
 app = FastAPI()
 
