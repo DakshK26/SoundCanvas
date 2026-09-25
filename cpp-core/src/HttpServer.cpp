@@ -16,6 +16,9 @@ using json = nlohmann::json;
 
 namespace {
 
+// Uploads are capped at 10 MB by the S3 upload policy; the extra room is headroom, not a feature.
+constexpr size_t MAX_REQUEST_BYTES = 12 * 1024 * 1024;
+
 // Measures the uploaded image and returns its 8 features.
 void handleFeatures(const httplib::Request& req, httplib::Response& res) {
   ImageFeatures features = extractFeatures(req.body);
@@ -55,6 +58,7 @@ void handleError(const httplib::Request&, httplib::Response& res, std::exception
 
 void runHttpServer(int port) {
   httplib::Server server;
+  server.set_payload_max_length(MAX_REQUEST_BYTES);
   server.Post("/features", handleFeatures);
   server.Post("/compose", handleCompose);
   server.Get("/health", [](const httplib::Request&, httplib::Response& res) {

@@ -6,8 +6,9 @@ const CPP_CORE_URL = requireEnv("CPP_CORE_URL");
 const ML_URL = requireEnv("ML_URL");
 const AUDIO_PRODUCER_URL = requireEnv("AUDIO_PRODUCER_URL");
 
-// A job makes 4 calls; 4 x 2 minutes stays under the queue's 10-minute visibility
-// timeout, so SQS never hands the same job to a second worker while one is still on it.
+// The slowest call, rendering, finishes well within a minute. A service that has not answered in
+// 2 minutes is treated as hung: the attempt fails and is retried, rather than the worker's
+// visibility heartbeat keeping a stuck job alive forever.
 const REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
 
 /** An error that retrying cannot fix, such as an image that cannot be decoded. */
@@ -58,6 +59,6 @@ export async function composeMidi(features: number[], genre: string): Promise<Bu
 
 /** audio-producer turns the MIDI into a mastered WAV. */
 export async function renderAudio(midi: Buffer, genre: string): Promise<Buffer> {
-  const response = await post(`${AUDIO_PRODUCER_URL}/render?genre=${genre}`, midi, "audio/midi");
+  const response = await post(`${AUDIO_PRODUCER_URL}/render?genre=${encodeURIComponent(genre)}`, midi, "audio/midi");
   return Buffer.from(await response.arrayBuffer());
 }

@@ -5,7 +5,6 @@
 
 x-gateway: &gateway
   build: ../gateway
-  restart: on-failure # waits out MySQL's first-start setup
   environment:
     AWS_REGION: us-east-2
     AWS_ACCESS_KEY_ID: test # LocalStack accepts any credentials
@@ -21,15 +20,26 @@ x-gateway: &gateway
     CPP_CORE_URL: http://cpp-core:8080
     ML_URL: http://ml:5000
     AUDIO_PRODUCER_URL: http://audio-producer:9001
-  depends_on: [mysql, localstack]
+
+# The API and worker start only after the schema migration has finished.
+x-after-migrate: &after-migrate
+  depends_on:
+    migrate: { condition: service_completed_successfully }
+    localstack: { condition: service_started }
 
 services:
-  gateway-api:
+  migrate:
     <<: *gateway
+    command: ["npm", "run", "migrate"]
+    depends_on:
+      mysql: { condition: service_healthy }
+
+  gateway-api:
+    <<: [*gateway, *after-migrate]
     ports: ["4000:4000"]
 
   gateway-worker:
-    <<: *gateway
+    <<: [*gateway, *after-migrate]
     command: ["npm", "run", "worker"]
 
   cpp-core:
@@ -48,6 +58,10 @@ services:
       MYSQL_DATABASE: soundcanvas
       MYSQL_USER: soundcanvas
       MYSQL_PASSWORD: soundcanvas
+    healthcheck: # ready once it accepts logins (the first start takes ~20 s to set up)
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-usoundcanvas", "-psoundcanvas"]
+      interval: 5s
+      retries: 20
 
   localstack:
     image: localstack/localstack:3

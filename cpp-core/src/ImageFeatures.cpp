@@ -18,6 +18,9 @@ constexpr double COLORFULNESS_SCALE = 255.0 / 100.0;
 // ITU-R BT.601 luma weights: how bright each channel looks to the human eye.
 constexpr double LUMA_RED = 0.299, LUMA_GREEN = 0.587, LUMA_BLUE = 0.114;
 
+// Phone cameras top out around 50 MP but save at 12 MP by default; 40 MP decodes to 120 MB of RGB.
+constexpr long long MAX_PIXELS = 40'000'000;
+
 // Returns the standard deviation from a running sum and sum of squares.
 double stdDev(double sum, double sumOfSquares, double count) {
   double mean = sum / count;
@@ -56,10 +59,19 @@ ImageFeatures ImageFeatures::fromArray(const std::array<float, 8>& v) {
 }
 
 ImageFeatures extractFeatures(const std::string& imageBytes) {
+  const auto* data = reinterpret_cast<const unsigned char*>(imageBytes.data());
+  const int size = static_cast<int>(imageBytes.size());
   int width = 0, height = 0, channels = 0;
-  unsigned char* pixels = stbi_load_from_memory(
-      reinterpret_cast<const unsigned char*>(imageBytes.data()),
-      static_cast<int>(imageBytes.size()), &width, &height, &channels, 3);
+
+  // Read the header first: a small file can claim huge dimensions and exhaust memory when decoded.
+  if (!stbi_info_from_memory(data, size, &width, &height, &channels)) {
+    throw std::invalid_argument(std::string("Could not decode image: ") + stbi_failure_reason());
+  }
+  if (static_cast<long long>(width) * height > MAX_PIXELS) {
+    throw std::invalid_argument("Image is larger than 40 megapixels");
+  }
+
+  unsigned char* pixels = stbi_load_from_memory(data, size, &width, &height, &channels, 3);
   if (!pixels) {
     throw std::invalid_argument(std::string("Could not decode image: ") + stbi_failure_reason());
   }

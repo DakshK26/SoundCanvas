@@ -4,7 +4,7 @@ import { GraphQLError } from "graphql";
 import { audioKey, downloadUrl, imageKey, objectExists, uploadForm } from "./aws/s3";
 import { enqueueJob } from "./aws/queue";
 import {
-  countRecentGenerations, Feedback, Generation, getGeneration, insertGeneration, listGenerations,
+  countRecentGenerations, deleteGeneration, Feedback, Generation, getGeneration, insertGeneration, listGenerations,
   markPending, markQueued, setFeedback,
 } from "./db";
 
@@ -63,13 +63,16 @@ export const resolvers = {
       { genre, imageType }: { genre?: string; imageType: keyof typeof CONTENT_TYPES },
       { clientId, clientIp }: Context,
     ) => {
-      if ((await countRecentGenerations(clientId, clientIp)) >= SONGS_PER_HOUR) {
+      // Insert first, then count: two simultaneous requests both see each other's row, so the
+      // limit can only ever be undershot, never exceeded (count-then-insert lets both through).
+      const jobId = randomUUID();
+      await insertGeneration({ id: jobId, clientId, clientIp, requestedGenre: genre ?? null });
+      if ((await countRecentGenerations(clientId, clientIp)) > SONGS_PER_HOUR) {
+        await deleteGeneration(jobId);
         throw new GraphQLError(`Limit of ${SONGS_PER_HOUR} songs per hour reached`, {
           extensions: { code: "RATE_LIMITED" },
         });
       }
-      const jobId = randomUUID();
-      await insertGeneration({ id: jobId, clientId, clientIp, requestedGenre: genre ?? null });
       const { url, fields } = await uploadForm(imageKey(jobId), CONTENT_TYPES[imageType]);
       return {
         jobId,

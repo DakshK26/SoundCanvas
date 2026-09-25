@@ -1,4 +1,5 @@
-// The `generations` table in RDS MySQL: one row per song request.
+// Queries on the `generations` table in RDS MySQL: one row per song request.
+// The schema lives in migrations/ (applied by migrate.ts before each deploy).
 //
 // Why a relational database: the app needs a browser's history in time order,
 // counts of recent requests for rate limiting, status changes that only apply
@@ -24,33 +25,24 @@ export interface Generation {
   created_at: Date;
 }
 
-const pool = mysql.createPool({
+// db.t4g.micro allows about 60 connections. At full scale (5 API + 5 worker tasks)
+// 5 each is 50, leaving room for migrations and a person debugging.
+const CONNECTIONS_PER_TASK = 5;
+
+// How long a job may sit in QUEUED or PROCESSING before it is declared lost.
+// A job normally takes about a minute; even a busy browser's backlog clears well within this.
+const STALE_JOB_MINUTES = 60;
+
+// S3 deletes images and songs after this many days (the lifecycle rule in infra/terraform/storage.tf).
+const FILE_RETENTION_DAYS = 30;
+
+export const pool = mysql.createPool({
   host: requireEnv("DB_HOST"),
   user: requireEnv("DB_USER"),
   password: requireEnv("DB_PASSWORD"),
   database: requireEnv("DB_NAME"),
+  connectionLimit: CONNECTIONS_PER_TASK,
 });
-
-/** Creates the table on first start. */
-export async function createTable(): Promise<void> {
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS generations (
-      id              CHAR(36) PRIMARY KEY,
-      client_id       CHAR(36) NOT NULL,
-      client_ip       VARCHAR(45) NOT NULL,  -- 45 characters fits the longest IPv6 address
-      status          ENUM('PENDING','QUEUED','PROCESSING','COMPLETED','FAILED') NOT NULL,
-      requested_genre VARCHAR(20),
-      genre           VARCHAR(20),
-      confidence      FLOAT,
-      features        JSON,
-      feedback        ENUM('UP','DOWN'),
-      error_message   TEXT,
-      created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-      INDEX history_lookup (client_id, created_at),  -- one browser's songs, newest first
-      INDEX rate_limit_lookup (client_ip, created_at)
-    )`);
-}
 
 export async function insertGeneration(row: {
   id: string; clientId: string; clientIp: string; requestedGenre: string | null;
@@ -60,16 +52,22 @@ export async function insertGeneration(row: {
     [row.id, row.clientId, row.clientIp, row.requestedGenre]);
 }
 
+export async function deleteGeneration(id: string): Promise<void> {
+  await pool.query("DELETE FROM generations WHERE id = ?", [id]);
+}
+
 export async function getGeneration(id: string): Promise<Generation | null> {
   const [rows] = await pool.query<RowDataPacket[]>("SELECT * FROM generations WHERE id = ?", [id]);
   return (rows[0] as Generation) ?? null;
 }
 
-/** One browser's songs, newest first. PENDING jobs are skipped: their image was never uploaded. */
+/** One browser's songs, newest first. PENDING jobs are skipped: their image was never uploaded.
+ *  Older songs are skipped too: S3 has deleted their files. */
 export async function listGenerations(clientId: string, limit: number): Promise<Generation[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
-    `SELECT * FROM generations WHERE client_id = ? AND status <> 'PENDING'
-     ORDER BY created_at DESC LIMIT ?`, [clientId, limit]);
+    `SELECT * FROM generations
+     WHERE client_id = ? AND status <> 'PENDING' AND created_at > NOW() - INTERVAL ? DAY
+     ORDER BY created_at DESC LIMIT ?`, [clientId, FILE_RETENTION_DAYS, limit]);
   return rows as Generation[];
 }
 
@@ -115,6 +113,19 @@ export async function markFailed(id: string, message: string): Promise<void> {
   await update(
     "UPDATE generations SET status = 'FAILED', error_message = ? WHERE id = ? AND status IN ('QUEUED', 'PROCESSING')",
     [message, id]);
+}
+
+/**
+ * Fails jobs stuck in QUEUED or PROCESSING, and returns how many. This catches the one
+ * path the worker cannot: a worker that crashes on the final attempt never marks the job,
+ * and SQS moves the message to the dead-letter queue on its next receive.
+ */
+export async function failStaleJobs(): Promise<number> {
+  const [result] = await pool.query<ResultSetHeader>(
+    `UPDATE generations SET status = 'FAILED', error_message = 'Timed out'
+     WHERE status IN ('QUEUED', 'PROCESSING') AND updated_at < NOW() - INTERVAL ? MINUTE`,
+    [STALE_JOB_MINUTES]);
+  return result.affectedRows;
 }
 
 /** Records a thumbs up or down on a finished song. False if it isn't this browser's finished song. */

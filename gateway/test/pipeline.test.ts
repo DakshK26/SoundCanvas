@@ -8,7 +8,8 @@ vi.mock("../src/aws/s3", () => ({
   getObject: vi.fn(),
   putObject: vi.fn(),
 }));
-vi.mock("../src/aws/queue", () => ({ deleteJob: vi.fn(), releaseJob: vi.fn() }));
+vi.mock("../src/aws/queue", () => ({ deleteJob: vi.fn(), releaseJob: vi.fn(), extendVisibility: vi.fn() }));
+vi.mock("../src/log", () => ({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("../src/db", () => ({
   getGeneration: vi.fn(),
   startProcessing: vi.fn(),
@@ -30,7 +31,7 @@ import * as s3 from "../src/aws/s3";
 import * as queue from "../src/aws/queue";
 import * as db from "../src/db";
 import * as services from "../src/services";
-import { handleMessage, MAX_ATTEMPTS, RETRY_DELAY_SECONDS } from "../src/pipeline";
+import { handleMessage, MAX_ATTEMPTS, RETRY_DELAY_SECONDS, VISIBILITY_TIMEOUT_SECONDS } from "../src/pipeline";
 
 const FEATURES = [0.5, 0.4, 0.3, 0.45, 0.6, 0.7, 0.2, 0.3];
 const message = (receiveCount = 1) => ({ jobId: "job-1", receiptHandle: "handle", receiveCount });
@@ -48,6 +49,7 @@ beforeEach(() => {
   vi.mocked(services.predictGenre).mockResolvedValue({ genre: "HOUSE", confidence: 0.9 });
   vi.mocked(services.composeMidi).mockResolvedValue(Buffer.from("midi"));
   vi.mocked(services.renderAudio).mockResolvedValue(Buffer.from("wav"));
+  vi.mocked(queue.extendVisibility).mockResolvedValue();
 });
 
 describe("handleMessage", () => {
@@ -108,6 +110,23 @@ describe("handleMessage", () => {
     expect(services.extractFeatures).not.toHaveBeenCalled();
     expect(db.markCompleted).not.toHaveBeenCalled();
     expect(queue.deleteJob).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the message hidden while a long job runs, and stops once it ends", async () => {
+    vi.useFakeTimers();
+    let finishRender: (wav: Buffer) => void = () => {};
+    vi.mocked(services.renderAudio).mockReturnValue(new Promise((resolve) => { finishRender = resolve; }));
+
+    const running = handleMessage(message());
+    await vi.advanceTimersByTimeAsync(150_000); // two and a half minutes into rendering
+    expect(queue.extendVisibility).toHaveBeenCalledTimes(2);
+    expect(queue.extendVisibility).toHaveBeenCalledWith(message(), VISIBILITY_TIMEOUT_SECONDS);
+
+    finishRender(Buffer.from("wav"));
+    await running;
+    await vi.advanceTimersByTimeAsync(120_000);
+    expect(queue.extendVisibility).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
   it("fails a message whose job is not in the database", async () => {

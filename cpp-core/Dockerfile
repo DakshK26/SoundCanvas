@@ -6,10 +6,15 @@ COPY CMakeLists.txt .
 COPY include include
 COPY src src
 COPY vendor vendor
-RUN cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j
+# gcc:13 ships a newer C++ runtime than Debian's, so link it into the binary.
+RUN cmake -B build -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_EXE_LINKER_FLAGS="-static-libstdc++ -static-libgcc" \
+    && cmake --build build -j
 
 FROM debian:bookworm-slim
-COPY --from=build /usr/local/lib64/libstdc++.so.6 /usr/lib/x86_64-linux-gnu/libstdc++.so.6
+# curl is only for the container health check.
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 COPY --from=build /src/build/soundcanvas_core /usr/local/bin/soundcanvas_core
+USER nobody
 EXPOSE 8080
 CMD ["soundcanvas_core"]

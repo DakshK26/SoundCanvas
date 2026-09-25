@@ -5,8 +5,9 @@ import { expressMiddleware } from "@apollo/server/express4";
 import cors from "cors";
 import express, { Request } from "express";
 import { GraphQLError } from "graphql";
-import { createTable } from "./db";
+import { pool } from "./db";
 import { requireEnv } from "./env";
+import { log } from "./log";
 import { Context, resolvers } from "./resolvers";
 import { typeDefs } from "./schema";
 
@@ -26,7 +27,8 @@ function requestContext(req: Request): Context {
 }
 
 async function main(): Promise<void> {
-  await createTable();
+  // With NODE_ENV=production (set in the Dockerfile) Apollo turns off introspection
+  // and leaves stack traces out of error responses.
   const server = new ApolloServer<Context>({ typeDefs, resolvers });
   await server.start();
 
@@ -36,10 +38,23 @@ async function main(): Promise<void> {
   app.use(
     "/graphql",
     cors({ origin: FRONTEND_ORIGIN }),
-    express.json(),
+    express.json({ limit: "10kb" }), // every operation is a few hundred bytes; files go straight to S3
     expressMiddleware(server, { context: async ({ req }) => requestContext(req) }),
   );
-  app.listen(PORT, () => console.log(`GraphQL API ready on port ${PORT}`));
+  const httpServer = app.listen(PORT, () => log.info("GraphQL API ready", { port: PORT }));
+
+  // On a deploy or scale-in, ECS sends SIGTERM after taking the task out of the load
+  // balancer. Finish the requests already in flight, then close the database pool.
+  process.on("SIGTERM", () => {
+    log.info("SIGTERM received: draining requests");
+    httpServer.close(async () => {
+      await server.stop();
+      await pool.end();
+    });
+  });
 }
 
-main();
+main().catch((error) => {
+  log.error("API failed to start", { error: (error as Error).message });
+  process.exit(1);
+});

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import mido
 import soundfile as sf
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import Body, FastAPI, HTTPException, Response
 
 from drums import KICK, KITS, render_drums
 from fx import render_fx
@@ -25,6 +25,7 @@ from synth import SAMPLE_RATE
 
 SOUNDFONT = os.environ.get("SOUNDFONT_PATH", "/usr/share/sounds/sf2/FluidR3_GM.sf2")
 DRUM_CHANNEL = 9  # MIDI channel 10, counted from zero; reserved for percussion
+MAX_MIDI_BYTES = 1024 * 1024  # a composed song is tens of KB; anything near 1 MB is not ours
 
 app = FastAPI()
 
@@ -84,11 +85,15 @@ def render_song(midi_bytes: bytes, genre: str) -> bytes:
 
 
 @app.post("/render")
-async def render(request: Request, genre: str) -> Response:
+def render(genre: str, midi: bytes = Body(media_type="audio/midi")) -> Response:
+    # A plain `def`, not `async def`: FastAPI runs it on a worker thread, so a render that
+    # takes seconds of CPU does not freeze the server (and its /health check) meanwhile.
     # 400 tells the worker retrying is pointless; any other failure is a 500 and gets retried.
     if genre not in KITS:
         raise HTTPException(400, f"Unknown genre {genre}")
-    return Response(render_song(await request.body(), genre), media_type="audio/wav")
+    if len(midi) > MAX_MIDI_BYTES:
+        raise HTTPException(413, "MIDI file too large")
+    return Response(render_song(midi, genre), media_type="audio/wav")
 
 
 @app.get("/health")

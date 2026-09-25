@@ -55,7 +55,16 @@ export async function deleteJob(job: QueuedJob): Promise<void> {
  * for another attempt, or moves it to the dead-letter queue after the 3rd receive.
  */
 export async function releaseJob(job: QueuedJob, delaySeconds: number): Promise<void> {
+  await setVisibility(job, delaySeconds);
+}
+
+/** Heartbeat while a job runs: keeps the message hidden from other workers for another `seconds`. */
+export async function extendVisibility(job: QueuedJob, seconds: number): Promise<void> {
+  await setVisibility(job, seconds);
+}
+
+async function setVisibility(job: QueuedJob, seconds: number): Promise<void> {
   await sqs.send(new ChangeMessageVisibilityCommand({
-    QueueUrl: QUEUE_URL, ReceiptHandle: job.receiptHandle, VisibilityTimeout: delaySeconds,
+    QueueUrl: QUEUE_URL, ReceiptHandle: job.receiptHandle, VisibilityTimeout: seconds,
   }));
 }

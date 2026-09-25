@@ -1,5 +1,5 @@
-# gateway: one image, two containers. ECS runs it as the API (the default CMD)
-# and as the worker (command override: npm run worker).
+# gateway: one image, three commands. ECS runs it as the API (the default CMD),
+# as the worker (npm run worker) and, once per deploy, as the migration task (npm run migrate).
 FROM node:22-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
@@ -9,9 +9,12 @@ COPY src ./src
 RUN npm run build
 
 FROM node:22-slim
+ENV NODE_ENV=production
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 COPY --from=build /app/dist ./dist
+COPY migrations ./migrations
+USER node
 EXPOSE 4000
 CMD ["npm", "run", "api"]

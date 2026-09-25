@@ -151,6 +151,22 @@ void rejectsBytesThatAreNotAnImage() {
   CHECK(threw);
 }
 
+// A 41-byte PNG header claiming 10,000 x 10,000 pixels must be refused before decoding.
+void rejectsImagesThatAreTooLarge() {
+  std::string png = std::string("\x89PNG\r\n\x1a\n", 8) + std::string("\0\0\0\x0d", 4) + "IHDR" +
+                    std::string("\0\0\x27\x10\0\0\x27\x10", 8) +  // width and height: 10,000
+                    std::string("\x08\x02\0\0\0", 5) +            // 8-bit RGB
+                    std::string(4, '\0') +                         // checksum, which stb ignores
+                    std::string("\0\0\0\0", 4) + "IDAT";           // where the pixel data would start
+  bool threw = false;
+  try {
+    extractFeatures(png);
+  } catch (const std::invalid_argument& error) {
+    threw = std::string(error.what()).find("megapixels") != std::string::npos;
+  }
+  CHECK(threw);
+}
+
 void parsesGenreNames() {
   for (const std::string& name : GENRE_NAMES) CHECK(templateFor(parseGenre(name)).name == name);
   bool threw = false;
@@ -254,6 +270,7 @@ int main() {
   const std::vector<std::pair<std::string, std::function<void()>>> tests = {
       {"features match Python", featuresMatchPython},
       {"rejects bytes that are not an image", rejectsBytesThatAreNotAnImage},
+      {"rejects images that are too large", rejectsImagesThatAreTooLarge},
       {"parses genre names", parsesGenreNames},
       {"genre templates are well formed", genreTemplatesAreWellFormed},
       {"tempo follows brightness", tempoFollowsBrightness},
