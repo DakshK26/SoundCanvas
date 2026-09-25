@@ -21,7 +21,8 @@ int pickRootNote(const ImageFeatures& f) {
   return music::LOWEST_ROOT_NOTE + semitonesUp;
 }
 
-// How energetic the image feels, 0.3 to 0.9. Same formula as ml/labeler.py.
+// How energetic the image feels, 0.3 to 0.9. Saturation weighs most: in colour-emotion
+// studies it drives arousal more than brightness does (Valdez & Mehrabian, 1994).
 float imageEnergy(const ImageFeatures& f) {
   // Contrast only reaches 0.5, so double it to put it on the same 0-1 scale.
   float raw = 0.5f * f.saturation + 0.3f * f.colorfulness + 0.2f * (f.contrast * 2.0f);

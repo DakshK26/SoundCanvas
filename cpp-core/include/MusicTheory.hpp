@@ -34,9 +34,6 @@ const std::vector<int> MINOR_SCALE = {0, 2, 3, 5, 7, 8, 10};
 // Dorian: natural minor with a raised 6th note. Moody but not sad; common in house.
 const std::vector<int> DORIAN_SCALE = {0, 2, 3, 5, 7, 9, 10};
 
-// Lydian: major with a raised 4th note. Dreamy and floating; common in film scores.
-const std::vector<int> LYDIAN_SCALE = {0, 2, 4, 6, 7, 9, 11};
-
 // ---- Chord progressions -----------------------------------------------------
 // Listed as scale degrees, counted from 0 (0 = the root chord, "I" or "i").
 
@@ -75,7 +72,6 @@ constexpr int STRINGS = 48;
 constexpr int SYNTH_BRASS = 62;
 constexpr int SQUARE_LEAD = 80;
 constexpr int SAW_LEAD = 81;
-constexpr int NEW_AGE_PAD = 88;
 constexpr int WARM_PAD = 89;
 constexpr int POLYSYNTH_PAD = 90;
 constexpr int CHOIR_PAD = 91;

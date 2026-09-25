@@ -182,7 +182,7 @@ export default function Home() {
                 {
                   step: '02',
                   title: 'Analyze',
-                  desc: 'We look at colors, mood, and composition',
+                  desc: 'We measure its color, brightness and contrast',
                   color: '#81B29A'
                 },
                 {
@@ -222,7 +222,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="relative z-10 py-8 border-t border-[#E8E0D8] bg-white/30">
         <div className="container mx-auto px-4 text-center text-sm text-[#8C8279]">
-          <p>© 2025 SoundCanvas. Built by Daksh Khanna & Karan Kardam</p>
+          <p>© 2026 SoundCanvas. Built by Daksh Khanna & Karan Kardam</p>
         </div>
       </footer>
     </div>
