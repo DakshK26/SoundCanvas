@@ -42,7 +42,7 @@ jobs:
         with:
           python-version: "3.12"
       # TensorFlow is not needed for these tests, and skipping it saves minutes per run.
-      - run: pip install numpy pillow
+      - run: pip install numpy pillow scikit-learn
       - run: python -m unittest discover -s ml/tests -v
 
   frontend:

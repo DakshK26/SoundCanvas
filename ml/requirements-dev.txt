@@ -1,0 +1,7 @@
+# Everything for labeling, training and the evaluation notebook.
+-r requirements.txt
+pillow
+scikit-learn
+matplotlib
+ipykernel
+nbconvert

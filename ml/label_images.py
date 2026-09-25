@@ -1,10 +1,11 @@
 """
-Hand-labeling tool for the human-labeled set.
+Labeling tool: gives each photo the genre its colour and mood fit best.
 
-Opens a page that shows one image at a time. Press 1-5 (or click) to pick the
-genre that fits the image best; Backspace goes back one. Each answer is saved
-to data/human_labels.csv immediately, so you can stop and resume any time.
-The rule label is never shown, so the answers are independent of labeler.py.
+Opens a page that shows one photo at a time next to the genre guide. Press 1-5
+(or click) to pick a genre; Backspace goes back one. Each answer is saved to
+data/labels.csv immediately, so labeling can stop and resume at any time.
+Labels describe colour and mood, not subject, because the model only sees the
+8 colour features: a party and a quiet park with the same colours get the same genre.
 
 Run:  python label_images.py   then open http://localhost:8765
 """
@@ -13,19 +14,19 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from labeler import GENRES
-from splits import HUMAN_SET_SIZE, IMAGES_DIR, human_set, load_human_labels, save_human_labels
+from data_files import IMAGES_DIR, all_images, load_labels, save_labels
+from genres import GENRES
 
 PORT = 8765
 SAVE_LOCK = threading.Lock()
 
-# What each genre sounds like, shown next to the buttons as a labeling guide.
+# The labeling guide, shown next to the buttons: the look that fits each genre.
 GENRE_GUIDE = {
-    "EDM_CHILL": "calm, airy electronic: relaxed, soft, peaceful",
-    "EDM_DROP": "intense bass drops: aggressive, powerful, dark energy",
-    "RETROWAVE": "80s synths: neon, nostalgic, stylish",
-    "CINEMATIC": "film score: dramatic, epic, moody",
-    "HOUSE": "upbeat dance music: bright, fun, social",
+    "EDM_CHILL": "calm and airy: light, soft or pastel colours, gentle contrast, cool blues and greens",
+    "EDM_DROP": "dark and intense: mostly dark with punchy contrast or deep saturated colour",
+    "RETROWAVE": "neon and stylised: purple, magenta, pink or teal-and-orange casts, coloured lights at night",
+    "CINEMATIC": "muted and moody: greys, browns and dim light, washed-out or desaturated colour",
+    "HOUSE": "bright and upbeat: well lit, warm, vivid and colourful",
 }
 
 
@@ -95,7 +96,7 @@ show();
 
 
 class LabelingHandler(BaseHTTPRequestHandler):
-    images = human_set()
+    images = all_images()
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -106,7 +107,7 @@ class LabelingHandler(BaseHTTPRequestHandler):
             if wanted:
                 allowed = set(self.images)
                 images = [name for name in wanted.split(",") if name in allowed]
-            data = {"images": images, "labels": load_human_labels(), "genres": GENRES, "guide": GENRE_GUIDE}
+            data = {"images": images, "labels": load_labels(), "genres": GENRES, "guide": GENRE_GUIDE}
             self.respond(200, "text/html", PAGE.replace("__DATA__", json.dumps(data)).encode())
         elif self.path.startswith("/images/") and self.path[len("/images/"):] in self.images:
             self.respond(200, "image/jpeg", (IMAGES_DIR / self.path[len("/images/"):]).read_bytes())
@@ -120,12 +121,12 @@ class LabelingHandler(BaseHTTPRequestHandler):
             self.respond(400, "text/plain", b"bad label")
             return
         with SAVE_LOCK:  # read-modify-write of the CSV must not interleave across threads
-            labels = load_human_labels()
+            labels = load_labels()
             if body["genre"]:
                 labels[body["image"]] = body["genre"]
             else:
                 labels.pop(body["image"], None)
-            save_human_labels(labels)
+            save_labels(labels)
         self.respond(200, "text/plain", b"ok")
 
     def respond(self, status: int, content_type: str, body: bytes):
@@ -139,6 +140,8 @@ class LabelingHandler(BaseHTTPRequestHandler):
 
 
 if __name__ == "__main__":
-    print(f"Labeling {HUMAN_SET_SIZE} images. Open http://localhost:{PORT}")
-    # Threaded so one stalled connection can't block every other request.
+    print(f"Labeling {len(LabelingHandler.images)} images. Open http://localhost:{PORT}")
+    # Threaded so one stalled connection can't block every other request. Address reuse is
+    # off so a second copy fails to start instead of silently sharing the port (Windows allows that).
+    ThreadingHTTPServer.allow_reuse_address = False
     ThreadingHTTPServer(("localhost", PORT), LabelingHandler).serve_forever()

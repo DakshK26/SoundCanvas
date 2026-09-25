@@ -18,10 +18,10 @@ import tempfile
 import zipfile
 from pathlib import Path
 
-from splits import IMAGES_DIR, SEED
+from data_files import IMAGES_DIR, SEED
 
 KAGGLE_DATASET = "adityajn105/flickr8k"
-IMAGE_COUNT = 3000  # enough for 2,700 rule-labeled + 300 hand-labeled; labeling all 8,091 adds little
+IMAGE_COUNT = 3000  # enough for a 2,100 / 300 / 600 split; labeling all 8,091 adds little
 
 
 def main():

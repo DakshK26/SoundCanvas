@@ -1,58 +1,47 @@
 """
-Step 1 of training: turn the raw images into labeled feature arrays.
+Step 1 of training: turn data/labels.csv into data/dataset.csv.
 
-For every image we compute its 8 features (features.py). Images in the rule
-set get a label from labeler.py; images in the human set get the label we
-picked by hand (label_images.py). See splits.py for which image goes where.
-
-Saved to data/dataset.npz:
-  x_train, y_train, x_val, y_val, x_test, y_test   rule-labeled splits
-  x_tune, y_tune                                    210 hand-labeled, for fine-tuning
-  x_human_val, y_human_val                          30 hand-labeled, for stopping fine-tuning
-  x_human_test, y_human_test                        60 hand-labeled, for testing
-  y_human_test_rules                                what the rules say for those 60
-The human arrays are only written once all 300 images are hand-labeled.
+Computes each labeled photo's 8 features (features.py) and assigns it a split:
+  train       70%  fits the network
+  validation  10%  picks the network size and when to stop training
+  test        20%  scored once, in evaluate.ipynb, and never used to make a choice
+The split is stratified: each genre is divided 70/10/20 on its own, so a rare
+genre cannot end up missing from the test set by chance.
 """
-import numpy as np
+import csv
 
-from features import compute_features
-from labeler import GENRES, label_genre
-from splits import DATA_DIR, HUMAN_SET_SIZE, IMAGES_DIR, human_splits, load_human_labels, rule_splits
+from sklearn.model_selection import train_test_split
 
-DATASET_PATH = DATA_DIR / "dataset.npz"
+from data_files import DATASET_PATH, IMAGES_DIR, SEED, load_labels
+from features import FEATURE_NAMES, compute_features
 
-
-def features_for(names: list[str]) -> np.ndarray:
-    return np.stack([compute_features(IMAGES_DIR / name) for name in names])
+VALIDATION_SHARE = 0.10
+TEST_SHARE = 0.20
 
 
-def rule_labels(features: np.ndarray) -> np.ndarray:
-    return np.array([GENRES.index(label_genre(row)) for row in features])
+def assign_splits(labels: dict[str, str]) -> dict[str, str]:
+    """Image filename -> "train", "validation" or "test"."""
+    images = sorted(labels)
+    rest, test = train_test_split(images, test_size=TEST_SHARE, random_state=SEED,
+                                  stratify=[labels[image] for image in images])
+    train, validation = train_test_split(rest, test_size=VALIDATION_SHARE / (1 - TEST_SHARE),
+                                         random_state=SEED, stratify=[labels[image] for image in rest])
+    return {image: split for split, names in (("train", train), ("validation", validation), ("test", test))
+            for image in names}
 
 
 def main():
-    arrays = {}
-    for split, names in rule_splits().items():
-        arrays[f"x_{split}"] = features_for(names)
-        arrays[f"y_{split}"] = rule_labels(arrays[f"x_{split}"])
-        counts = np.bincount(arrays[f"y_{split}"], minlength=len(GENRES))
-        print(f"rule {split:5s} {len(names):5d} images  " +
-              "  ".join(f"{g}={c}" for g, c in zip(GENRES, counts)))
+    labels = load_labels()
+    splits = assign_splits(labels)
+    with DATASET_PATH.open("w", newline="") as file:
+        writer = csv.writer(file)
+        writer.writerow(["image", "split", "genre", *FEATURE_NAMES])
+        for image in sorted(labels):
+            features = compute_features(IMAGES_DIR / image)
+            writer.writerow([image, splits[image], labels[image], *(f"{value:.6f}" for value in features)])
 
-    human_labels = load_human_labels()
-    if len(human_labels) < HUMAN_SET_SIZE:
-        print(f"human set: {len(human_labels)}/{HUMAN_SET_SIZE} hand-labeled, so it is left out "
-              f"(finish with label_images.py, then run this again)")
-    else:
-        tune, val, test = human_splits()
-        for key, names in (("tune", tune), ("human_val", val), ("human_test", test)):
-            arrays[f"x_{key}"] = features_for(names)
-            arrays[f"y_{key}"] = np.array([GENRES.index(human_labels[name]) for name in names])
-        arrays["y_human_test_rules"] = rule_labels(arrays["x_human_test"])
-        print(f"human set: {len(tune)} fine-tune, {len(val)} validation, {len(test)} test")
-
-    np.savez(DATASET_PATH, **arrays)
-    print(f"saved {DATASET_PATH}")
+    counts = {split: list(splits.values()).count(split) for split in ("train", "validation", "test")}
+    print(f"saved {DATASET_PATH}: {len(labels)} images, " + ", ".join(f"{n} {s}" for s, n in counts.items()))
 
 
 if __name__ == "__main__":

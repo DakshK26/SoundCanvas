@@ -1,6 +1,6 @@
 """
-Tests for the Python side of the ML pipeline. Standard library only, so they
-run without TensorFlow:  python -m unittest discover -s ml/tests
+Tests for the Python side of the ML pipeline. They run without TensorFlow:
+  pip install numpy pillow scikit-learn && python -m unittest discover -s ml/tests
 """
 import json
 import re
@@ -12,8 +12,10 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "ml"))
+from build_dataset import assign_splits  # noqa: E402
+from data_files import all_images, load_labels  # noqa: E402
 from features import FEATURE_NAMES, compute_features  # noqa: E402
-from labeler import GENRES, label_genre  # noqa: E402
+from genres import GENRES  # noqa: E402
 
 
 class FeaturesMatchGolden(unittest.TestCase):
@@ -28,28 +30,26 @@ class FeaturesMatchGolden(unittest.TestCase):
                 np.testing.assert_allclose(compute_features(ROOT / path), expected, atol=1e-5)
 
 
-class LabelerCoversEveryGenre(unittest.TestCase):
-    """One hand-picked image description per rule branch, so a threshold edit that
-    makes a genre unreachable is caught."""
+class LabelsAreComplete(unittest.TestCase):
+    def test_every_photo_has_one_known_genre(self):
+        labels = load_labels()
+        self.assertEqual(sorted(labels), all_images())
+        self.assertLessEqual(set(labels.values()), set(GENRES))
 
-    CASES = {
-        # avg r, g, b, brightness, hue, saturation, colorfulness, contrast
-        "EDM_DROP": [0.2, 0.1, 0.1, 0.15, 0.05, 0.8, 0.7, 0.3],   # dark and intense
-        "CINEMATIC": [0.2, 0.2, 0.2, 0.2, 0.6, 0.1, 0.1, 0.1],    # dark and calm
-        "HOUSE": [0.9, 0.8, 0.6, 0.8, 0.1, 0.7, 0.6, 0.25],      # bright and intense
-        "EDM_CHILL": [0.8, 0.8, 0.9, 0.8, 0.6, 0.2, 0.2, 0.1],   # bright and calm
-        "RETROWAVE": [0.5, 0.5, 0.6, 0.55, 0.6, 0.5, 0.3, 0.1],   # fairly bright, medium saturation
-    }
 
-    def test_each_genre_is_reachable(self):
-        for genre, features in self.CASES.items():
+class SplitsAreStratified(unittest.TestCase):
+    """Each genre must be divided 70/10/20 on its own, with no photo in two splits."""
+
+    def test_each_genre_is_split_70_10_20(self):
+        labels = {f"image_{i:05d}.jpg": GENRES[i % 3] if i % 50 else "RETROWAVE" for i in range(1000)}
+        splits = assign_splits(labels)
+        self.assertEqual(splits, assign_splits(labels))  # the same every run
+        for genre in set(labels.values()):
+            names = [image for image, g in labels.items() if g == genre]
+            shares = [sum(splits[n] == split for n in names) / len(names)
+                      for split in ("train", "validation", "test")]
             with self.subTest(genre=genre):
-                self.assertEqual(label_genre(features), genre)
-
-    def test_only_known_genres(self):
-        rng = np.random.default_rng(0)
-        for features in rng.random((500, 8)):
-            self.assertIn(label_genre(features), GENRES)
+                np.testing.assert_allclose(shares, [0.7, 0.1, 0.2], atol=0.03)
 
 
 class GenreNamesAgree(unittest.TestCase):

@@ -1,5 +1,5 @@
+# What the ml service needs to serve predictions (the Docker image installs only this).
 tensorflow~=2.21
 numpy
-pillow
 fastapi
 uvicorn

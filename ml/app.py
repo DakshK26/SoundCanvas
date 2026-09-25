@@ -11,7 +11,7 @@ import tensorflow as tf
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from labeler import GENRES
+from genres import GENRES
 
 MODEL_PATH = Path(__file__).parent / "models" / "genre_classifier.keras"
 
@@ -40,5 +40,5 @@ def predict(request: PredictRequest) -> PredictResponse:
 
 @app.get("/health")
 def health() -> dict:
-    """Used by the load balancer to check the service is up."""
+    """Used by the ECS container health check."""
     return {"ok": True}
