@@ -142,7 +142,7 @@ std::string composeMidi(const SongPlan& plan) {
     const Section& section = plan.sections[s];
     bool nextIsLouder = s + 1 < plan.sections.size() && plan.sections[s + 1].energy > section.energy;
     int velocity = velocityFor(section.energy);
-    midi.addMarker(tracks.drums, bar * TICKS_PER_BAR, section.name);
+    midi.addMarker(tracks.drums, bar * TICKS_PER_BAR, sectionName(section.type));
 
     for (int barInSection = 0; barInSection < section.bars; ++barInSection, ++bar) {
       int barTick = bar * TICKS_PER_BAR;
@@ -160,7 +160,7 @@ std::string composeMidi(const SongPlan& plan) {
         if (section.energy >= OPEN_HAT_MIN_ENERGY) {
           playDrum(midi, tracks.drums, barTick, patterns.openHat, OPEN_HAT, velocity - 15);
         }
-        if (section.name == "drop" && barInSection == 0) {
+        if (section.type == SectionType::DROP && barInSection == 0) {
           midi.addNote(tracks.drums, barTick, TICKS_PER_BEAT, DRUM_CHANNEL, CRASH, velocity);
         }
         if (nextIsLouder && barInSection == section.bars - 1) {

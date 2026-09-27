@@ -11,11 +11,14 @@ using namespace music;
 
 namespace {
 
+constexpr SectionType INTRO = SectionType::INTRO, BUILD = SectionType::BUILD, DROP = SectionType::DROP,
+                      BREAK = SectionType::BREAK, OUTRO = SectionType::OUTRO;
+
 const GenreTemplate EDM_CHILL_TEMPLATE = {
     Genre::EDM_CHILL, "EDM_CHILL", 100, 115,
     MAJOR_SCALE, POP_PROGRESSION,
-    {{"intro", 4, 0.2f}, {"build", 8, 0.5f}, {"drop", 8, 0.7f},
-     {"break", 4, 0.4f}, {"drop", 8, 0.7f}, {"outro", 4, 0.2f}},
+    {{INTRO, 4, 0.2f}, {BUILD, 8, 0.5f}, {DROP, 8, 0.7f},
+     {BREAK, 4, 0.4f}, {DROP, 8, 0.7f}, {OUTRO, 4, 0.2f}},
     {
         "x.......x.......",  // kick: beats 1 and 3, laid back
         "....x.......x...",  // snare: beats 2 and 4
@@ -32,8 +35,8 @@ const GenreTemplate EDM_CHILL_TEMPLATE = {
 const GenreTemplate EDM_DROP_TEMPLATE = {
     Genre::EDM_DROP, "EDM_DROP", 125, 135,
     MINOR_SCALE, EPIC_MINOR_PROGRESSION,
-    {{"intro", 4, 0.3f}, {"build", 8, 0.6f}, {"drop", 8, 1.0f},
-     {"build", 4, 0.7f}, {"drop", 8, 1.0f}, {"outro", 4, 0.3f}},
+    {{INTRO, 4, 0.3f}, {BUILD, 8, 0.6f}, {DROP, 8, 1.0f},
+     {BUILD, 4, 0.7f}, {DROP, 8, 1.0f}, {OUTRO, 4, 0.3f}},
     {
         "x...x...x...x...",  // kick: every beat
         "....x.......x...",  // snare: beats 2 and 4
@@ -50,8 +53,8 @@ const GenreTemplate EDM_DROP_TEMPLATE = {
 const GenreTemplate RETROWAVE_TEMPLATE = {
     Genre::RETROWAVE, "RETROWAVE", 90, 110,
     MINOR_SCALE, MINOR_LOOP_PROGRESSION,
-    {{"intro", 4, 0.3f}, {"build", 8, 0.5f}, {"drop", 8, 0.8f},
-     {"break", 8, 0.5f}, {"drop", 8, 0.8f}, {"outro", 4, 0.3f}},
+    {{INTRO, 4, 0.3f}, {BUILD, 8, 0.5f}, {DROP, 8, 0.8f},
+     {BREAK, 8, 0.5f}, {DROP, 8, 0.8f}, {OUTRO, 4, 0.3f}},
     {
         "x.......x.x.....",  // kick: 80s rock-style beat
         "....x.......x...",  // snare: beats 2 and 4 (the classic gated snare slot)
@@ -68,8 +71,8 @@ const GenreTemplate RETROWAVE_TEMPLATE = {
 const GenreTemplate CINEMATIC_TEMPLATE = {
     Genre::CINEMATIC, "CINEMATIC", 70, 90,
     MINOR_SCALE, EPIC_MINOR_PROGRESSION,
-    {{"intro", 8, 0.2f}, {"build", 12, 0.5f}, {"drop", 8, 0.9f},
-     {"break", 8, 0.4f}, {"outro", 8, 0.2f}},
+    {{INTRO, 8, 0.2f}, {BUILD, 12, 0.5f}, {DROP, 8, 0.9f},
+     {BREAK, 8, 0.4f}, {OUTRO, 8, 0.2f}},
     {
         "x...............",  // kick: one deep hit per bar
         "......x.......x.",  // toms: timpani-style hits
@@ -86,8 +89,8 @@ const GenreTemplate CINEMATIC_TEMPLATE = {
 const GenreTemplate HOUSE_TEMPLATE = {
     Genre::HOUSE, "HOUSE", 120, 130,
     DORIAN_SCALE, ANTHEM_PROGRESSION,
-    {{"intro", 8, 0.3f}, {"build", 8, 0.6f}, {"drop", 16, 0.9f},
-     {"break", 8, 0.4f}, {"drop", 16, 1.0f}, {"outro", 8, 0.3f}},
+    {{INTRO, 8, 0.3f}, {BUILD, 8, 0.6f}, {DROP, 16, 0.9f},
+     {BREAK, 8, 0.4f}, {DROP, 16, 1.0f}, {OUTRO, 8, 0.3f}},
     {
         "x...x...x...x...",  // kick: four on the floor
         "....x.......x...",  // clap: beats 2 and 4
@@ -102,6 +105,17 @@ const GenreTemplate HOUSE_TEMPLATE = {
 };
 
 }  // namespace
+
+const char* sectionName(SectionType type) {
+  switch (type) {
+    case SectionType::INTRO: return "intro";
+    case SectionType::BUILD: return "build";
+    case SectionType::DROP: return "drop";
+    case SectionType::BREAK: return "break";
+    case SectionType::OUTRO: return "outro";
+  }
+  throw std::invalid_argument("Unknown section type");
+}
 
 Genre parseGenre(const std::string& name) {
   if (name == "EDM_CHILL") return Genre::EDM_CHILL;

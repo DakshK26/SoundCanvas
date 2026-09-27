@@ -7,11 +7,16 @@
 
 enum class Genre { EDM_CHILL, EDM_DROP, RETROWAVE, CINEMATIC, HOUSE };
 
-// One part of the song, e.g. an 8-bar "drop" at full energy.
+enum class SectionType { INTRO, BUILD, DROP, BREAK, OUTRO };
+
+// The lowercase name written into the MIDI as a marker ("drop"); audio-producer reads these.
+const char* sectionName(SectionType type);
+
+// One part of the song, e.g. an 8-bar drop at full energy.
 struct Section {
-  std::string name;  // intro, build, drop, break, or outro
+  SectionType type;
   int bars;
-  float energy;      // 0 (quiet) to 1 (full); decides which parts play
+  float energy;  // 0 (quiet) to 1 (full); decides which parts play
 };
 
 // Rhythm patterns, one character per 16th-note step (16 characters per bar).

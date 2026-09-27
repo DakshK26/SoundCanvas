@@ -38,7 +38,7 @@ SongPlan planSong(const ImageFeatures& features, Genre genre) {
   // Energetic images hit harder in the drops.
   float boost = 0.3f * imageEnergy(features);
   for (Section& section : plan.sections) {
-    if (section.name == "drop") {
+    if (section.type == SectionType::DROP) {
       section.energy = std::min(1.0f, section.energy + boost);
     }
   }

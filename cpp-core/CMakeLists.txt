@@ -3,6 +3,9 @@ project(soundcanvas_core CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-Wall -Wextra)
+endif()
 
 # The music and image code, kept apart from the HTTP server so the tests can use it directly.
 add_library(soundcanvas_lib STATIC
@@ -14,7 +17,9 @@ add_library(soundcanvas_lib STATIC
 )
 # include/ holds our headers; vendor/ holds single-file libraries:
 # cpp-httplib (HTTP server), nlohmann/json (JSON), stb_image (JPG/PNG decoding).
-target_include_directories(soundcanvas_lib PUBLIC include vendor)
+target_include_directories(soundcanvas_lib PUBLIC include)
+# SYSTEM hides warnings from vendored code, so -Wall -Wextra below only reports on ours.
+target_include_directories(soundcanvas_lib SYSTEM PUBLIC vendor)
 
 add_executable(soundcanvas_core src/main.cpp src/HttpServer.cpp)
 find_package(Threads REQUIRED)

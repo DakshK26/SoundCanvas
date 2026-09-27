@@ -21,6 +21,10 @@ constexpr double LUMA_RED = 0.299, LUMA_GREEN = 0.587, LUMA_BLUE = 0.114;
 // Phone cameras top out around 50 MP but save at 12 MP by default; 40 MP decodes to 120 MB of RGB.
 constexpr long long MAX_PIXELS = 40'000'000;
 
+// Contrast is a standard deviation of values in 0-1, so it can never exceed 0.5.
+constexpr size_t CONTRAST_INDEX = 7;
+constexpr float MAX_CONTRAST = 0.5f;
+
 // Returns the standard deviation from a running sum and sum of squares.
 double stdDev(double sum, double sumOfSquares, double count) {
   double mean = sum / count;
@@ -55,6 +59,15 @@ std::array<float, 8> ImageFeatures::toArray() const {
 }
 
 ImageFeatures ImageFeatures::fromArray(const std::array<float, 8>& v) {
+  // Out-of-range values would give a nonsensical song (a brightness of -5 means a negative
+  // tempo). The comparisons are written so that NaN fails them too.
+  for (size_t i = 0; i < v.size(); ++i) {
+    float max = i == CONTRAST_INDEX ? MAX_CONTRAST : 1.0f;
+    if (!(v[i] >= 0.0f && v[i] <= max)) {
+      throw std::invalid_argument("Feature " + std::to_string(i) + " must be between 0 and " +
+                                  std::to_string(max));
+    }
+  }
   return {v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]};
 }
 

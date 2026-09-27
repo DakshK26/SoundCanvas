@@ -167,6 +167,25 @@ void rejectsImagesThatAreTooLarge() {
   CHECK(threw);
 }
 
+// /compose takes features as JSON, so it must refuse values no image could produce.
+void rejectsFeaturesOutOfRange() {
+  std::array<float, 8> valid = someFeatures(0.5f).toArray();
+  CHECK(ImageFeatures::fromArray(valid).brightness == 0.5f);
+
+  for (auto [index, value] : std::vector<std::pair<size_t, float>>{
+           {3, -0.1f}, {3, 1.5f}, {0, NAN}, {7, 0.6f}}) {
+    std::array<float, 8> bad = valid;
+    bad[index] = value;
+    bool threw = false;
+    try {
+      ImageFeatures::fromArray(bad);
+    } catch (const std::invalid_argument&) {
+      threw = true;
+    }
+    CHECK(threw);
+  }
+}
+
 void parsesGenreNames() {
   for (const std::string& name : GENRE_NAMES) CHECK(templateFor(parseGenre(name)).name == name);
   bool threw = false;
@@ -259,7 +278,7 @@ void composesValidMidiForEveryGenre() {
     CHECK(notes > 0);
     CHECK(markers.size() == plan.sections.size());
     for (size_t i = 0; i < markers.size() && i < plan.sections.size(); ++i) {
-      CHECK(markers[i] == plan.sections[i].name);
+      CHECK(markers[i] == sectionName(plan.sections[i].type));
     }
   }
 }
@@ -271,6 +290,7 @@ int main() {
       {"features match Python", featuresMatchPython},
       {"rejects bytes that are not an image", rejectsBytesThatAreNotAnImage},
       {"rejects images that are too large", rejectsImagesThatAreTooLarge},
+      {"rejects features out of range", rejectsFeaturesOutOfRange},
       {"parses genre names", parsesGenreNames},
       {"genre templates are well formed", genreTemplatesAreWellFormed},
       {"tempo follows brightness", tempoFollowsBrightness},
