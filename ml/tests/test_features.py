@@ -1,6 +1,6 @@
 """
-Tests for the Python side of the ML pipeline. They run without TensorFlow:
-  pip install numpy pillow scikit-learn && python -m unittest discover -s ml/tests
+Tests for the features, labels and splits: the data side of the ML pipeline.
+  pip install -r ml/requirements-dev.txt && python -m unittest discover -s ml/tests
 """
 import json
 import re
@@ -38,18 +38,18 @@ class LabelsAreComplete(unittest.TestCase):
 
 
 class SplitsAreStratified(unittest.TestCase):
-    """Each genre must be divided 70/10/20 on its own, with no photo in two splits."""
+    """Each genre must be divided 80/20 on its own, with no photo in two splits."""
 
-    def test_each_genre_is_split_70_10_20(self):
+    def test_each_genre_is_split_80_20(self):
         labels = {f"image_{i:05d}.jpg": GENRES[i % 3] if i % 50 else "RETROWAVE" for i in range(1000)}
         splits = assign_splits(labels)
         self.assertEqual(splits, assign_splits(labels))  # the same every run
         for genre in set(labels.values()):
             names = [image for image, g in labels.items() if g == genre]
             shares = [sum(splits[n] == split for n in names) / len(names)
-                      for split in ("train", "validation", "test")]
+                      for split in ("train", "test")]
             with self.subTest(genre=genre):
-                np.testing.assert_allclose(shares, [0.7, 0.1, 0.2], atol=0.03)
+                np.testing.assert_allclose(shares, [0.8, 0.2], atol=0.03)
 
 
 class GenreNamesAgree(unittest.TestCase):
