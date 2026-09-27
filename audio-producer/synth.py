@@ -4,6 +4,10 @@ from scipy import signal
 
 SAMPLE_RATE = 44100  # CD-quality samples per second; FluidSynth renders at the same rate
 
+# Noise comes from a fixed seed, like a recorded drum sample: the same MIDI always
+# renders the same WAV, and concurrent renders share no random state.
+NOISE_SEED = 0
+
 
 def time_axis(seconds: float) -> np.ndarray:
     """The time in seconds of every sample in a sound of the given length."""
@@ -17,7 +21,7 @@ def sine_sweep(frequencies_hz: np.ndarray) -> np.ndarray:
 
 def filtered_noise(seconds: float, low_hz: float, high_hz: float | None = None) -> np.ndarray:
     """White noise kept above low_hz, and below high_hz if given."""
-    noise = np.random.randn(int(seconds * SAMPLE_RATE))
+    noise = np.random.default_rng(NOISE_SEED).standard_normal(int(seconds * SAMPLE_RATE))
     if high_hz is None:
         sos = signal.butter(2, low_hz, "highpass", fs=SAMPLE_RATE, output="sos")
     else:

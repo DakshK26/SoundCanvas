@@ -26,6 +26,8 @@ from synth import SAMPLE_RATE
 SOUNDFONT = os.environ.get("SOUNDFONT_PATH", "/usr/share/sounds/sf2/FluidR3_GM.sf2")
 DRUM_CHANNEL = 9  # MIDI channel 10, counted from zero; reserved for percussion
 MAX_MIDI_BYTES = 1024 * 1024  # a composed song is under 20 KB; anything near 1 MB is not ours
+# FluidSynth renders a two-minute song in a few seconds; one still running after a minute is hung.
+RENDER_TIMEOUT_SECONDS = 60
 
 app = FastAPI()
 
@@ -65,14 +67,22 @@ def render_instruments(midi: mido.MidiFile, work_dir: Path):
         ["fluidsynth", "-ni", "-q", "-r", str(SAMPLE_RATE), "-F", str(wav_path),
          SOUNDFONT, str(midi_path)],
         check=True,
+        timeout=RENDER_TIMEOUT_SECONDS,
     )
     audio, _ = sf.read(wav_path)
     return audio
 
 
-def render_song(midi_bytes: bytes, genre: str) -> bytes:
+def parse_midi(midi_bytes: bytes) -> mido.MidiFile:
+    """Reads a MIDI file, raising ValueError if the bytes are not one."""
+    try:
+        return mido.MidiFile(file=io.BytesIO(midi_bytes))
+    except Exception as error:  # mido raises OSError, EOFError, KeyError... depending on the damage
+        raise ValueError(f"Invalid MIDI file: {error}") from error
+
+
+def render_song(midi: mido.MidiFile, genre: str) -> bytes:
     """Runs the whole pipeline and returns the mastered WAV file."""
-    midi = mido.MidiFile(file=io.BytesIO(midi_bytes))
     hits, markers = read_events(midi)
     with tempfile.TemporaryDirectory() as tmp:
         work_dir = Path(tmp)
@@ -93,7 +103,11 @@ def render(genre: str, midi: bytes = Body(media_type="audio/midi")) -> Response:
         raise HTTPException(400, f"Unknown genre {genre}")
     if len(midi) > MAX_MIDI_BYTES:
         raise HTTPException(413, "MIDI file too large")
-    return Response(render_song(midi, genre), media_type="audio/wav")
+    try:
+        song = parse_midi(midi)
+    except ValueError as error:
+        raise HTTPException(400, str(error)) from error
+    return Response(render_song(song, genre), media_type="audio/wav")
 
 
 @app.get("/health")

@@ -43,6 +43,7 @@ MASTERING_CHAIN = ",".join([
     "loudnorm=I=-14:LRA=7:tp=-1",
     "alimiter=limit=0.95",
 ])
+MASTER_TIMEOUT_SECONDS = 60  # mastering takes a few seconds; one still running after a minute is hung
 
 
 def sidechain(kick_times: list[float], length: int, depth: float) -> np.ndarray:
@@ -74,5 +75,6 @@ def master(stereo: np.ndarray, work_dir: Path) -> bytes:
         ["ffmpeg", "-y", "-loglevel", "error", "-i", str(raw),
          "-af", MASTERING_CHAIN, "-ar", str(SAMPLE_RATE), "-c:a", "pcm_s16le", str(done)],
         check=True,
+        timeout=MASTER_TIMEOUT_SECONDS,
     )
     return done.read_bytes()
