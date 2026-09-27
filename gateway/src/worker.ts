@@ -39,4 +39,7 @@ async function main(): Promise<void> {
   await pool.end();
 }
 
-main();
+main().catch((error) => {
+  log.error("worker crashed", { error: (error as Error).message });
+  process.exit(1);
+});

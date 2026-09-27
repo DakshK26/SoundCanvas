@@ -5,6 +5,7 @@ import { readdir, readFile } from "fs/promises";
 import path from "path";
 import { RowDataPacket } from "mysql2/promise";
 import { pool } from "./db";
+import { log } from "./log";
 
 const MIGRATIONS_DIR = path.join(__dirname, "..", "migrations");
 
@@ -21,12 +22,12 @@ async function migrate(): Promise<void> {
     // rolled back; keeping them to one statement means a failure leaves nothing half-done.
     await pool.query(await readFile(path.join(MIGRATIONS_DIR, name), "utf8"));
     await pool.query("INSERT INTO schema_migrations (name) VALUES (?)", [name]);
-    console.log(`applied ${name}`);
+    log.info("applied migration", { name });
   }
   await pool.end();
 }
 
 migrate().catch((error) => {
-  console.error(error);
+  log.error("migration failed", { error: (error as Error).message });
   process.exit(1);
 });

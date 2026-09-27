@@ -62,7 +62,7 @@ class GenreNamesAgree(unittest.TestCase):
     def test_all_services_use_the_same_names(self):
         expected = set(GENRES)
         schema = (ROOT / "gateway/src/schema.ts").read_text()
-        self.assertEqual(set(re.search(r"enum Genre \{([^}]*)\}", schema).group(1).split()), expected)
+        self.assertEqual(set(re.findall(r'"([A-Z_]+)"', re.search(r"GENRES = \[([^\]]*)\]", schema).group(1))), expected)
         self.assertEqual(self.names_in("cpp-core/src/GenreTemplate.cpp", r'name == "([A-Z_]+)"'), expected)
         self.assertEqual(self.names_in("audio-producer/drums.py", r'^\s+"([A-Z_]+)": Kit\('), expected)
         self.assertEqual(self.names_in("audio-producer/mixer.py", r'^\s+"([A-Z_]+)": Mix\('), expected)

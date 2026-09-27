@@ -1,6 +1,6 @@
 // The public GraphQL API, behind the load balancer. It creates jobs, queues
 // them on SQS and reports their status; the worker (worker.ts) runs them.
-import { ApolloServer } from "@apollo/server";
+import { ApolloServer, ApolloServerPlugin } from "@apollo/server";
 import { expressMiddleware } from "@apollo/server/express4";
 import cors from "cors";
 import express, { Request } from "express";
@@ -26,10 +26,27 @@ function requestContext(req: Request): Context {
   return { clientId, clientIp: req.ip! };
 }
 
+/**
+ * Logs errors the resolvers did not throw on purpose, such as a database or S3 failure.
+ * Deliberate errors (RATE_LIMITED, NOT_FOUND, ...) are GraphQLErrors and only concern the caller.
+ */
+const logUnexpectedErrors: ApolloServerPlugin<Context> = {
+  async requestDidStart() {
+    return {
+      async didEncounterErrors({ errors, operationName }) {
+        for (const { originalError } of errors) {
+          if (!originalError || originalError instanceof GraphQLError) continue;
+          log.error("request failed", { operationName, error: originalError.message });
+        }
+      },
+    };
+  },
+};
+
 async function main(): Promise<void> {
   // With NODE_ENV=production (set in the Dockerfile) Apollo turns off introspection
   // and leaves stack traces out of error responses.
-  const server = new ApolloServer<Context>({ typeDefs, resolvers });
+  const server = new ApolloServer<Context>({ typeDefs, resolvers, plugins: [logUnexpectedErrors] });
   await server.start();
 
   const app = express();

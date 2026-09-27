@@ -1,8 +1,13 @@
 // The GraphQL API the frontend talks to.
 // Every request carries an X-Client-Id header: an anonymous id the browser
 // generates once, which scopes history, feedback and rate limits to that browser.
+
+/** The genres every service knows. The worker also checks the ml service's answer against this list. */
+export const GENRES = ["EDM_CHILL", "EDM_DROP", "RETROWAVE", "CINEMATIC", "HOUSE"] as const;
+export type Genre = (typeof GENRES)[number];
+
 export const typeDefs = `#graphql
-  enum Genre { EDM_CHILL EDM_DROP RETROWAVE CINEMATIC HOUSE }
+  enum Genre { ${GENRES.join(" ")} }
   enum ImageType { JPEG PNG }
   enum Feedback { UP DOWN }
 

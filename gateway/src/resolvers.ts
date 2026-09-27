@@ -51,7 +51,7 @@ export const resolvers = {
     },
 
     myGenerations: async (_: unknown, { limit }: { limit: number }, { clientId }: Context) => {
-      const rows = await listGenerations(clientId, Math.min(limit, MAX_HISTORY));
+      const rows = await listGenerations(clientId, Math.max(1, Math.min(limit, MAX_HISTORY)));
       return Promise.all(rows.map(toGraphQL));
     },
   },

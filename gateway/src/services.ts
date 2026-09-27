@@ -1,7 +1,11 @@
 // One function per call the worker makes to the three internal microservices.
 // Each service is stateless: bytes or JSON in, a result out.
+// Responses are checked before use, so a service returning the wrong shape fails the
+// job with a clear message instead of passing bad data further down the pipeline.
 import { requireEnv } from "./env";
+import { Genre, GENRES } from "./schema";
 
+const FEATURE_COUNT = 8;
 const CPP_CORE_URL = requireEnv("CPP_CORE_URL");
 const ML_URL = requireEnv("ML_URL");
 const AUDIO_PRODUCER_URL = requireEnv("AUDIO_PRODUCER_URL");
@@ -15,7 +19,7 @@ const REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
 export class PermanentError extends Error {}
 
 export interface Prediction {
-  genre: string;
+  genre: Genre;
   confidence: number;
 }
 
@@ -38,17 +42,26 @@ async function post(url: string, body: Buffer | string, contentType: string): Pr
   return response;
 }
 
-/** cpp-core measures the image: 8 numbers for color, brightness and contrast. */
+const isFraction = (value: unknown) => typeof value === "number" && value >= 0 && value <= 1;
+
+/** cpp-core measures the image: 8 numbers from 0 to 1 for color, brightness and contrast. */
 export async function extractFeatures(image: Buffer): Promise<number[]> {
   const response = await post(`${CPP_CORE_URL}/features`, image, "application/octet-stream");
-  const { features } = (await response.json()) as { features: number[] };
+  const { features } = (await response.json()) as { features?: unknown };
+  if (!Array.isArray(features) || features.length !== FEATURE_COUNT || !features.every(isFraction)) {
+    throw new Error(`cpp-core returned invalid features: ${JSON.stringify(features)}`);
+  }
   return features;
 }
 
 /** The ml service's TensorFlow model picks a genre from the features. */
 export async function predictGenre(features: number[]): Promise<Prediction> {
   const response = await post(`${ML_URL}/predict`, JSON.stringify({ features }), "application/json");
-  return (await response.json()) as Prediction;
+  const prediction = (await response.json()) as { genre?: unknown; confidence?: unknown };
+  if (!GENRES.includes(prediction.genre as Genre) || !isFraction(prediction.confidence)) {
+    throw new Error(`ml returned an invalid prediction: ${JSON.stringify(prediction)}`);
+  }
+  return prediction as Prediction;
 }
 
 /** cpp-core composes a MIDI song for the features in the given genre. */
