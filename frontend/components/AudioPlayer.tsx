@@ -7,11 +7,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Download, Loader2, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import FeedbackButtons from '@/components/FeedbackButtons';
-import { Feedback } from '@/types/graphql';
+import { downloadBlob } from '@/lib/download';
+import { Feedback, SongGenre } from '@/types/graphql';
 
 interface AudioPlayerProps {
     audioUrl: string;
-    genre: string | null;
+    genre: SongGenre | null;
     confidence: number | null; // null when the user picked the genre
     rating?: { jobId: string; feedback: Feedback | null }; // omitted for examples, which have no job
 }
@@ -24,10 +25,10 @@ function formatTime(seconds: number): string {
 }
 
 export default function AudioPlayer({ audioUrl, genre, confidence, rating }: AudioPlayerProps) {
-    const [blobUrl, setBlobUrl] = useState<string | null>(null);
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [blobUrl, setBlobUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const isLoading = !blobUrl && !error;
 
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const progressRef = useRef<HTMLDivElement | null>(null);
@@ -39,37 +40,26 @@ export default function AudioPlayer({ audioUrl, genre, confidence, rating }: Aud
 
     useEffect(() => {
         let objectUrl: string | null = null;
+        let cancelled = false; // the player closed before the song finished loading
 
-        const loadAudio = async () => {
-            try {
-                setIsLoading(true);
-                setError(null);
-
-                const response = await fetch(audioUrl);
-
-                if (!response.ok) {
-                    throw new Error(`Failed to load audio: ${response.status} ${response.statusText}`);
-                }
-
-                const blob = await response.blob();
-
-                setAudioBlob(blob);
+        fetch(audioUrl)
+            .then((response) => {
+                if (!response.ok) throw new Error(`Failed to load audio: ${response.status} ${response.statusText}`);
+                return response.blob();
+            })
+            .then((blob) => {
+                if (cancelled) return;
                 objectUrl = URL.createObjectURL(blob);
+                setAudioBlob(blob);
                 setBlobUrl(objectUrl);
-                setIsLoading(false);
-            } catch (err) {
-                console.error('Error loading audio:', err);
-                setError((err as Error).message);
-                setIsLoading(false);
-            }
-        };
-
-        loadAudio();
+            })
+            .catch((err: Error) => {
+                if (!cancelled) setError(err.message);
+            });
 
         return () => {
-            if (objectUrl) {
-                URL.revokeObjectURL(objectUrl);
-            }
+            cancelled = true;
+            if (objectUrl) URL.revokeObjectURL(objectUrl);
         };
     }, [audioUrl]);
 
@@ -134,35 +124,6 @@ export default function AudioPlayer({ audioUrl, genre, confidence, rating }: Aud
         audio.volume = v;
         setIsMuted(v === 0);
     }, []);
-
-    const handleDownload = () => {
-        try {
-            if (!audioBlob) {
-                alert('Audio not loaded yet. Please wait and try again.');
-                return;
-            }
-
-            const url = URL.createObjectURL(audioBlob);
-
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `soundcanvas-${Date.now()}.wav`;
-            link.style.display = 'none';
-
-            document.body.appendChild(link);
-            link.click();
-
-            setTimeout(() => {
-                document.body.removeChild(link);
-                URL.revokeObjectURL(url);
-            }, 100);
-
-        } catch (error) {
-            console.error('Download failed:', error);
-            alert('Download failed. Opening in new tab...');
-            window.open(audioUrl, '_blank');
-        }
-    };
 
     const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
@@ -265,9 +226,10 @@ export default function AudioPlayer({ audioUrl, genre, confidence, rating }: Aud
                 )}
 
                 {/* Download Button */}
-                <Button 
-                    onClick={handleDownload} 
-                    variant="outline" 
+                <Button
+                    onClick={() => audioBlob && downloadBlob(audioBlob, `soundcanvas-${Date.now()}.wav`)}
+                    disabled={!audioBlob}
+                    variant="outline"
                     className="w-full border-[#81B29A] text-[#3D5A3D] hover:bg-[#81B29A]/10 rounded-xl"
                 >
                     <Download className="mr-2 h-4 w-4" />

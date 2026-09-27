@@ -17,14 +17,15 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
-import { Generation, Genre, GenerationStatus as Status } from '@/types/graphql';
+import { Generation, Genre, GENRE_LABELS, ImageType, SongGenre, GenerationStatus as Status } from '@/types/graphql';
+import { exampleImage, exampleSong } from '@/lib/examples';
 import { Upload, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import AudioPlayer from '@/components/AudioPlayer';
 
 const POLL_INTERVAL_MS = 2500;
 
 // The upload types the gateway accepts; S3 rejects an upload whose type differs from the one requested.
-const IMAGE_TYPES: Record<string, 'JPEG' | 'PNG'> = { 'image/jpeg': 'JPEG', 'image/png': 'PNG' };
+const IMAGE_TYPES: Record<string, ImageType> = { 'image/jpeg': 'JPEG', 'image/png': 'PNG' };
 const MAX_IMAGE_MB = 10; // matches MAX_UPLOAD_BYTES in gateway/src/aws/s3.ts
 
 const STATUS_TEXT: Record<Status, string> = {
@@ -37,14 +38,14 @@ const STATUS_TEXT: Record<Status, string> = {
 
 interface PlaygroundProps {
     initialImageUrl?: string;
-    initialGenre?: string;
+    initialGenre?: SongGenre;
     exampleId?: string;
 }
 
 export default function Playground({ initialImageUrl, initialGenre, exampleId }: PlaygroundProps) {
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(initialImageUrl || null);
-    const [genre, setGenre] = useState<string>(initialGenre || Genre.AUTO);
+    const [genre, setGenre] = useState<Genre>(initialGenre ?? Genre.AUTO);
     const [status, setStatus] = useState<Status | null>(null);
     const [generation, setGeneration] = useState<Generation | null>(null);
     const [networkError, setNetworkError] = useState<string | null>(null);
@@ -84,7 +85,8 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         pollRef.current = setInterval(async () => {
             try {
                 const { data } = await getGeneration({ variables: { jobId } });
-                const latest: Generation = data.generation;
+                const latest = data?.generation;
+                if (!latest) throw new Error(`Job ${jobId} not found`);
                 setNetworkError(null);
                 setGeneration(latest);
                 setStatus(latest.status);
@@ -102,11 +104,11 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         const example: Generation = {
             id: `example-${id}-${Date.now()}`,
             status: Status.COMPLETED,
-            genre,
+            genre: initialGenre ?? null,
             confidence: null,
             feedback: null,
-            imageUrl: `/examples/${id}.jpg`,
-            audioUrl: `/examples/${id}.wav`,
+            imageUrl: exampleImage(id),
+            audioUrl: exampleSong(id),
             errorMessage: null,
             createdAt: new Date().toISOString(),
         };
@@ -116,7 +118,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
 
     /** Turns an example image into a File so it can go through the real pipeline. */
     const loadExampleImage = async (id: string): Promise<File> => {
-        const response = await fetch(`/examples/${id}.jpg`);
+        const response = await fetch(exampleImage(id));
         return new File([await response.blob()], `${id}.jpg`, { type: 'image/jpeg' });
     };
 
@@ -129,7 +131,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         const { data } = await createGeneration({
             variables: { genre: genre === Genre.AUTO ? null : genre, imageType },
         });
-        const { jobId, upload } = data.createGeneration;
+        const { jobId, upload } = data!.createGeneration; // Apollo throws on errors, so data is set
 
         // A presigned POST: the signed fields (key, Content-Type, signature...) go first; S3 requires the file last.
         const form = new FormData();
@@ -229,17 +231,15 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-[#1A1814]">Genre</label>
-                            <Select value={genre} onValueChange={setGenre} disabled={isGenerating}>
+                            <Select value={genre} onValueChange={(value) => setGenre(value as Genre)} disabled={isGenerating}>
                                 <SelectTrigger className="border-[#E8E0D8] focus:ring-[#E07A5F] focus:border-[#E07A5F]">
                                     <SelectValue placeholder="Select genre" />
                                 </SelectTrigger>
                                 <SelectContent className="bg-white border-[#E8E0D8]">
                                     <SelectItem value={Genre.AUTO}>Let the model pick</SelectItem>
-                                    <SelectItem value={Genre.HOUSE}>House</SelectItem>
-                                    <SelectItem value={Genre.EDM_CHILL}>EDM Chill</SelectItem>
-                                    <SelectItem value={Genre.EDM_DROP}>EDM Drop</SelectItem>
-                                    <SelectItem value={Genre.RETROWAVE}>Retrowave</SelectItem>
-                                    <SelectItem value={Genre.CINEMATIC}>Cinematic</SelectItem>
+                                    {Object.entries(GENRE_LABELS).map(([value, label]) => (
+                                        <SelectItem key={value} value={value}>{label}</SelectItem>
+                                    ))}
                                 </SelectContent>
                             </Select>
                         </div>

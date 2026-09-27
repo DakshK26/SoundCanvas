@@ -19,6 +19,7 @@ import { Play, Download, Loader2, Clock, AlertCircle } from 'lucide-react';
 import { MY_GENERATIONS } from '@/graphql/operations';
 import { Generation, GenerationStatus } from '@/types/graphql';
 import FeedbackButtons from '@/components/FeedbackButtons';
+import { downloadBlob } from '@/lib/download';
 
 const ITEMS_PER_PAGE = 20;
 const REFRESH_INTERVAL_MS = 5000; // only while a song is still being made
@@ -46,7 +47,7 @@ export default function History() {
         variables: { limit: ITEMS_PER_PAGE },
         ssr: false, // the client id lives in localStorage, so only the browser can ask
     });
-    const generations: Generation[] = data?.myGenerations ?? [];
+    const generations = data?.myGenerations ?? [];
     const [playingId, setPlayingId] = useState<string | null>(null);
     const [playError, setPlayError] = useState<string | null>(null);
     const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -80,13 +81,9 @@ export default function History() {
 
     const handleDownload = async (gen: Generation) => {
         try {
-            const blob = await (await fetch(gen.audioUrl!)).blob();
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement('a');
-            link.href = url;
-            link.download = `soundcanvas-${gen.id}.wav`;
-            link.click();
-            URL.revokeObjectURL(url);
+            const response = await fetch(gen.audioUrl!);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            downloadBlob(await response.blob(), `soundcanvas-${gen.id}.wav`);
         } catch {
             setPlayError('Download failed. Reopen the History tab to get a fresh link.');
         }

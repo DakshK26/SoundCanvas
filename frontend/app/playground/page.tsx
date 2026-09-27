@@ -11,39 +11,29 @@ import { ArrowLeft } from 'lucide-react';
 import Playground from '@/components/Playground';
 import History from '@/components/History';
 import Examples from '@/components/Examples';
-
-// Map example IDs to their image paths
-const EXAMPLE_IMAGES: Record<string, string> = {
-    house: '/examples/house.jpg',
-    edm_chill: '/examples/edm_chill.jpg',
-    edm_drop: '/examples/edm_drop.jpg',
-    cinematic: '/examples/cinematic.jpg',
-};
+import { exampleImage, findExample } from '@/lib/examples';
+import { isSongGenre } from '@/types/graphql';
 
 function PlaygroundContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
-    // Get tab from URL, default to 'playground'
     const tabFromUrl = searchParams.get('tab') || 'playground';
     const [activeTab, setActiveTab] = useState(tabFromUrl);
 
-    // Check if an example was selected
-    const exampleId = searchParams.get('example');
-    const genreOverride = searchParams.get('genre');
+    // URL parameters are user input: unknown examples and genres are ignored.
+    const exampleId = findExample(searchParams.get('example'))?.id ?? null;
+    const genreParam = searchParams.get('genre');
+    const genreOverride = isSongGenre(genreParam) ? genreParam : null;
 
-    // Get the image URL for the example
-    const initialImageUrl = exampleId ? EXAMPLE_IMAGES[exampleId] : undefined;
-
-    // Sync tab state with URL changes
+    // Back and forward buttons change the URL; follow them.
     useEffect(() => {
         setActiveTab(tabFromUrl);
     }, [tabFromUrl]);
 
-    // Handle tab changes - update URL
+    // Keep the example and genre while on the Playground tab, so the link can be shared.
     const handleTabChange = (value: string) => {
         setActiveTab(value);
-        // Preserve example and genre params when switching tabs
         const params = new URLSearchParams();
         params.set('tab', value);
         if (exampleId && value === 'playground') {
@@ -65,9 +55,9 @@ function PlaygroundContent() {
 
             <TabsContent value="playground">
                 <Playground
-                    initialImageUrl={initialImageUrl}
-                    initialGenre={genreOverride || undefined}
-                    exampleId={exampleId || undefined}
+                    initialImageUrl={exampleId ? exampleImage(exampleId) : undefined}
+                    initialGenre={genreOverride ?? undefined}
+                    exampleId={exampleId ?? undefined}
                 />
             </TabsContent>
 

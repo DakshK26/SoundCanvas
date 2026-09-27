@@ -1,7 +1,9 @@
 // The GraphQL calls the frontend makes. A song is made in three steps:
 // create a job (get an upload form), upload the image to S3 and start the job,
-// then poll until it finishes.
-import { gql } from '@apollo/client';
+// then poll until it finishes. Each operation is typed with its result and
+// variables, so components get checked data instead of `any`.
+import { gql, TypedDocumentNode } from '@apollo/client';
+import { Feedback, Generation, GenerationStatus, ImageType, ImageUpload, SongGenre } from '@/types/graphql';
 
 const GENERATION_FIELDS = gql`
   fragment GenerationFields on Generation {
@@ -17,7 +19,10 @@ const GENERATION_FIELDS = gql`
   }
 `;
 
-export const CREATE_GENERATION = gql`
+export const CREATE_GENERATION: TypedDocumentNode<
+    { createGeneration: { jobId: string; upload: ImageUpload } },
+    { genre: SongGenre | null; imageType: ImageType }
+> = gql`
   mutation CreateGeneration($genre: Genre, $imageType: ImageType!) {
     createGeneration(genre: $genre, imageType: $imageType) {
       jobId
@@ -32,7 +37,10 @@ export const CREATE_GENERATION = gql`
   }
 `;
 
-export const START_GENERATION = gql`
+export const START_GENERATION: TypedDocumentNode<
+    { startGeneration: { id: string; status: GenerationStatus } },
+    { jobId: string }
+> = gql`
   mutation StartGeneration($jobId: ID!) {
     startGeneration(jobId: $jobId) {
       id
@@ -41,7 +49,7 @@ export const START_GENERATION = gql`
   }
 `;
 
-export const GET_GENERATION = gql`
+export const GET_GENERATION: TypedDocumentNode<{ generation: Generation | null }, { jobId: string }> = gql`
   ${GENERATION_FIELDS}
   query Generation($jobId: ID!) {
     generation(jobId: $jobId) {
@@ -50,7 +58,7 @@ export const GET_GENERATION = gql`
   }
 `;
 
-export const MY_GENERATIONS = gql`
+export const MY_GENERATIONS: TypedDocumentNode<{ myGenerations: Generation[] }, { limit?: number }> = gql`
   ${GENERATION_FIELDS}
   query MyGenerations($limit: Int) {
     myGenerations(limit: $limit) {
@@ -59,7 +67,10 @@ export const MY_GENERATIONS = gql`
   }
 `;
 
-export const RATE_GENERATION = gql`
+export const RATE_GENERATION: TypedDocumentNode<
+    { rateGeneration: { id: string; feedback: Feedback | null } },
+    { jobId: string; feedback: Feedback }
+> = gql`
   mutation RateGeneration($jobId: ID!, $feedback: Feedback!) {
     rateGeneration(jobId: $jobId, feedback: $feedback) {
       id

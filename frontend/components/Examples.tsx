@@ -3,49 +3,14 @@
 // The Examples tab: four sample images with pre-rendered songs in /public/examples.
 // Clicking one opens it in the Playground, where it plays instantly.
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Genre } from '@/types/graphql';
+import { GENRE_LABELS } from '@/types/graphql';
+import { Example, EXAMPLES, exampleImage } from '@/lib/examples';
 import { useRouter } from 'next/navigation';
-
-// Example images with their preset genres
-const EXAMPLES = [
-    {
-        id: 'cinematic',
-        imagePath: '/examples/cinematic.jpg',
-        genre: Genre.CINEMATIC,
-        genreLabel: 'Cinematic',
-        description: 'Epic orchestral soundscapes',
-        color: '#3D405B',
-    },
-    {
-        id: 'edm_chill',
-        imagePath: '/examples/edm_chill.jpg',
-        genre: Genre.EDM_CHILL,
-        genreLabel: 'EDM Chill',
-        description: 'Relaxing electronic vibes',
-        color: '#81B29A',
-    },
-    {
-        id: 'edm_drop',
-        imagePath: '/examples/edm_drop.jpg',
-        genre: Genre.EDM_DROP,
-        genreLabel: 'EDM Drop',
-        description: 'High-energy drops and builds',
-        color: '#F2CC8F',
-    },
-    {
-        id: 'house',
-        imagePath: '/examples/house.jpg',
-        genre: Genre.HOUSE,
-        genreLabel: 'House',
-        description: 'Energetic beats for the dance floor',
-        color: '#E07A5F',
-    },
-];
 
 export default function Examples() {
     const router = useRouter();
 
-    const handleExampleClick = (example: typeof EXAMPLES[0]) => {
+    const handleExampleClick = (example: Example) => {
         router.push(`/playground?tab=playground&example=${example.id}&genre=${example.genre}`);
     };
 
@@ -70,8 +35,8 @@ export default function Examples() {
                             >
                                 <div className="relative aspect-[4/3] overflow-hidden">
                                     <img
-                                        src={example.imagePath}
-                                        alt={`${example.genreLabel} example`}
+                                        src={exampleImage(example.id)}
+                                        alt={`${GENRE_LABELS[example.genre]} example`}
                                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                                     />
                                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
@@ -80,7 +45,7 @@ export default function Examples() {
                                             className="inline-block px-3 py-1 rounded-full text-xs font-semibold text-white"
                                             style={{ backgroundColor: example.color }}
                                         >
-                                            {example.genreLabel}
+                                            {GENRE_LABELS[example.genre]}
                                         </span>
                                     </div>
                                 </div>
