@@ -1,7 +1,6 @@
-// The GraphQL calls the frontend makes. A song is made in three steps:
-// create a job (get an upload form), upload the image to S3 and start the job,
-// then poll until it finishes. Each operation is typed with its result and
-// variables, so components get checked data instead of `any`.
+// every graphql op the frontend uses. making a song = 3 steps:
+//   createGeneration (get upload form) -> upload to S3 + startGeneration -> poll generation
+// typed w/ TypedDocumentNode so useQuery/useMutation give real types instead of any
 import { gql, TypedDocumentNode } from '@apollo/client';
 import { Feedback, Generation, GenerationStatus, ImageType, ImageUpload, SongGenre } from '@/types/graphql';
 

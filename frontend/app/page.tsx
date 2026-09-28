@@ -1,4 +1,4 @@
-// The landing page. Its buttons lead into the Playground and Examples tabs.
+// landing page, just links into /playground (playground or examples tab). all decoration
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 

@@ -1,7 +1,7 @@
 'use client';
 
-// Thumbs up / down on a finished song. Ratings are stored in RDS next to the
-// image features and predicted genre, as extra labels for retraining the model.
+// thumbs up/down. saved in RDS on the same row as the features + genre,
+// so later it's basically free extra training labels
 import { useState } from 'react';
 import { useMutation } from '@apollo/client';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';
@@ -18,6 +18,7 @@ export default function FeedbackButtons({ jobId, initial }: FeedbackButtonsProps
     const [rateGeneration, { loading }] = useMutation(RATE_GENERATION);
 
     const rate = async (value: Feedback) => {
+        // optimistic - show it right away, undo if the mutation fails
         const previous = feedback;
         setFeedback(value);
         try {

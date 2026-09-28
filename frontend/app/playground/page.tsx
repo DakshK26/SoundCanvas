@@ -1,7 +1,7 @@
 'use client';
 
-// The app page: Playground, Examples and History tabs. The URL keeps the tab
-// and any chosen example, so an example link opens straight into the Playground.
+// the actual app: Playground / Examples / History tabs.
+// tab + example live in the url (?tab=&example=&genre=) so links to an example work
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -21,17 +21,17 @@ function PlaygroundContent() {
     const tabFromUrl = searchParams.get('tab') || 'playground';
     const [activeTab, setActiveTab] = useState(tabFromUrl);
 
-    // URL parameters are user input: unknown examples and genres are ignored.
+    // url params = user input, ignore anything that isn't a real example/genre
     const exampleId = findExample(searchParams.get('example'))?.id ?? null;
     const genreParam = searchParams.get('genre');
     const genreOverride = isSongGenre(genreParam) ? genreParam : null;
 
-    // Back and forward buttons change the URL; follow them.
+    // back/forward changes the url but not the state -> sync it
     useEffect(() => {
         setActiveTab(tabFromUrl);
     }, [tabFromUrl]);
 
-    // Keep the example and genre while on the Playground tab, so the link can be shared.
+    // keep example + genre in the url only on the playground tab (so it's shareable)
     const handleTabChange = (value: string) => {
         setActiveTab(value);
         const params = new URLSearchParams();

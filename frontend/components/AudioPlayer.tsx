@@ -1,7 +1,7 @@
 'use client';
 
-// Plays and downloads a finished song. The WAV is fetched once into a blob, so
-// playback and download keep working after the presigned S3 link expires.
+// player + download. fetch the wav ONCE into a blob -> still works after the
+// presigned S3 link expires (15 min), and download doesn't re-fetch
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,8 +13,8 @@ import { Feedback, SongGenre } from '@/types/graphql';
 interface AudioPlayerProps {
     audioUrl: string;
     genre: SongGenre | null;
-    confidence: number | null; // null when the user picked the genre
-    rating?: { jobId: string; feedback: Feedback | null }; // omitted for examples, which have no job
+    confidence: number | null; // null = user picked the genre
+    rating?: { jobId: string; feedback: Feedback | null }; // not passed for examples (no job to rate)
 }
 
 function formatTime(seconds: number): string {
@@ -40,7 +40,7 @@ export default function AudioPlayer({ audioUrl, genre, confidence, rating }: Aud
 
     useEffect(() => {
         let objectUrl: string | null = null;
-        let cancelled = false; // the player closed before the song finished loading
+        let cancelled = false; // unmounted / url changed before the fetch finished -> don't set state
 
         fetch(audioUrl)
             .then((response) => {

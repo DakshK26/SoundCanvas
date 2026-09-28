@@ -1,9 +1,9 @@
 'use client';
 
-// The Playground: pick an image and a genre, then follow the job until the song is ready.
-// A real upload goes: createGeneration -> POST the image to S3 -> startGeneration -> poll generation.
-// Examples skip the backend and play their pre-rendered songs from /public/examples
-// (changing an example's genre makes a real job from the example image instead).
+// main page: pick image + genre -> watch the job until the song's done
+// real upload: createGeneration -> POST image to S3 -> startGeneration -> poll generation
+// examples skip the backend entirely and just play the wav from /public/examples.
+// BUT if you change an example's genre it makes a real job w/ the example image
 import { useState, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useMutation, useLazyQuery } from '@apollo/client';
@@ -24,9 +24,9 @@ import AudioPlayer from '@/components/AudioPlayer';
 
 const POLL_INTERVAL_MS = 2500;
 
-// The upload types the gateway accepts; S3 rejects an upload whose type differs from the one requested.
+// only types the gateway takes. the presigned form locks Content-Type, so S3 rejects anything else anyway
 const IMAGE_TYPES: Record<string, ImageType> = { 'image/jpeg': 'JPEG', 'image/png': 'PNG' };
-const MAX_IMAGE_MB = 10; // matches MAX_UPLOAD_BYTES in gateway/src/aws/s3.ts
+const MAX_IMAGE_MB = 10; // same as MAX_UPLOAD_BYTES in gateway/src/aws/s3.ts (check here first = nicer error)
 
 const STATUS_TEXT: Record<Status, string> = {
     [Status.PENDING]: 'Uploading your image...',
@@ -80,7 +80,8 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         multiple: false,
     });
 
-    /** Checks the job every few seconds until it completes or fails. */
+    // poll every 2.5s until COMPLETED/FAILED. network blips just show a warning and keep going
+    // TODO(maybe): subscriptions/websocket instead of polling
     const pollUntilDone = (jobId: string) => {
         pollRef.current = setInterval(async () => {
             try {
@@ -99,7 +100,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         }, POLL_INTERVAL_MS);
     };
 
-    /** Examples play their pre-rendered song straight away. */
+    // fake a COMPLETED generation pointing at the static files, no backend call
     const showExample = (id: string) => {
         const example: Generation = {
             id: `example-${id}-${Date.now()}`,
@@ -116,13 +117,13 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         setStatus(Status.COMPLETED);
     };
 
-    /** Turns an example image into a File so it can go through the real pipeline. */
+    // example url -> File, so it can go through the same upload path as a real one
     const loadExampleImage = async (id: string): Promise<File> => {
         const response = await fetch(exampleImage(id));
         return new File([await response.blob()], `${id}.jpg`, { type: 'image/jpeg' });
     };
 
-    /** Creates the job, uploads the image straight to S3, then queues the job. */
+    // create job -> upload straight to S3 (never goes thru the gateway) -> start it
     const generate = async (image: File) => {
         const imageType = IMAGE_TYPES[image.type];
         if (!imageType) throw new Error('Please choose a JPG or PNG image');
@@ -131,9 +132,9 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         const { data } = await createGeneration({
             variables: { genre: genre === Genre.AUTO ? null : genre, imageType },
         });
-        const { jobId, upload } = data!.createGeneration; // Apollo throws on errors, so data is set
+        const { jobId, upload } = data!.createGeneration; // ! is safe, apollo throws on errors
 
-        // A presigned POST: the signed fields (key, Content-Type, signature...) go first; S3 requires the file last.
+        // gotcha: signed fields (key, Content-Type, policy, signature...) first, file LAST or S3 rejects it
         const form = new FormData();
         for (const { name, value } of upload.fields) form.append(name, value);
         form.append('file', image);
@@ -145,7 +146,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         pollUntilDone(jobId);
     };
 
-    // An untouched example plays its pre-rendered song; a new genre generates for real.
+    // example + same genre = just play the wav. different genre = real job
     const playsPrerenderedExample = !selectedImage && Boolean(exampleId) && genre === initialGenre;
 
     const handleGenerate = async () => {

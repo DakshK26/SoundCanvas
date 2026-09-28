@@ -1,4 +1,4 @@
-// The page shell shared by every route: font, page title, and the GraphQL client provider.
+// root layout, every route gets this: font, title, apollo provider
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";

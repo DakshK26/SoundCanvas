@@ -1,15 +1,16 @@
-// Types matching the gateway's GraphQL schema (gateway/src/schema.ts).
+// hand-written copies of the types in gateway/src/schema.ts. if the schema changes, change these too
+// TODO(maybe): graphql-codegen so these can't drift
 
 export enum GenerationStatus {
-    PENDING = 'PENDING',       // waiting for the image upload
-    QUEUED = 'QUEUED',         // on the SQS queue
-    PROCESSING = 'PROCESSING', // the worker is making the song
+    PENDING = 'PENDING',       // row exists, image not uploaded yet
+    QUEUED = 'QUEUED',         // sitting in SQS
+    PROCESSING = 'PROCESSING', // a worker picked it up
     COMPLETED = 'COMPLETED',
     FAILED = 'FAILED',
 }
 
 export enum Genre {
-    AUTO = 'AUTO', // frontend only: sent as "no genre" so the model picks
+    AUTO = 'AUTO', // frontend only! gets sent as null -> model picks
     EDM_CHILL = 'EDM_CHILL',
     EDM_DROP = 'EDM_DROP',
     RETROWAVE = 'RETROWAVE',
@@ -17,7 +18,7 @@ export enum Genre {
     HOUSE = 'HOUSE',
 }
 
-/** A genre a song can have: every Genre except AUTO. */
+// what a finished song can actually be (AUTO is only for requests)
 export type SongGenre = Exclude<Genre, Genre.AUTO>;
 
 export const GENRE_LABELS: Record<SongGenre, string> = {
@@ -28,7 +29,7 @@ export const GENRE_LABELS: Record<SongGenre, string> = {
     [Genre.CINEMATIC]: 'Cinematic',
 };
 
-/** True for the five genre names the API accepts, e.g. when read from a URL. */
+// type guard for untrusted strings, e.g. ?genre= in the url
 export function isSongGenre(value: string | null): value is SongGenre {
     return value !== null && value in GENRE_LABELS;
 }
@@ -40,7 +41,7 @@ export interface Generation {
     id: string;
     status: GenerationStatus;
     genre: SongGenre | null;
-    confidence: number | null; // null when the user picked the genre
+    confidence: number | null; // null if the user picked
     feedback: Feedback | null;
     imageUrl: string;
     audioUrl: string | null;
@@ -48,7 +49,7 @@ export interface Generation {
     createdAt: string;
 }
 
-/** A presigned S3 POST: send every field, then the file last, to url. */
+// presigned S3 POST. send all the fields, file goes LAST
 export interface ImageUpload {
     url: string;
     fields: { name: string; value: string }[];

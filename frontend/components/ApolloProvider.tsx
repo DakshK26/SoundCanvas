@@ -1,6 +1,6 @@
 'use client';
 
-// Makes the Apollo GraphQL client available to every component in the app.
+// wrapper bc ApolloProvider needs 'use client' and layout.tsx is a server component
 import { ApolloProvider } from '@apollo/client';
 import apolloClient from '@/lib/apollo-client';
 
