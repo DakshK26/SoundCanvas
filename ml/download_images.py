@@ -1,16 +1,16 @@
 """
-Step 0 of training: fetch the raw images.
+training step 0: get the photos.
 
-Downloads the Flickr8k dataset from Kaggle (8,091 everyday Flickr photos:
-people, pets, sports, concerts, beaches, snow, city nights) and copies a fixed
-random sample of 3,000 into data/raw_images as image_00001.jpg ... image_03000.jpg.
+pulls Flickr8k from kaggle (8,091 everyday photos - people, pets, sports, concerts,
+beaches, snow, city at night) and copies a fixed random 3,000 into data/raw_images
+as image_00001.jpg .. image_03000.jpg
 
-Why Flickr8k: it looks like what people upload, with a wide spread of
-brightness, color and mood. An earlier landscape-photo dataset was mostly
-dramatic skies, so nearly every image felt "cinematic".
+why flickr8k: it looks like what people would actually upload, lots of variety in
+brightness/colour/mood. the landscape dataset I used before was mostly dramatic skies
+so basically everything came out "cinematic"
 
-Needs Kaggle credentials: kaggle.json in ~/.kaggle or in KAGGLE_CONFIG_DIR.
-Run:  python download_images.py
+needs kaggle creds: kaggle.json in ~/.kaggle or KAGGLE_CONFIG_DIR (never commit it)
+run:  python download_images.py
 """
 import random
 import shutil
@@ -21,11 +21,11 @@ from pathlib import Path
 from data_files import IMAGES_DIR, SEED
 
 KAGGLE_DATASET = "adityajn105/flickr8k"
-IMAGE_COUNT = 3000  # enough for a 2,100 / 300 / 600 split; labeling all 8,091 adds little
+IMAGE_COUNT = 3000  # -> 2,400 train / 600 test. all 8,091 wouldn't add much
 
 
 def main():
-    from kaggle.api.kaggle_api_extended import KaggleApi  # imported here so the other scripts don't need kaggle
+    from kaggle.api.kaggle_api_extended import KaggleApi  # lazy import, nothing else needs the kaggle package
 
     api = KaggleApi()
     api.authenticate()

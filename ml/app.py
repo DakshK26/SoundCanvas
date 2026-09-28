@@ -1,8 +1,8 @@
 """
-ml service: predicts a genre from 8 image features.
+ml service - 8 features in, genre out.
 
-The worker calls POST /predict with the features cpp-core computed, and gets
-back the genre name the composer should use. The model is loaded once at startup.
+worker sends the features cpp-core computed to POST /predict, gets back a genre name.
+model loads once at import. tensorflow is slow to start -> ecs.tf gives ml a 60s health check grace period
 """
 from typing import Annotated, Literal
 
@@ -22,21 +22,21 @@ GenreName = Literal[tuple(GENRES)]
 
 
 class PredictRequest(BaseModel):
-    """The 8 features, each 0 to 1, in the order listed in features.py."""
+    """8 features, each 0..1, same order as FEATURE_NAMES in features.py"""
     features: list[Feature] = Field(min_length=8, max_length=8)
 
 
 class PredictResponse(BaseModel):
-    """The most likely genre and the model's probability for it."""
+    """top genre + its softmax probability"""
     genre: GenreName
     confidence: float = Field(ge=0, le=1)
 
 
 @app.post("/predict", response_model=PredictResponse)
 def predict(request: PredictRequest) -> PredictResponse:
-    """Return the most likely genre for one image. FastAPI answers 422 to invalid features."""
-    # Calling the model directly skips model.predict()'s batching machinery, which
-    # costs milliseconds per call and is built for datasets, not one row.
+    """one image -> best genre. bad features get a 422 from pydantic before this even runs"""
+    # learned: model(x) instead of model.predict(x). predict() sets up a whole batching
+    # pipeline every call - fine for a dataset, slow (ms of overhead) for 1 row
     probabilities = model(np.array([request.features], dtype=np.float32), training=False).numpy()[0]
     best = int(probabilities.argmax())
     return PredictResponse(genre=GENRES[best], confidence=float(probabilities[best]))
@@ -44,5 +44,5 @@ def predict(request: PredictRequest) -> PredictResponse:
 
 @app.get("/health")
 def health() -> dict:
-    """Used by the ECS container health check."""
+    """for the ECS container health check"""
     return {"ok": True}

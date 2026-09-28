@@ -1,6 +1,6 @@
-"""The five genres, in the order of the model's outputs.
+"""the 5 genres, index = model output index.
 
-The names are a contract: gateway/src/schema.ts, cpp-core's GenreTemplate.cpp and
-audio-producer's kits and mixes use the same five (ml/tests checks this).
+these exact names are used everywhere: gateway/src/schema.ts, cpp-core GenreTemplate.cpp,
+audio-producer kits/mixes. ml/tests checks they all match. rename one -> rename all
 """
 GENRES = ["EDM_CHILL", "EDM_DROP", "RETROWAVE", "CINEMATIC", "HOUSE"]

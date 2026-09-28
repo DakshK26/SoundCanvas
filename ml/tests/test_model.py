@@ -1,5 +1,5 @@
 """
-Tests for the trained model and the service that serves it. These need TensorFlow:
+model + /predict tests. these need tensorflow installed
   pip install -r ml/requirements-dev.txt && python -m unittest discover -s ml/tests
 """
 import sys
@@ -24,7 +24,7 @@ class PredictEndpoint(unittest.TestCase):
     def test_returns_a_known_genre_and_a_probability(self):
         prediction = predict(PredictRequest(features=FEATURES))
         self.assertIn(prediction.genre, GENRES)
-        self.assertGreaterEqual(prediction.confidence, 1 / len(GENRES))  # the top choice of 5
+        self.assertGreaterEqual(prediction.confidence, 1 / len(GENRES))  # top of 5 can't be < 20%
         self.assertLessEqual(prediction.confidence, 1)
 
     def test_rejects_the_wrong_number_of_features(self):
@@ -40,7 +40,7 @@ class PredictEndpoint(unittest.TestCase):
 
 class TrainingData(unittest.TestCase):
     def test_dataset_matches_the_labels_and_the_split_rule(self):
-        """Catches a dataset.csv that is stale after labels.csv or build_dataset.py changed."""
+        """catches forgetting to rerun build_dataset.py after changing labels.csv"""
         splits = assign_splits(load_labels())
         with DATASET_PATH.open() as file:
             rows = [line.split(",")[:3] for line in file.read().splitlines()[1:]]
@@ -61,7 +61,7 @@ class TrainedModel(unittest.TestCase):
         np.testing.assert_allclose(probabilities.sum(axis=1), 1, rtol=1e-5)
 
     def test_committed_model_reproduces_its_reported_test_accuracy(self):
-        """evaluate.ipynb and the README report 79.2%. A retrained or swapped model must update them."""
+        """README + evaluate.ipynb say 79.2%. if I retrain, this fails until I update those too"""
         x_test, y_test = load_split("test")
         accuracy = (model(x_test, training=False).numpy().argmax(axis=1) == y_test).mean()
         self.assertAlmostEqual(accuracy, 0.792, delta=0.001)

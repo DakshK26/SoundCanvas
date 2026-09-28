@@ -1,11 +1,11 @@
 """
-Step 1 of training: turn data/labels.csv into data/dataset.csv.
+training step 1: labels.csv -> dataset.csv
 
-Computes each labeled photo's 8 features (features.py) and assigns it a split:
-  train  80%  used by train.py, which cross-validates on it to choose the network
-  test   20%  scored once, in evaluate.ipynb, and never used to make a choice
-The split is stratified: each genre is divided 80/20 on its own, so a rare
-genre cannot end up missing from the test set by chance.
+computes the 8 features per labeled photo + gives it a split
+  train  80%  train.py does all its CV on this
+  test   20%  only scored once in evaluate.ipynb, never used to decide anything
+stratified -> each genre is split 80/20 on its own. otherwise retrowave (tiny) could
+randomly end up with 0 test photos
 """
 import csv
 
@@ -18,7 +18,7 @@ TEST_SHARE = 0.20
 
 
 def assign_splits(labels: dict[str, str]) -> dict[str, str]:
-    """Image filename -> "train" or "test"."""
+    """filename -> "train"/"test". sorted first so the same seed = same split every run"""
     images = sorted(labels)
     train, test = train_test_split(images, test_size=TEST_SHARE, random_state=SEED,
                                    stratify=[labels[image] for image in images])

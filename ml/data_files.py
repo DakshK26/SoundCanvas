@@ -1,10 +1,10 @@
 """
-Where the ML data lives, shared by every script in this folder.
+paths + csv helpers that every script in ml/ shares
 
-  data/raw_images/  3,000 Flickr8k photos (download_images.py)
-  data/labels.csv         image, genre: one label per photo, by colour and mood (label_images.py)
-  data/second_labels.csv  150 of the photos labeled again by a second labeler, to measure agreement
-  data/dataset.csv        image, split, genre and the 8 features (build_dataset.py)
+  data/raw_images/        3,000 Flickr8k photos           <- download_images.py
+  data/labels.csv         image, genre (1 label per photo) <- label_images.py
+  data/second_labels.csv  150 photos labeled a 2nd time, to check how consistent the labels are
+  data/dataset.csv        image, split, genre, 8 features  <- build_dataset.py
 """
 import csv
 from pathlib import Path
@@ -26,7 +26,7 @@ def all_images() -> list[str]:
 
 
 def load_labels() -> dict[str, str]:
-    """Image filename -> genre, for every photo labeled so far."""
+    """filename -> genre for everything labeled so far ({} if nothing yet)"""
     if not LABELS_PATH.exists():
         return {}
     with LABELS_PATH.open(newline="") as file:
@@ -41,10 +41,10 @@ def save_labels(labels: dict[str, str]) -> None:
 
 
 def load_split(split: str) -> tuple[np.ndarray, np.ndarray]:
-    """The features (one row of 8 per image) and genre indices of one split of dataset.csv."""
+    """(X, y) for "train" or "test". X = N x 8 features, y = genre index"""
     with DATASET_PATH.open(newline="") as file:
         reader = csv.reader(file)
-        next(reader)  # the header
+        next(reader)  # skip header
         rows = [row for row in reader if row[1] == split]
     features = np.array([[float(value) for value in row[3:]] for row in rows], dtype=np.float32)
     genres = np.array([GENRES.index(row[2]) for row in rows])

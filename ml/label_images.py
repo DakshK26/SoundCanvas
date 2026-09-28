@@ -1,13 +1,14 @@
 """
-Labeling tool: gives each photo the genre its colour and mood fit best.
+little local labeling page. 1 photo at a time + the genre guide next to it.
 
-Opens a page that shows one photo at a time next to the genre guide. Press 1-5
-(or click) to pick a genre; Backspace goes back one. Each answer is saved to
-data/labels.csv immediately, so labeling can stop and resume at any time.
-Labels describe colour and mood, not subject, because the model only sees the
-8 colour features: a party and a quiet park with the same colours get the same genre.
+1-5 (or click) = pick genre, backspace = undo. every answer gets written to
+data/labels.csv right away -> can stop whenever and it picks up where it left off.
 
-Run:  python label_images.py   then open http://localhost:8765
+NOTE: label by colour + mood, NOT by what's in the photo. the model only ever sees
+the 8 colour features, so a party and a quiet park w/ the same colours have to get
+the same genre or the labels are unlearnable
+
+run:  python label_images.py   -> http://localhost:8765
 """
 import json
 import threading
@@ -20,7 +21,7 @@ from genres import GENRES
 PORT = 8765
 SAVE_LOCK = threading.Lock()
 
-# The labeling guide, shown next to the buttons: the look that fits each genre.
+# shown under each button so the labels stay consistent over 3000 photos
 GENRE_GUIDE = {
     "EDM_CHILL": "calm and airy: light, soft or pastel colours, gentle contrast, cool blues and greens",
     "EDM_DROP": "dark and intense: mostly dark with punchy contrast or deep saturated colour",
@@ -101,7 +102,7 @@ class LabelingHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/":
-            # ?names=a.jpg,b.jpg limits this tab to those images, so several labelers can work at once.
+            # ?names=a.jpg,b.jpg -> only those images in this tab (lets the work be split into chunks)
             wanted = parse_qs(parsed.query).get("names", [None])[0]
             images = self.images
             if wanted:
@@ -115,12 +116,12 @@ class LabelingHandler(BaseHTTPRequestHandler):
             self.respond(404, "text/plain", b"not found")
 
     def do_POST(self):
-        """Saves one answer. An empty genre removes the answer (used by Backspace)."""
+        """save 1 label. genre "" = delete it (that's what backspace sends)"""
         body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
         if body["image"] not in self.images or body["genre"] not in GENRES + [""]:
             self.respond(400, "text/plain", b"bad label")
             return
-        with SAVE_LOCK:  # read-modify-write of the CSV must not interleave across threads
+        with SAVE_LOCK:  # threaded server -> 2 saves at once could each overwrite the other's row
             labels = load_labels()
             if body["genre"]:
                 labels[body["image"]] = body["genre"]
@@ -136,12 +137,13 @@ class LabelingHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, *args):
-        pass  # keep the terminal quiet
+        pass  # otherwise it prints a line per image request
 
 
 if __name__ == "__main__":
     print(f"Labeling {len(LabelingHandler.images)} images. Open http://localhost:{PORT}")
-    # Threaded so one stalled connection can't block every other request. Address reuse is
-    # off so a second copy fails to start instead of silently sharing the port (Windows allows that).
+    # threaded so one hung connection doesn't block everything.
+    # gotcha (windows): with address reuse on, a 2nd copy of this script can bind the same
+    # port silently and requests go to either one. turning it off makes the 2nd copy just fail
     ThreadingHTTPServer.allow_reuse_address = False
     ThreadingHTTPServer(("localhost", PORT), LabelingHandler).serve_forever()
