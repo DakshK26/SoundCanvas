@@ -1,4 +1,4 @@
-# ml service: serves the trained genre classifier on port 5000.
+# ml - serves the trained model on :5000. model file gets baked into the image
 FROM python:3.12-slim
 
 WORKDIR /app

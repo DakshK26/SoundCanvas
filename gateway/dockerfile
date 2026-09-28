@@ -1,5 +1,6 @@
-# gateway: one image, three commands. ECS runs it as the API (the default CMD),
-# as the worker (npm run worker) and, once per deploy, as the migration task (npm run migrate).
+# gateway - 1 image, 3 ways to run it:
+#   API (default CMD), worker (npm run worker), migration once per deploy (npm run migrate)
+# same code everywhere -> api + worker can't end up on different versions
 FROM node:22-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./

@@ -1,13 +1,13 @@
-# Runs the whole backend locally: LocalStack stands in for S3 and SQS, and a
-# MySQL container stands in for RDS. Start with `docker compose up --build`
-# from this folder, then run the frontend on http://localhost:3000 with
-# NEXT_PUBLIC_GRAPHQL_ENDPOINT=http://localhost:4000/graphql.
+# whole backend locally, no AWS account needed.
+#   LocalStack = fake S3 + SQS, mysql container = fake RDS
+# run: `docker compose up --build` in this folder, then the frontend on :3000 w/
+#   NEXT_PUBLIC_GRAPHQL_ENDPOINT=http://localhost:4000/graphql
 
 x-gateway: &gateway
   build: ../gateway
   environment:
     AWS_REGION: us-east-2
-    AWS_ACCESS_KEY_ID: test # LocalStack accepts any credentials
+    AWS_ACCESS_KEY_ID: test # localstack takes anything, these aren't real
     AWS_SECRET_ACCESS_KEY: test
     AWS_ENDPOINT_URL: http://localhost.localstack.cloud:4566
     S3_BUCKET: soundcanvas-local
@@ -21,7 +21,7 @@ x-gateway: &gateway
     ML_URL: http://ml:5000
     AUDIO_PRODUCER_URL: http://audio-producer:9001
 
-# The API and worker start only after the schema migration has finished.
+# api + worker wait for the migration to finish (same order as the real deploy)
 x-after-migrate: &after-migrate
   depends_on:
     migrate: { condition: service_completed_successfully }
@@ -58,7 +58,7 @@ services:
       MYSQL_DATABASE: soundcanvas
       MYSQL_USER: soundcanvas
       MYSQL_PASSWORD: soundcanvas
-    healthcheck: # ready once it accepts logins (the first start takes ~20 s to set up)
+    healthcheck: # first boot takes ~20s to init, migrate would crash if it started right away
       test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-usoundcanvas", "-psoundcanvas"]
       interval: 5s
       retries: 20
@@ -72,9 +72,10 @@ services:
       - ./localstack-init.sh:/etc/localstack/init/ready.d/init.sh
     networks:
       default:
-        # localhost.localstack.cloud resolves to 127.0.0.1 on the internet, so the
-        # browser reaches LocalStack through the published port. These aliases make
-        # the same presigned URLs work from inside the gateway containers.
+        # gotcha: presigned urls have to work from BOTH the browser and the containers.
+        # localhost.localstack.cloud is real public DNS -> 127.0.0.1, so the browser hits the
+        # published port. inside docker these aliases point the same name at localstack
+        # (bucket name subdomain too, for virtual-hosted style urls)
         aliases:
           - localhost.localstack.cloud
           - soundcanvas-local.localhost.localstack.cloud

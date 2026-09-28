@@ -1,8 +1,8 @@
-# Permissions. Each container gets only what its code uses:
-#   gateway-api:    presign S3 uploads/downloads, check an upload exists, send to the queue
-#   gateway-worker: read/write S3 objects, receive, delete and delay queue messages
-#   cpp-core, ml, audio-producer, migrate: no AWS permissions
-# Database access is controlled by the network (security groups) and the password, not IAM.
+# IAM. least privilege - each container only gets what its code actually calls:
+#   gateway-api:    presign S3 up/downloads, HEAD an upload, send to SQS
+#   gateway-worker: get/put S3 objects, receive/delete/change visibility on SQS
+#   cpp-core, ml, audio-producer, migrate: nothing, they never touch AWS
+# db access isn't IAM at all, it's security groups + the password
 
 data "aws_iam_policy_document" "ecs_assume" {
   statement {
@@ -14,7 +14,10 @@ data "aws_iam_policy_document" "ecs_assume" {
   }
 }
 
-# The execution role is used by ECS itself: pull images, write logs, read the DB password secret.
+# learned: 2 kinds of role.
+#   execution role = ECS itself uses it BEFORE the container starts (pull image, logs, fetch secrets)
+#   task role = what my code gets at runtime
+# they're easy to mix up, e.g. the DB secret goes on the EXECUTION role bc ECS injects it
 resource "aws_iam_role" "execution" {
   name               = "${var.app_name}-execution"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
@@ -37,7 +40,7 @@ resource "aws_iam_role_policy" "execution_db_secret" {
   })
 }
 
-# Task roles are used by our code.
+# task roles (my code)
 resource "aws_iam_role" "api" {
   name               = "${var.app_name}-api"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
@@ -49,15 +52,15 @@ resource "aws_iam_role_policy" "api" {
     Version = "2012-10-17"
     Statement = [
       {
-        # A presigned URL carries the signer's permissions, so the API needs the
-        # same S3 actions the browser performs with it.
+        # presigned url = signed w/ the API's creds, so the API needs the permission itself
+        # even though it's the browser doing the actual PUT/GET
         Effect   = "Allow"
         Action   = ["s3:PutObject", "s3:GetObject"]
         Resource = "${aws_s3_bucket.media.arn}/*"
       },
       {
-        # Checking the image was uploaded: without list permission S3 answers
-        # "access denied" instead of "not found" for a missing file.
+        # gotcha: w/o ListBucket, HEAD on a missing key gives 403 not 404,
+        # so "not uploaded yet" looks like a permissions error
         Effect    = "Allow"
         Action    = "s3:ListBucket"
         Resource  = aws_s3_bucket.media.arn
@@ -89,7 +92,7 @@ resource "aws_iam_role_policy" "worker" {
       },
       {
         Effect = "Allow"
-        # ChangeMessageVisibility keeps a running job hidden and delays a retry.
+        # ChangeMessageVisibility = heartbeat + retry delay
         Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility"]
         Resource = aws_sqs_queue.jobs.arn
       },
@@ -97,9 +100,9 @@ resource "aws_iam_role_policy" "worker" {
   })
 }
 
-# The deploy workflow (.github/workflows/deploy.yml) signs in with GitHub's OIDC
-# token, so no long-lived AWS keys are stored in GitHub. Only runs in the
-# repository's "production" environment, which requires a manual approval, may assume it.
+# deploy.yml signs in w/ github's OIDC token -> no long lived AWS keys in github secrets.
+# the sub condition below = only jobs in this repo's "production" environment
+# (which needs my approval) can assume it
 resource "aws_iam_openid_connect_provider" "github" {
   url            = "https://token.actions.githubusercontent.com"
   client_id_list = ["sts.amazonaws.com"]
@@ -123,8 +126,9 @@ resource "aws_iam_role" "deploy" {
   })
 }
 
-# The workflow runs `terraform apply`, which creates and changes every resource
-# here (IAM roles included), so it needs broad rights. The trust policy above is what limits who gets them.
+# admin bc it runs terraform apply, which manages everything incl. IAM itself.
+# the trust policy above is the actual guard here, not this.
+# TODO(maybe): scope this down, it's the broadest thing in the whole repo
 resource "aws_iam_role_policy_attachment" "deploy" {
   role       = aws_iam_role.deploy.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"

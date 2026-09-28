@@ -1,13 +1,12 @@
 """
-Writes golden.json: the 8 features ml/features.py computes for each test image.
+makes golden.json = what ml/features.py gives for each test image
 
-The model was trained on features from Python, but at runtime cpp-core computes
-them in C++. If the two drift apart, the model gets inputs it never saw in
-training. Both sides are tested against this file:
-  - ml/tests/test_features.py checks Python still gives these numbers.
-  - cpp-core/tests/test_core.cpp checks C++ gives them within TOLERANCE.
+why: model trained on python features, but in prod C++ computes them. if they drift
+the model gets inputs it never saw. so both get checked against this file:
+  - ml/tests/test_features.py -> python still gives these exact numbers
+  - cpp-core/tests/test_core.cpp -> C++ within TOLERANCE
 
-Run from the repo root after changing either feature extractor on purpose:
+only rerun if I change a feature extractor ON PURPOSE (from repo root):
   ml/.venv/Scripts/python tests/feature_parity/make_golden.py
 """
 import json
@@ -24,16 +23,16 @@ from features import FEATURE_NAMES, compute_features  # noqa: E402
 HERE = Path(__file__).parent
 SYNTHETIC_DIR = HERE / "images"
 
-# Why the two sides can differ slightly: Pillow rounds hue and saturation to
-# whole bytes (0-255) and uses a different JPEG decoder from stb_image.
-# 0.01 is 1% of each feature's range, far smaller than what moves a prediction.
+# they can't match exactly: PIL rounds hue/sat to bytes (0-255) and decodes jpegs
+# differently than stb_image. 0.01 = 1% of the range, way below what changes a prediction
+# (actual max diff right now is ~0.003)
 TOLERANCE = 0.01
 
 SIZE = 64
 
 
 def make_synthetic_images() -> None:
-    """Small PNGs for edge cases: no color, one pure color, smooth change, noise."""
+    """edge case pngs: gray (no colour), pure red/blue, gradient, noise"""
     SYNTHETIC_DIR.mkdir(exist_ok=True)
     rng = np.random.default_rng(42)
     ramp = np.linspace(0, 255, SIZE, dtype=np.uint8)
@@ -50,7 +49,7 @@ def make_synthetic_images() -> None:
 
 
 def test_images() -> list[Path]:
-    """The synthetic PNGs plus the real example photos the website ships with."""
+    """synthetic pngs + the real example jpgs from the frontend (jpeg decoding is where they differ most)"""
     examples = sorted((ROOT / "frontend" / "public" / "examples").glob("*.jpg"))
     return sorted(SYNTHETIC_DIR.glob("*.png")) + examples
 

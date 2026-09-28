@@ -1,25 +1,24 @@
-# The job queue: SQS FIFO between the gateway API (sends) and the workers (receive).
-# FIFO keeps each browser's jobs in order (one message group per browser) and
-# drops duplicate sends of the same job id.
+# job queue. api sends, workers receive. FIFO instead of standard bc:
+#   - message group = browser -> each browser's jobs go in order, 1 at a time
+#   - dedup id = job id -> a double send of the same job gets dropped (5 min window)
 
 resource "aws_sqs_queue" "jobs_dlq" {
-  name                      = "${var.app_name}-jobs-dlq.fifo" # FIFO queue names must end in .fifo
+  name                      = "${var.app_name}-jobs-dlq.fifo" # has to end in .fifo. also a FIFO queue's DLQ has to be FIFO
   fifo_queue                = true
-  message_retention_seconds = 14 * 24 * 3600 # the SQS maximum, 14 days, to leave time to inspect
+  message_retention_seconds = 14 * 24 * 3600 # 14 days = max, so there's time to look at what broke
 }
 
 resource "aws_sqs_queue" "jobs" {
   name       = "${var.app_name}-jobs.fifo"
   fifo_queue = true
 
-  # While a worker runs a job it extends this every minute (the heartbeat in
-  # gateway/src/pipeline.ts). If the worker dies, the heartbeat stops and the
-  # message is handed out again within 2 minutes, instead of waiting out a long fixed timeout.
-  visibility_timeout_seconds = 120 # VISIBILITY_TIMEOUT_SECONDS in pipeline.ts must match
-  receive_wait_time_seconds  = 20  # long polling, matching the worker
+  # short timeout + heartbeat: worker bumps visibility every 60s while it works (pipeline.ts).
+  # worker dies -> heartbeat stops -> job is back on the queue within 2 min.
+  # (vs one long fixed timeout where a dead worker's job sits hidden the whole time)
+  visibility_timeout_seconds = 120 # must match VISIBILITY_TIMEOUT_SECONDS in pipeline.ts
+  receive_wait_time_seconds  = 20  # long polling, same as the worker
 
-  # After 3 failed attempts, a message moves to the dead-letter queue
-  # (MAX_ATTEMPTS in gateway/src/pipeline.ts must match).
+  # 3 receives -> DLQ. MAX_ATTEMPTS in pipeline.ts has to match!!
   redrive_policy = jsonencode({
     deadLetterTargetArn = aws_sqs_queue.jobs_dlq.arn
     maxReceiveCount     = 3

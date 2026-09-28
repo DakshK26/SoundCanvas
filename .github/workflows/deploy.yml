@@ -1,21 +1,21 @@
-# Deploys the current commit to AWS. Run by hand from the Actions tab; the
-# "production" environment asks a reviewer to approve before anything changes.
+# deploy current commit to AWS. manual only (Actions tab -> run workflow), and the
+# "production" environment makes me approve it before anything happens
 #
-# Order matters: images first, then the database migration, then the new code.
-# The old code is still serving while the migration runs, so a migration may
-# only add to the schema (new tables, new nullable columns), never remove.
+# ORDER MATTERS: push images -> migrate db -> roll out new code.
+# old code is still live while the migration runs, so migrations can only ADD stuff
+# (new tables, nullable columns). never drop/rename or the old code breaks mid-deploy
 #
-# The very first deploy is a manual `terraform apply` (see README), since this
-# workflow signs in with a role that Terraform creates.
+# chicken and egg: this signs in w/ a role terraform creates, so the very first
+# deploy has to be a manual `terraform apply` (see README)
 name: Deploy
 
 on: workflow_dispatch
 
 permissions:
-  id-token: write # lets the job request a GitHub OIDC token to sign in to AWS
+  id-token: write # needed for OIDC -> AWS. no access keys stored in github at all
   contents: read
 
-concurrency: deploy # never two deploys at once
+concurrency: deploy # 2 applies at once = bad time
 
 jobs:
   deploy:
@@ -54,7 +54,7 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~1.10"
-          terraform_wrapper: false # so `terraform output` prints plain values
+          terraform_wrapper: false # gotcha: the wrapper adds extra junk to stdout and breaks `terraform output -raw`
 
       - name: Read where to run the migration
         id: infra
@@ -66,8 +66,8 @@ jobs:
           echo "security_group=$(terraform output -raw tasks_security_group_id)" >> "$GITHUB_OUTPUT"
           echo "registry=$(terraform output -json ecr_repositories | jq -r .gateway)" >> "$GITHUB_OUTPUT"
 
-      # Runs `npm run migrate` from the new gateway image as a one-off task and
-      # fails the deploy if it does not exit cleanly.
+      # one-off ECS task: copy the migrate task def, swap in the NEW gateway image, run it,
+      # wait, check exit code. non-zero -> deploy stops here before any new code goes out
       - name: Migrate the database
         run: |
           aws ecs describe-task-definition --task-definition soundcanvas-migrate \
@@ -89,8 +89,8 @@ jobs:
           echo "migration exit code: $exit_code"
           test "$exit_code" = "0"
 
-      # Rolls every service onto the new images. Waits until they are healthy;
-      # if the new tasks keep failing, ECS rolls back and this step fails.
+      # rolls all services onto the new tag + waits for healthy.
+      # if new tasks keep crashing the circuit breaker rolls back and this step goes red
       - name: Deploy the new images
         working-directory: infra/terraform
         run: terraform apply -input=false -auto-approve

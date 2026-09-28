@@ -1,4 +1,4 @@
-# Values printed after `terraform apply`. The deploy workflow reads some of them too.
+# printed after apply. deploy.yml reads a few of these w/ `terraform output -raw`
 
 output "api_url" {
   description = "Set this as NEXT_PUBLIC_GRAPHQL_ENDPOINT in the frontend (after pointing a DNS name at it that matches the certificate)."
@@ -27,7 +27,7 @@ output "deploy_role_arn" {
   value       = aws_iam_role.deploy.arn
 }
 
-# Where the deploy workflow runs the one-off migration task.
+# the rest are for deploy.yml's migrate step (where to run the one-off task)
 output "cluster_name" {
   value = aws_ecs_cluster.main.name
 }

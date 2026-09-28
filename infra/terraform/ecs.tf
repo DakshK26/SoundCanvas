@@ -1,13 +1,13 @@
-# Containers: an ECR repository per image, one ECS cluster, and a Fargate
-# service per container. The gateway image runs three ways: as the API, as the
-# worker, and as a one-off migration task that the deploy workflow runs first.
-# The worker finds the internal services by name through Cloud Map
-# (for example http://cpp-core.soundcanvas.local:8080).
+# ECS stuff. 1 ECR repo per image, 1 cluster, 1 fargate service per container.
+# gateway image runs 3 ways: api, worker, and a one-off migrate task (deploy.yml runs it first)
+# worker finds the internal services by DNS name via Cloud Map,
+#   e.g. http://cpp-core.soundcanvas.local:8080
+# learned: Cloud Map is basically private DNS that ECS keeps updated w/ task IPs
 
 locals {
   namespace = "${var.app_name}.local"
 
-  # Settings shared by the gateway API, worker and migration (see gateway/.env.example).
+  # env shared by api/worker/migrate (same vars as gateway/.env.example)
   gateway_env = [
     { name = "AWS_REGION", value = var.aws_region },
     { name = "S3_BUCKET", value = aws_s3_bucket.media.bucket },
@@ -24,12 +24,13 @@ locals {
     { name = "DB_PASSWORD", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::" },
   ]
 
-  # A container health check: ECS replaces a task whose /health stops answering.
-  # (The API is checked by the load balancer instead; the worker has no port.)
+  # container health check -> ECS replaces the task if /health stops answering.
+  # api doesn't need one (ALB checks it), worker has no port to check.
+  # python one-liner bc the slim python images don't have curl
   python_health = "import sys, urllib.request; sys.exit(urllib.request.urlopen('http://localhost:%d/health').status != 200)"
 
-  # cpu is in 1/1024ths of a vCPU; memory is in MB. Sizes follow what each service does:
-  # the gateway only waits on I/O, TensorFlow needs memory, and audio rendering is the heaviest step.
+  # cpu = 1/1024 vCPU units (256 = quarter vCPU), memory in MB.
+  # gateway just waits on I/O -> smallest. tensorflow eats memory. audio render = most CPU
   services = {
     gateway-api = {
       repo   = "gateway", port = 4000, cpu = 256, memory = 512, command = null
@@ -39,8 +40,8 @@ locals {
     gateway-worker = {
       repo = "gateway", port = null, cpu = 256, memory = 512, command = ["npm", "run", "worker"]
       env  = local.gateway_env, secrets = local.gateway_secrets, role = aws_iam_role.worker.arn
-      # On a deploy or scale-in, ECS sends SIGTERM and waits this long (the Fargate maximum)
-      # before killing the task, so the worker can finish the song it is making.
+      # deploy / scale-in -> SIGTERM, then ECS waits this long before SIGKILL.
+      # 120 = fargate max. gives the worker time to finish the song it's on (see worker.ts)
       health = null, stop_timeout = 120
     }
     cpp-core = {
@@ -60,7 +61,7 @@ locals {
     }
   }
 
-  # Every task definition: the long-running services plus the migration, which has no service.
+  # task defs = services + migrate (migrate has a task def but no service, it's run by hand from deploy.yml)
   tasks = merge(local.services, {
     migrate = {
       repo   = "gateway", port = null, cpu = 256, memory = 512, command = ["npm", "run", "migrate"]
@@ -69,22 +70,22 @@ locals {
     }
   })
 
-  # The services the worker calls by name.
+  # what the worker calls over Cloud Map
   internal_services = toset(["cpp-core", "ml", "audio-producer"])
 }
 
-# Tags are immutable, so an image tag (the git SHA) always means the same code.
+# IMMUTABLE tags -> a git sha tag always = the same code, can't get overwritten
 resource "aws_ecr_repository" "repo" {
   for_each             = toset(["gateway", "cpp-core", "ml", "audio-producer"])
   name                 = "${var.app_name}/${each.key}"
   image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
-    scan_on_push = true # checks each pushed image for known vulnerabilities
+    scan_on_push = true # free CVE scan on every push
   }
 }
 
-# Every deploy pushes new images; keep the last 20 of each so old ones can be rolled back to.
+# every deploy = new images. keep the last 20 (for rollbacks), delete the rest so storage doesn't pile up
 resource "aws_ecr_lifecycle_policy" "repo" {
   for_each   = aws_ecr_repository.repo
   repository = each.value.name
@@ -102,7 +103,7 @@ resource "aws_ecs_cluster" "main" {
   name = var.app_name
 
   setting {
-    name  = "containerInsights" # per-service CPU, memory and task-count metrics
+    name  = "containerInsights" # per service cpu/mem/task count. worker autoscaling below NEEDS RunningTaskCount from this
     value = "enabled"
   }
 }
@@ -125,7 +126,7 @@ resource "aws_service_discovery_service" "internal" {
     namespace_id = aws_service_discovery_private_dns_namespace.main.id
     dns_records {
       type = "A"
-      ttl  = 10 # seconds; short so a replaced task is found quickly
+      ttl  = 10 # sec. short so the worker stops hitting a dead task's IP quickly
     }
   }
 }
@@ -151,9 +152,9 @@ resource "aws_ecs_task_definition" "task" {
     stopTimeout  = each.value.stop_timeout
     healthCheck = each.value.health == null ? null : {
       command     = each.value.health
-      interval    = 30 # seconds between checks
+      interval    = 30 # sec
       retries     = 3
-      startPeriod = 60 # ml loads TensorFlow before it answers
+      startPeriod = 60 # grace period, ml takes a while to import tensorflow
     }
     logConfiguration = {
       logDriver = "awslogs"
@@ -166,7 +167,7 @@ resource "aws_ecs_task_definition" "task" {
   }])
 }
 
-moved { # renamed when the migration task was added
+moved { # renamed service -> task when I added migrate. without this terraform would destroy + recreate them
   from = aws_ecs_task_definition.service
   to   = aws_ecs_task_definition.task
 }
@@ -176,11 +177,12 @@ resource "aws_ecs_service" "service" {
   name            = each.key
   cluster         = aws_ecs_cluster.main.id
   task_definition = aws_ecs_task_definition.task[each.key].arn
-  desired_count   = 1 # the starting count; auto scaling below adjusts it
+  desired_count   = 1 # just the start, autoscaling takes over (see ignore_changes)
   launch_type     = "FARGATE"
 
-  # A deploy whose new tasks keep failing is stopped and rolled back to the last working version,
-  # and `terraform apply` waits for that outcome, so the deploy workflow fails instead of reporting success.
+  # circuit breaker: new tasks keep failing -> ECS rolls back to the last good version.
+  # wait_for_steady_state makes apply actually wait for that, otherwise the deploy goes green
+  # even when the new code is crash looping
   deployment_circuit_breaker {
     enable   = true
     rollback = true
@@ -192,7 +194,7 @@ resource "aws_ecs_service" "service" {
     security_groups = [aws_security_group.tasks.id]
   }
 
-  # Only the API sits behind the load balancer.
+  # only the api is behind the ALB
   dynamic "load_balancer" {
     for_each = each.key == "gateway-api" ? [1] : []
     content {
@@ -202,7 +204,7 @@ resource "aws_ecs_service" "service" {
     }
   }
 
-  # Internal services register their address in Cloud Map.
+  # internal ones register in Cloud Map
   dynamic "service_registries" {
     for_each = contains(local.internal_services, each.key) ? [1] : []
     content {
@@ -211,13 +213,13 @@ resource "aws_ecs_service" "service" {
   }
 
   lifecycle {
-    ignore_changes = [desired_count] # owned by auto scaling after the first deploy
+    ignore_changes = [desired_count] # gotcha: otherwise every apply resets it to 1 and fights autoscaling
   }
 
   depends_on = [aws_lb_listener.https]
 }
 
-# Auto scaling: each service below runs between 1 and 5 tasks.
+# autoscaling, 1-5 tasks each. (api isn't in here, it stays at 1)
 resource "aws_appautoscaling_target" "service" {
   for_each           = setunion(local.internal_services, ["gateway-worker"])
   service_namespace  = "ecs"
@@ -227,10 +229,11 @@ resource "aws_appautoscaling_target" "service" {
   max_capacity       = 5
 }
 
-# Workers scale on backlog per worker: waiting jobs divided by running workers,
-# aiming for 2. A song takes about a minute, so that keeps the wait near two minutes.
-# Jobs from one browser share a message group and still run one at a time;
-# extra workers help when many browsers are waiting.
+# workers scale on backlog per worker = waiting jobs / running workers, target 2.
+# ~1 min per song -> wait stays around 2 min.
+# (queue depth alone is the wrong metric - 10 waiting is fine w/ 5 workers, bad w/ 1)
+# NOTE: one browser's jobs are 1 message group so they still go 1 at a time.
+# more workers only helps when lots of different browsers are waiting
 resource "aws_appautoscaling_policy" "worker_backlog" {
   name               = "${var.app_name}-worker-backlog"
   policy_type        = "TargetTrackingScaling"
@@ -285,7 +288,7 @@ resource "aws_appautoscaling_policy" "worker_backlog" {
   }
 }
 
-# The internal services scale on CPU, so more workers don't overload them.
+# internal services scale on CPU so more workers don't just swamp them
 resource "aws_appautoscaling_policy" "service_cpu" {
   for_each           = local.internal_services
   name               = "${var.app_name}-${each.key}-cpu"
@@ -295,7 +298,7 @@ resource "aws_appautoscaling_policy" "service_cpu" {
   resource_id        = aws_appautoscaling_target.service[each.key].resource_id
 
   target_tracking_scaling_policy_configuration {
-    target_value = 60 # percent average CPU; leaves headroom while new tasks start
+    target_value = 60 # % avg CPU. not higher bc new tasks take a minute+ to start
     predefined_metric_specification {
       predefined_metric_type = "ECSServiceAverageCPUUtilization"
     }

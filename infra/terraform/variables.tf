@@ -1,4 +1,4 @@
-# Inputs. Set the required ones in terraform.tfvars (see terraform.tfvars.example).
+# inputs. required ones go in terraform.tfvars (copy terraform.tfvars.example)
 
 variable "aws_region" {
   type    = string

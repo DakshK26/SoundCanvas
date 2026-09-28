@@ -1,20 +1,19 @@
-# Networking: a VPC across two availability zones, a public load balancer for
-# the GraphQL API, and private subnets where the containers and database run.
+# networking. VPC over 2 AZs, public ALB for the api, everything else private
 #
-# public subnets:  load balancer, NAT gateway
-# private subnets: every ECS task and RDS (reachable only from inside the VPC)
+# public subnets:  ALB, NAT gateway
+# private subnets: all ECS tasks + RDS (nothing here is reachable from outside the VPC)
 
 data "aws_availability_zones" "available" {
   state = "available"
 }
 
 locals {
-  azs = slice(data.aws_availability_zones.available.names, 0, 2) # two AZs: the minimum RDS and the ALB accept
+  azs = slice(data.aws_availability_zones.available.names, 0, 2) # 2 = minimum the ALB + RDS subnet group will take
 }
 
 resource "aws_vpc" "main" {
   cidr_block           = "10.0.0.0/16"
-  enable_dns_hostnames = true # needed for Cloud Map names like cpp-core.soundcanvas.local
+  enable_dns_hostnames = true # Cloud Map private DNS (cpp-core.soundcanvas.local) doesn't resolve w/o this
   tags                 = { Name = var.app_name }
 }
 
@@ -35,7 +34,7 @@ resource "aws_subnet" "private" {
   tags              = { Name = "${var.app_name}-private-${count.index}" }
 }
 
-# Public subnets reach the internet directly.
+# public subnets -> internet gateway directly
 resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 }
@@ -54,9 +53,9 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# Private subnets reach out (to pull images from ECR, call SQS) through one NAT gateway.
-# One NAT in one AZ is a trade-off: if that AZ fails, tasks lose outbound access until it
-# recovers. A NAT per AZ removes that at roughly $32 a month each.
+# private subnets go out thru a NAT (pull from ECR, call SQS, etc).
+# only 1 NAT in 1 AZ to save money - if that AZ dies, tasks lose outbound until it's back.
+# NAT per AZ fixes that but it's ~$32/mo EACH. not worth it for a prototype
 resource "aws_eip" "nat" {
   domain = "vpc"
 }
@@ -80,8 +79,7 @@ resource "aws_route_table_association" "private" {
   route_table_id = aws_route_table.private.id
 }
 
-# S3 traffic (every image and song) goes through this free gateway endpoint
-# instead of the NAT, which charges per GB.
+# S3 gateway endpoint = free. without it every image + wav goes thru the NAT, which charges per GB
 resource "aws_vpc_endpoint" "s3" {
   vpc_id            = aws_vpc.main.id
   service_name      = "com.amazonaws.${var.aws_region}.s3"
@@ -89,9 +87,11 @@ resource "aws_vpc_endpoint" "s3" {
   route_table_ids   = [aws_route_table.private.id]
 }
 
-# Security groups: the internet can reach only the load balancer; the load
-# balancer can reach only the API; tasks reach each other only on the service ports.
-# Traffic inside the VPC is plain HTTP: it never leaves these private subnets.
+# security groups:
+#   internet -> ALB only (443)
+#   ALB -> api only (4000)
+#   tasks -> each other only on the service ports
+# inside the VPC it's plain http, TLS ends at the ALB. fine bc it never leaves the private subnets
 resource "aws_security_group" "alb" {
   name   = "${var.app_name}-alb"
   vpc_id = aws_vpc.main.id
@@ -152,25 +152,25 @@ resource "aws_security_group" "db" {
   }
 }
 
-# The load balancer: HTTPS in, forwarded to the gateway API tasks.
+# ALB: https in -> gateway api tasks
 resource "aws_lb" "api" {
   name               = "${var.app_name}-api"
   load_balancer_type = "application"
   subnets            = aws_subnet.public[*].id
   security_groups    = [aws_security_group.alb.id]
 
-  drop_invalid_header_fields = true # rejects malformed headers used in request smuggling
+  drop_invalid_header_fields = true # off by default for some reason. drops malformed headers (request smuggling stuff)
 }
 
 resource "aws_lb_target_group" "api" {
   name        = "${var.app_name}-api"
   port        = 4000
   protocol    = "HTTP"
-  target_type = "ip" # Fargate tasks register by IP address
+  target_type = "ip" # has to be ip for fargate (awsvpc), "instance" won't work
   vpc_id      = aws_vpc.main.id
 
   health_check {
-    path = "/health" # a plain route in gateway/src/api.ts
+    path = "/health" # plain express route in api.ts, not graphql
   }
 }
 
@@ -179,7 +179,7 @@ resource "aws_lb_listener" "https" {
   port              = 443
   protocol          = "HTTPS"
   certificate_arn   = var.certificate_arn
-  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06" # TLS 1.2 and 1.3 only, AWS's recommended policy
+  ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06" # TLS 1.2 + 1.3 only (AWS's recommended one)
 
   default_action {
     type             = "forward"
