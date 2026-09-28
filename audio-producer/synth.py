@@ -1,26 +1,27 @@
-"""Small building blocks for synthesizing sounds with numpy."""
+"""numpy synth helpers used by drums.py and fx.py"""
 import numpy as np
 from scipy import signal
 
-SAMPLE_RATE = 44100  # CD-quality samples per second; FluidSynth renders at the same rate
+SAMPLE_RATE = 44100  # CD rate. fluidsynth gets told to use the same (-r) so the arrays line up
 
-# Noise comes from a fixed seed, like a recorded drum sample: the same MIDI always
-# renders the same WAV, and concurrent renders share no random state.
+# fixed seed -> noise is the same every time, basically like using a recorded sample.
+# same midi = same wav, and a fresh rng per call means parallel renders don't share state
 NOISE_SEED = 0
 
 
 def time_axis(seconds: float) -> np.ndarray:
-    """The time in seconds of every sample in a sound of the given length."""
+    """t for every sample, in seconds"""
     return np.arange(int(seconds * SAMPLE_RATE)) / SAMPLE_RATE
 
 
 def sine_sweep(frequencies_hz: np.ndarray) -> np.ndarray:
-    """A sine wave whose pitch follows the given per-sample frequencies."""
+    """sine w/ changing pitch. learned: have to integrate freq (cumsum) to get phase,
+    sin(2pi * f(t) * t) sounds wrong when f changes"""
     return np.sin(2 * np.pi * np.cumsum(frequencies_hz) / SAMPLE_RATE)
 
 
 def filtered_noise(seconds: float, low_hz: float, high_hz: float | None = None) -> np.ndarray:
-    """White noise kept above low_hz, and below high_hz if given."""
+    """white noise -> highpass at low_hz, or bandpass if high_hz given. 2nd order butterworth"""
     noise = np.random.default_rng(NOISE_SEED).standard_normal(int(seconds * SAMPLE_RATE))
     if high_hz is None:
         sos = signal.butter(2, low_hz, "highpass", fs=SAMPLE_RATE, output="sos")
@@ -30,12 +31,12 @@ def filtered_noise(seconds: float, low_hz: float, high_hz: float | None = None) 
 
 
 def decay(seconds: float, time_constant: float) -> np.ndarray:
-    """An exponential fade from 1 toward 0. It drops to 37% every time_constant seconds."""
+    """exp fade 1 -> 0, down to 37% (1/e) after each time_constant"""
     return np.exp(-time_axis(seconds) / time_constant)
 
 
 def place(track: np.ndarray, sound: np.ndarray, start_seconds: float, gain: float = 1.0) -> None:
-    """Adds a sound into a longer track at the given time, cutting it off at the track's end."""
+    """mix sound into track at start_seconds (in place). anything past the end gets cut"""
     start = int(start_seconds * SAMPLE_RATE)
     end = min(start + len(sound), len(track))
     if start < end:

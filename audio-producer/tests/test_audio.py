@@ -1,8 +1,8 @@
-"""Tests for audio-producer's own code. FluidSynth and ffmpeg are not needed:
-these cover the MIDI handling, the synthesized drums and FX, the mix, and
-the /render input checks that run before either tool is called.
+"""audio-producer tests. don't need fluidsynth or ffmpeg installed - only tests my code:
+midi handling, synth drums/fx, the mix, and the /render input checks (which run before
+either tool gets called)
 
-Run from the repo root: python -m unittest discover -s audio-producer/tests -v
+from repo root: python -m unittest discover -s audio-producer/tests -v
 """
 import sys
 import unittest
@@ -20,11 +20,11 @@ from fx import SWEEP_SECONDS, render_fx  # noqa: E402
 from mixer import MIXES, mix, sidechain  # noqa: E402
 from synth import SAMPLE_RATE  # noqa: E402
 
-TICKS_PER_BEAT = 480  # at mido's default 120 BPM, one beat is 0.5 s
+TICKS_PER_BEAT = 480  # no tempo msg -> mido assumes 120bpm -> 1 beat = 0.5s
 
 
 def song() -> mido.MidiFile:
-    """One bass note, a kick on beat 2 and a "drop" marker on beat 3, all on one track."""
+    """tiny song: bass note, kick on beat 2, "drop" marker on beat 3, all 1 track"""
     track = mido.MidiTrack([
         mido.Message("note_on", channel=0, note=40, velocity=90, time=0),
         mido.Message("note_on", channel=DRUM_CHANNEL, note=KICK, velocity=127, time=TICKS_PER_BEAT),
@@ -54,7 +54,7 @@ class MidiHandlingTest(unittest.TestCase):
 
 
 class RenderEndpointTest(unittest.TestCase):
-    """400 and 413 tell the worker that retrying is pointless, so these must not be 500s."""
+    """these HAVE to be 400/413 not 500, or the worker retries something that'll never work"""
 
     def assert_status(self, status: int, genre: str, body: bytes):
         with self.assertRaises(HTTPException) as caught:
@@ -77,7 +77,7 @@ class SoundTest(unittest.TestCase):
     def test_drums_land_on_their_hits_and_render_the_same_every_time(self):
         for genre in KITS:
             track = render_drums([(1.0, KICK, 127)], genre, self.LENGTH)
-            self.assertTrue(np.all(track[: SAMPLE_RATE] == 0), genre)  # silent before the hit
+            self.assertTrue(np.all(track[: SAMPLE_RATE] == 0), genre)  # nothing before the hit
             self.assertGreater(np.abs(track[SAMPLE_RATE:]).max(), 0.5, genre)
             np.testing.assert_array_equal(track, render_drums([(1.0, KICK, 127)], genre, self.LENGTH))
 

@@ -1,8 +1,7 @@
-"""Synthesizes the drum track from the drum notes in the song's MIDI.
+"""drum track, synthesized from scratch from the drum notes in the midi (no samples)
 
-Each genre has a kit: a handful of numbers that shape the same five recipes
-(kick, snare, clap, hi-hat, crash). The MIDI note numbers are the General MIDI
-percussion map, matching cpp-core's MusicTheory.hpp.
+every genre uses the same 5 recipes (kick, snare, clap, hat, crash), a Kit is just
+a few numbers that tweak them. note numbers = GM percussion map, same as MusicTheory.hpp
 """
 from dataclasses import dataclass
 
@@ -10,23 +9,23 @@ import numpy as np
 
 from synth import SAMPLE_RATE, decay, filtered_noise, place, sine_sweep, time_axis
 
-# General MIDI percussion notes that cpp-core writes.
+# keep in sync w/ cpp-core MusicTheory.hpp
 KICK, SNARE, CLAP, LOW_TOM, CLOSED_HAT, OPEN_HAT, CRASH = 36, 38, 39, 41, 42, 46, 49
 
-# Sounds last five decay time-constants, by which point they have faded below 1%.
+# cut sounds off after 5 time constants. e^-5 < 1% so you can't hear the cutoff
 TAIL_LENGTH = 5
 
 
 @dataclass
 class Kit:
-    kick_hz: float     # kick pitch; real kick drums sit around 40-70 Hz
-    kick_decay: float  # seconds; short = punchy, long = boomy
-    drive: float       # soft-clipping amount; higher = harder, more distorted kick
-    snare_hz: float    # snare body pitch; real snares ring around 150-250 Hz
-    hat_decay: float   # seconds; short = tight ticks, long = washy hats
+    kick_hz: float     # real kicks are ~40-70Hz
+    kick_decay: float  # sec. short = punchy, long = boomy
+    drive: float       # tanh soft clip amount, more = harder/dirtier kick
+    snare_hz: float    # snare body, real ones ~150-250Hz
+    hat_decay: float   # sec. short = tight tick, long = washy
 
 
-# Chosen by ear to match each genre's usual sound.
+# by ear, nothing scientific. EDM_DROP = hardest kick, CINEMATIC = low + long + clean
 KITS = {
     "HOUSE": Kit(kick_hz=60, kick_decay=0.18, drive=1.3, snare_hz=200, hat_decay=0.05),
     "EDM_CHILL": Kit(kick_hz=48, kick_decay=0.28, drive=1.1, snare_hz=180, hat_decay=0.08),
@@ -37,7 +36,7 @@ KITS = {
 
 
 def pitched_drum(base_hz: float, decay_seconds: float, drive: float) -> np.ndarray:
-    """A kick or tom: a sine that starts 5x higher and quickly falls to base_hz."""
+    """kick/tom = sine that starts 5x higher and drops fast to base_hz (the drop is the "thump")"""
     seconds = TAIL_LENGTH * decay_seconds
     pitch = base_hz * (1 + 4 * np.exp(-time_axis(seconds) * 40))
     body = sine_sweep(pitch) * decay(seconds, decay_seconds)
@@ -45,7 +44,7 @@ def pitched_drum(base_hz: float, decay_seconds: float, drive: float) -> np.ndarr
 
 
 def snare(kit: Kit) -> np.ndarray:
-    """A snare: a short tone for the drum head plus noise for the rattling wires."""
+    """snare = short tone (the head) + bandpassed noise (the wires underneath)"""
     seconds = 0.25
     head = np.sin(2 * np.pi * kit.snare_hz * time_axis(seconds)) * decay(seconds, 0.05)
     wires = filtered_noise(seconds, 1000, 8000) * decay(seconds, 0.07)
@@ -53,7 +52,7 @@ def snare(kit: Kit) -> np.ndarray:
 
 
 def clap() -> np.ndarray:
-    """A clap: three quick noise bursts, like several hands clapping slightly apart."""
+    """clap = 3 noise bursts 10ms apart (like a few people clapping not quite together)"""
     seconds = 0.3
     burst = np.zeros(int(seconds * SAMPLE_RATE))
     for offset in (0.0, 0.01, 0.02):
@@ -62,13 +61,13 @@ def clap() -> np.ndarray:
 
 
 def cymbal(decay_seconds: float, low_hz: float) -> np.ndarray:
-    """A hi-hat or crash: bright noise with everything below low_hz removed."""
+    """hat/crash = highpassed noise. open hat is just a closed hat w/ a longer decay"""
     seconds = TAIL_LENGTH * decay_seconds
     return filtered_noise(seconds, low_hz) * decay(seconds, decay_seconds)
 
 
 def drum_sounds(genre: str) -> dict[int, np.ndarray]:
-    """Every drum sound for a genre, keyed by its MIDI note."""
+    """midi note -> sound for this genre. each one normalized to peak 1, velocity sets the level"""
     kit = KITS[genre]
     sounds = {
         KICK: pitched_drum(kit.kick_hz, kit.kick_decay, kit.drive),
@@ -83,7 +82,7 @@ def drum_sounds(genre: str) -> dict[int, np.ndarray]:
 
 
 def render_drums(hits: list[tuple[float, int, int]], genre: str, length: int) -> np.ndarray:
-    """Plays each (seconds, note, velocity) hit into a mono track `length` samples long."""
+    """drops every (sec, note, vel) hit into a mono track. sounds are built once, not per hit"""
     sounds = drum_sounds(genre)
     track = np.zeros(length)
     for seconds, note, velocity in hits:
