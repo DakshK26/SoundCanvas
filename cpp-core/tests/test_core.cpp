@@ -1,6 +1,6 @@
-// Unit tests for cpp-core. Plain asserts, no framework, so they build anywhere
-// cmake does. Run with: cmake -B build -DSOUNDCANVAS_TESTS=ON && cmake --build build
-// && ctest --test-dir build --output-on-failure
+// cpp-core tests. no framework (gtest etc) on purpose, just a CHECK macro -> builds anywhere
+// run: cmake -B build -DSOUNDCANVAS_TESTS=ON && cmake --build build
+//      && ctest --test-dir build --output-on-failure
 #include <cmath>
 #include <cstdint>
 #include <fstream>
@@ -49,7 +49,7 @@ ImageFeatures someFeatures(float brightness) {
   return {0.6f, 0.4f, 0.3f, brightness, 0.1f, 0.5f, 0.4f, 0.2f};
 }
 
-// ---- A small MIDI reader, used to check the files we write are valid ----
+// ---- tiny midi reader, only here to check the writer's output parses ----
 
 struct MidiEvent {
   int tick;
@@ -78,7 +78,7 @@ uint32_t readVarLen(const std::string& bytes, size_t& pos) {
   return value;
 }
 
-// Throws if the bytes are not a well-formed Standard MIDI File.
+// throws if it's not a valid SMF
 MidiFile parseMidi(const std::string& bytes) {
   size_t pos = 0;
   if (bytes.substr(0, 4) != "MThd") throw std::runtime_error("missing MThd");
@@ -118,9 +118,10 @@ MidiFile parseMidi(const std::string& bytes) {
   return file;
 }
 
-// ---- Tests ----
+// ---- tests ----
 
-// The model was trained on Python features; cpp-core must produce the same numbers.
+// most important one. model trained on python's numbers, so C++ has to match them
+// (golden file comes from tests/feature_parity/make_golden.py)
 void featuresMatchPython() {
   const std::string root = REPO_ROOT;
   json golden = json::parse(readFile(root + "/tests/feature_parity/golden.json"));
@@ -146,18 +147,19 @@ void rejectsBytesThatAreNotAnImage() {
   try {
     extractFeatures("definitely not a jpeg");
   } catch (const std::invalid_argument&) {
-    threw = true;  // HttpServer turns this into a 400, so the worker does not retry
+    threw = true;  // -> 400 in HttpServer -> worker doesn't retry
   }
   CHECK(threw);
 }
 
-// A 41-byte PNG header claiming 10,000 x 10,000 pixels must be refused before decoding.
+// decompression bomb check: 41 byte png that claims to be 10000x10000.
+// has to be rejected from the header alone, before decoding
 void rejectsImagesThatAreTooLarge() {
   std::string png = std::string("\x89PNG\r\n\x1a\n", 8) + std::string("\0\0\0\x0d", 4) + "IHDR" +
                     std::string("\0\0\x27\x10\0\0\x27\x10", 8) +  // width and height: 10,000
                     std::string("\x08\x02\0\0\0", 5) +            // 8-bit RGB
-                    std::string(4, '\0') +                         // checksum, which stb ignores
-                    std::string("\0\0\0\0", 4) + "IDAT";           // where the pixel data would start
+                    std::string(4, '\0') +                         // crc, stb doesn't check it
+                    std::string("\0\0\0\0", 4) + "IDAT";           // pixel data would go here
   bool threw = false;
   try {
     extractFeatures(png);
@@ -167,7 +169,7 @@ void rejectsImagesThatAreTooLarge() {
   CHECK(threw);
 }
 
-// /compose takes features as JSON, so it must refuse values no image could produce.
+// /compose takes features as json so anyone could send garbage -> reject impossible values
 void rejectsFeaturesOutOfRange() {
   std::array<float, 8> valid = someFeatures(0.5f).toArray();
   CHECK(ImageFeatures::fromArray(valid).brightness == 0.5f);
@@ -197,8 +199,8 @@ void parsesGenreNames() {
   CHECK(threw);
 }
 
-// Every pattern must be exactly one bar (or empty, for a part the genre leaves out),
-// or the composer would drift off the beat.
+// every pattern = exactly 16 chars (or "" if the genre skips that part).
+// a typo'd 15 char pattern would silently drift off the beat
 void genreTemplatesAreWellFormed() {
   for (const std::string& name : GENRE_NAMES) {
     const GenreTemplate& genre = templateFor(parseGenre(name));
@@ -206,7 +208,7 @@ void genreTemplatesAreWellFormed() {
     for (const std::string* pattern : {&p.kick, &p.snare, &p.hat, &p.openHat, &p.bass, &p.chords}) {
       CHECK(pattern->empty() || static_cast<int>(pattern->size()) == music::STEPS_PER_BAR);
     }
-    CHECK(genre.melody.size() == 8);  // eighth notes in a 4/4 bar
+    CHECK(genre.melody.size() == 8);  // 8 8ths in a bar
     CHECK(genre.minTempo <= genre.maxTempo);
     CHECK(!genre.progression.empty());
     CHECK(!genre.sections.empty());
@@ -214,14 +216,14 @@ void genreTemplatesAreWellFormed() {
   }
 }
 
-// Brightness 0 gives the slowest tempo in the genre's range, 1 the fastest.
+// brightness 0 -> minTempo, 1 -> maxTempo
 void tempoFollowsBrightness() {
   for (const std::string& name : GENRE_NAMES) {
     Genre genre = parseGenre(name);
     CHECK(planSong(someFeatures(0.0f), genre).tempoBpm == templateFor(genre).minTempo);
     CHECK(planSong(someFeatures(1.0f), genre).tempoBpm == templateFor(genre).maxTempo);
     for (const Section& section : planSong(someFeatures(0.5f), genre).sections) {
-      CHECK(section.energy <= 1.0f);  // the drop boost is capped
+      CHECK(section.energy <= 1.0f);  // drop boost can't push past 1
     }
   }
 }
@@ -230,7 +232,7 @@ void midiWriterWritesTheStandardFormat() {
   MidiWriter midi(480);
   midi.setTempo(120);
   int track = midi.addTrack();
-  midi.addNote(track, 200, 100, 0, 60, 100);  // 200 ticks needs a 2-byte variable-length gap
+  midi.addNote(track, 200, 100, 0, 60, 100);  // 200 > 127 -> forces a 2 byte varlen
   MidiFile file = parseMidi(midi.toBytes());
 
   CHECK(file.format == 1);
@@ -245,7 +247,7 @@ void midiWriterWritesTheStandardFormat() {
   CHECK(events[2].tick == 300 && events[2].status == 0x80);
 }
 
-// For every genre: a valid file, every note switched off, and one marker per section.
+// all genres: valid file, no stuck notes (every on has an off), 1 marker per section
 void composesValidMidiForEveryGenre() {
   for (const std::string& name : GENRE_NAMES) {
     SongPlan plan = planSong(someFeatures(0.5f), parseGenre(name));
@@ -259,7 +261,7 @@ void composesValidMidiForEveryGenre() {
     int notes = 0;
     std::vector<std::string> markers;
     for (const std::vector<MidiEvent>& track : file.tracks) {
-      std::map<int, int> held;  // (channel, note) -> notes still sounding
+      std::map<int, int> held;  // (channel, note) -> how many are still on
       for (const MidiEvent& event : track) {
         int kind = event.status & 0xF0;
         int key = (event.status & 0x0F) * 128 + event.data.at(0);

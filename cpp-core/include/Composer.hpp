@@ -1,10 +1,9 @@
-// Writes the song plan out as a multi-track MIDI file:
-// drums, bass, chords, lead melody, and a background pad.
+// plan -> actual midi. 5 tracks: drums, bass, chords, lead, pad
 #pragma once
 
 #include <string>
 
 #include "SectionPlanner.hpp"
 
-// Returns the bytes of a .mid file for the whole song.
+// returns raw .mid file bytes
 std::string composeMidi(const SongPlan& plan);

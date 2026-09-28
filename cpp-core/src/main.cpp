@@ -1,4 +1,4 @@
-// cpp-core entry point: starts the HTTP server on $PORT (default 8080).
+// entry point, just starts the server. $PORT or 8080
 #include <cstdlib>
 #include <string>
 

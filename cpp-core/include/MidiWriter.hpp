@@ -1,5 +1,5 @@
-// A minimal Standard MIDI File (format 1) writer.
-// Collects note events per track and serializes them to bytes.
+// bare minimum .mid writer (format 1). no lib needed, the format is simple enough
+// to write by hand (~100 lines)
 #pragma once
 
 #include <cstdint>
@@ -15,10 +15,10 @@ class MidiWriter {
   void addProgramChange(int track, int tick, int channel, int program);
   void addNote(int track, int startTick, int lengthTicks, int channel, int note, int velocity);
 
-  // A text marker such as "drop". The audio producer uses these to place effects.
+  // text marker e.g. "drop" -> audio-producer puts risers/impacts here
   void addMarker(int track, int tick, const std::string& text);
 
-  // The complete .mid file.
+  // whole file as bytes
   std::string toBytes() const;
 
  private:

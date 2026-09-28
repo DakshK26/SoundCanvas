@@ -1,5 +1,5 @@
-// Routes for cpp-core. The gateway worker calls /features first, sends those
-// numbers to the ml service for a genre, then calls /compose with both.
+// cpp-core routes. order the worker uses them in:
+//   /features -> (ml /predict for the genre) -> /compose w/ features + genre
 #include "HttpServer.hpp"
 
 #include <array>
@@ -16,16 +16,16 @@ using json = nlohmann::json;
 
 namespace {
 
-// Uploads are capped at 10 MB by the S3 upload policy; the extra room is headroom, not a feature.
+// S3 policy already caps uploads at 10MB, 12 is just a bit of slack
 constexpr size_t MAX_REQUEST_BYTES = 12 * 1024 * 1024;
 
-// Measures the uploaded image and returns its 8 features.
+// body = raw image bytes (not multipart, the worker just sends the S3 object as is)
 void handleFeatures(const httplib::Request& req, httplib::Response& res) {
   ImageFeatures features = extractFeatures(req.body);
   res.set_content(json{{"features", features.toArray()}}.dump(), "application/json");
 }
 
-// Plans and composes a song for the given features and genre.
+// features + genre -> plan -> midi bytes
 void handleCompose(const httplib::Request& req, httplib::Response& res) {
   json body = json::parse(req.body);
   auto features = ImageFeatures::fromArray(body.at("features").get<std::array<float, 8>>());
@@ -35,9 +35,10 @@ void handleCompose(const httplib::Request& req, httplib::Response& res) {
   res.set_content(composeMidi(plan), "audio/midi");
 }
 
-// Bad input (an undecodable image, malformed JSON, an unknown genre) is a 400:
-// the worker gives up on the job, since retrying cannot fix it.
-// Anything else is a 500, which the worker treats as temporary and retries.
+// IMPORTANT: status code = what the worker does next
+//   400 -> bad input (broken image, bad json, unknown genre). retrying won't help -> fail the job
+//   500 -> something else broke, maybe temporary -> worker retries
+// so anything thrown for bad input HAS to be invalid_argument or a json error
 void handleError(const httplib::Request&, httplib::Response& res, std::exception_ptr error) {
   try {
     std::rethrow_exception(error);

@@ -1,17 +1,17 @@
-// Serializes tracks of MIDI events into the Standard MIDI File byte format.
-// Format reference: the MIDI 1.0 "Standard MIDI Files" specification.
+// events -> Standard MIDI File bytes. followed the MIDI 1.0 SMF spec
+// file = MThd header chunk, then one MTrk chunk per track
 #include "MidiWriter.hpp"
 
 #include <algorithm>
 
 namespace {
 
-// MIDI status bytes (the high 4 bits say what the event is, the low 4 the channel).
+// status byte: high nibble = event type, low nibble = channel (so NOTE_ON | 9 = drum hit)
 constexpr uint8_t NOTE_OFF = 0x80;
 constexpr uint8_t NOTE_ON = 0x90;
 constexpr uint8_t PROGRAM_CHANGE = 0xC0;
 
-// Meta events start with 0xFF followed by a type byte.
+// meta events = 0xFF, type, length, data
 constexpr uint8_t META = 0xFF;
 constexpr uint8_t META_MARKER = 0x06;
 constexpr uint8_t META_TEMPO = 0x51;
@@ -19,8 +19,8 @@ constexpr uint8_t META_END_OF_TRACK = 0x2F;
 
 constexpr int MICROSECONDS_PER_MINUTE = 60000000;
 
-// MIDI stores time gaps as "variable length" numbers: 7 bits per byte,
-// with the top bit set on every byte except the last.
+// "variable length quantity" - 7 bits per byte, top bit = "more bytes coming".
+// build it backwards (low bits first) then reverse in
 void writeVarLen(std::vector<uint8_t>& out, uint32_t value) {
   std::vector<uint8_t> bytes = {static_cast<uint8_t>(value & 0x7F)};
   while (value >>= 7) {
@@ -29,7 +29,7 @@ void writeVarLen(std::vector<uint8_t>& out, uint32_t value) {
   out.insert(out.end(), bytes.rbegin(), bytes.rend());
 }
 
-// Appends a big-endian number of `size` bytes.
+// midi is big endian everywhere
 void writeBigEndian(std::vector<uint8_t>& out, uint32_t value, int size) {
   for (int shift = (size - 1) * 8; shift >= 0; shift -= 8) {
     out.push_back(static_cast<uint8_t>((value >> shift) & 0xFF));
@@ -75,7 +75,7 @@ std::vector<uint8_t> MidiWriter::encodeTrack(size_t index) const {
 
   std::vector<uint8_t> out;
   if (index == 0) {
-    // The first track carries the tempo, stored as microseconds per beat.
+    // tempo lives in track 0, as microseconds per beat (not bpm!)
     out.insert(out.end(), {0, META, META_TEMPO, 3});
     writeBigEndian(out, MICROSECONDS_PER_MINUTE / tempoBpm_, 3);
   }
@@ -92,8 +92,8 @@ std::vector<uint8_t> MidiWriter::encodeTrack(size_t index) const {
 
 std::string MidiWriter::toBytes() const {
   std::vector<uint8_t> out = {'M', 'T', 'h', 'd'};
-  writeBigEndian(out, 6, 4);                // header length is always 6
-  writeBigEndian(out, 1, 2);                // format 1: several tracks played together
+  writeBigEndian(out, 6, 4);                // header length, always 6
+  writeBigEndian(out, 1, 2);                // format 1 = multiple tracks played at the same time
   writeBigEndian(out, static_cast<uint32_t>(tracks_.size()), 2);
   writeBigEndian(out, ticksPerBeat_, 2);
 

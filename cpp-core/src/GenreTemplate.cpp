@@ -1,6 +1,6 @@
-// The five genre recipes. Tempo ranges and drum patterns follow the usual
-// conventions of each style (for example, House is "four on the floor":
-// a kick on every beat at 120-130 BPM).
+// the 5 recipes. tempos + drum patterns are just the usual conventions for each style
+// e.g. house = "four on the floor", kick every beat, 120-130bpm
+// TODO(maybe): more than one pattern per genre so songs of the same genre vary more
 #include "GenreTemplate.hpp"
 
 #include <stdexcept>
@@ -43,7 +43,7 @@ const GenreTemplate EDM_DROP_TEMPLATE = {
         "x.x.x.x.x.x.x.x.",  // hats: every 8th note
         "..............x.",  // open hat leading into the next bar
         "R-R-R-R-F-F-O-O-",  // bass: driving 8th notes
-        "x--x--x---x--x--",  // chords: syncopated stabs (3 + 3 + 4 + 3 + 3)
+        "x--x--x---x--x--",  // chords: syncopated stabs, 3+3+4+3+3
     },
     SNARE,
     {SYNTH_BASS, SAW_LEAD, SAW_LEAD, POLYSYNTH_PAD},
@@ -56,11 +56,11 @@ const GenreTemplate RETROWAVE_TEMPLATE = {
     {{INTRO, 4, 0.3f}, {BUILD, 8, 0.5f}, {DROP, 8, 0.8f},
      {BREAK, 8, 0.5f}, {DROP, 8, 0.8f}, {OUTRO, 4, 0.3f}},
     {
-        "x.......x.x.....",  // kick: 80s rock-style beat
-        "....x.......x...",  // snare: beats 2 and 4 (the classic gated snare slot)
-        "x.x.x.x.x.x.x.x.",  // hats: every 8th note
+        "x.......x.x.....",  // kick: 80s rock beat
+        "....x.......x...",  // snare: 2 and 4 (where the big gated 80s snare goes)
+        "x.x.x.x.x.x.x.x.",  // hats: 8ths
         "",
-        "R-O-R-O-R-O-R-O-",  // bass: octave-jumping 8th notes, the synthwave signature
+        "R-O-R-O-R-O-R-O-",  // bass: octave jumps, THE synthwave bassline
         "x-------x-------",  // chords: two long chords per bar
     },
     SNARE,
@@ -94,7 +94,7 @@ const GenreTemplate HOUSE_TEMPLATE = {
     {
         "x...x...x...x...",  // kick: four on the floor
         "....x.......x...",  // clap: beats 2 and 4
-        "..x...x...x...x.",  // hats: on the off-beats, the house signature
+        "..x...x...x...x.",  // hats: off-beats. this is what makes it sound like house
         "..............x.",  // open hat leading into the next bar
         "..R-..R-..R-..O-",  // bass: off-beat notes between the kicks
         "..x-..x-..x-..x-",  // chords: off-beat piano stabs

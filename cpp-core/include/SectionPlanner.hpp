@@ -1,5 +1,5 @@
-// Turns a genre and an image's features into a concrete song plan:
-// tempo, key, and the list of sections with their energy levels.
+// genre + features -> the actual plan (tempo, key, sections w/ energy).
+// no notes yet, that's Composer's job
 #pragma once
 
 #include <vector>
@@ -10,8 +10,8 @@
 struct SongPlan {
   const GenreTemplate* genre;
   int tempoBpm;
-  int rootNote;                   // MIDI note number of the key's root
-  std::vector<Section> sections;  // the genre's sections, adjusted for this image
+  int rootNote;                   // midi note # of the key (48-59)
+  std::vector<Section> sections;  // copy of the genre's sections w/ drop energy bumped
 };
 
 SongPlan planSong(const ImageFeatures& features, Genre genre);

@@ -1,8 +1,8 @@
-// cpp-core's HTTP API. Stateless: bytes in, result out.
+// cpp-core http api. stateless, bytes in -> result out, nothing stored
 //   POST /features  body: image bytes             -> {"features": [8 numbers]}
 //   POST /compose   body: {"features", "genre"}   -> MIDI file bytes
 //   GET  /health                                  -> {"ok": true}
-// Bad input returns 400 (permanent); unexpected errors return 500 (retryable).
+// 400 = bad input (worker won't retry), 500 = unexpected (worker retries)
 #pragma once
 
 void runHttpServer(int port);
