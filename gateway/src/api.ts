@@ -1,5 +1,5 @@
-// The public GraphQL API, behind the load balancer. It creates jobs, queues
-// them on SQS and reports their status; the worker (worker.ts) runs them.
+// public graphql API (sits behind the ALB). creates jobs, queues them, reports status.
+// the actual work happens in worker.ts - same docker image, different command
 import { ApolloServer, ApolloServerPlugin } from "@apollo/server";
 import { expressMiddleware } from "@apollo/server/express4";
 import cors from "cors";
@@ -12,10 +12,11 @@ import { Context, resolvers } from "./resolvers";
 import { typeDefs } from "./schema";
 
 const PORT = 4000;
-const FRONTEND_ORIGIN = requireEnv("FRONTEND_ORIGIN"); // browsers may only call the API from this site
+const FRONTEND_ORIGIN = requireEnv("FRONTEND_ORIGIN"); // CORS - only the frontend can call this from a browser
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-/** Reads who is calling. The client id is anonymous, not a login: it only groups one browser's requests. */
+// X-Client-Id isn't auth, it's just a random uuid the browser keeps so I can group its
+// requests (history, rate limit). validating it as a uuid so junk doesn't end up in the db
 function requestContext(req: Request): Context {
   const clientId = req.header("X-Client-Id");
   if (!clientId || !UUID_PATTERN.test(clientId)) {
@@ -26,10 +27,9 @@ function requestContext(req: Request): Context {
   return { clientId, clientIp: req.ip! };
 }
 
-/**
- * Logs errors the resolvers did not throw on purpose, such as a database or S3 failure.
- * Deliberate errors (RATE_LIMITED, NOT_FOUND, ...) are GraphQLErrors and only concern the caller.
- */
+// apollo doesn't log resolver errors by default, it just returns them. so a db/S3 blowup
+// would show up in the 5xx alarm with nothing in the logs. this logs anything that ISN'T one
+// of my own GraphQLErrors (RATE_LIMITED etc are expected, no need to log those)
 const logUnexpectedErrors: ApolloServerPlugin<Context> = {
   async requestDidStart() {
     return {
@@ -44,24 +44,25 @@ const logUnexpectedErrors: ApolloServerPlugin<Context> = {
 };
 
 async function main(): Promise<void> {
-  // With NODE_ENV=production (set in the Dockerfile) Apollo turns off introspection
-  // and leaves stack traces out of error responses.
+  // NODE_ENV=production (Dockerfile) -> apollo disables introspection + strips stack traces
   const server = new ApolloServer<Context>({ typeDefs, resolvers, plugins: [logUnexpectedErrors] });
   await server.start();
 
   const app = express();
-  app.set("trust proxy", 1); // trust one hop, the load balancer, so req.ip is the browser's address
-  app.get("/health", (_, res) => { res.send("ok"); }); // load balancer health check
+  // gotcha: without this req.ip is the ALB's ip, so the rate limit lumped everyone together.
+  // 1 = trust exactly one hop (the ALB), so people can't spoof X-Forwarded-For past it
+  app.set("trust proxy", 1);
+  app.get("/health", (_, res) => { res.send("ok"); }); // ALB target group health check
   app.use(
     "/graphql",
     cors({ origin: FRONTEND_ORIGIN }),
-    express.json({ limit: "10kb" }), // every operation is a few hundred bytes; files go straight to S3
+    express.json({ limit: "10kb" }), // queries are a few hundred bytes, files never come thru here
     expressMiddleware(server, { context: async ({ req }) => requestContext(req) }),
   );
   const httpServer = app.listen(PORT, () => log.info("GraphQL API ready", { port: PORT }));
 
-  // On a deploy or scale-in, ECS sends SIGTERM after taking the task out of the load
-  // balancer. Finish the requests already in flight, then close the database pool.
+  // deploys/scale-in: ECS pulls the task out of the ALB, then SIGTERMs it.
+  // let in-flight requests finish, then close the pool
   process.on("SIGTERM", () => {
     log.info("SIGTERM received: draining requests");
     httpServer.close(async () => {

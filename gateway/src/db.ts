@@ -1,11 +1,9 @@
-// Queries on the `generations` table in RDS MySQL: one row per song request.
-// The schema lives in migrations/ (applied by migrate.ts before each deploy).
+// all the SQL. one table, `generations`, one row per song (schema's in migrations/)
 //
-// Why a relational database: the app needs a browser's history in time order,
-// counts of recent requests for rate limiting, status changes that only apply
-// from the right previous status, and a record of features, predictions and
-// feedback to retrain the model on. All of these are simple SQL.
-// Image and audio files live in S3 under keys derived from the job id (see aws/s3.ts).
+// why mysql and not dynamo: I need history sorted by time, a "how many in the last hour
+// by clientId OR ip" count, updates that only apply from the right status, and I want to
+// query features vs thumbs up/down later for retraining. all trivial in SQL, annoying in dynamo.
+// the actual files are in S3, keyed by job id (aws/s3.ts)
 import mysql, { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { requireEnv } from "./env";
 
@@ -14,26 +12,25 @@ export type Feedback = "UP" | "DOWN";
 
 export interface Generation {
   id: string;
-  client_id: string; // anonymous id the browser generates and keeps in localStorage
+  client_id: string; // random uuid from the browser's localStorage (not a login)
   status: Status;
-  requested_genre: string | null; // the user's pick; null lets the model choose
-  genre: string | null; // the genre actually used, set when the song is done
-  confidence: number | null; // the model's confidence; null when the user picked
-  features: number[] | null; // the image's 8 features, kept for retraining
-  feedback: Feedback | null; // the user's thumbs up or down
+  requested_genre: string | null; // null = let the model pick
+  genre: string | null; // what actually got used, set at the end
+  confidence: number | null; // null when the user picked
+  features: number[] | null; // saved for retraining later
+  feedback: Feedback | null; // thumbs up/down
   error_message: string | null;
   created_at: Date;
 }
 
-// db.t4g.micro allows about 60 connections. At full scale (5 API + 5 worker tasks)
-// 5 each is 50, leaving room for migrations and a person debugging.
+// db.t4g.micro max_connections is ~60. 1 api + up to 5 workers * 5 = 30, leaves room
+// for the migrate task + me poking at it. (if workers ever go way past 5 -> lower this or RDS Proxy)
 const CONNECTIONS_PER_TASK = 5;
 
-// How long a job may sit in QUEUED or PROCESSING before it is declared lost.
-// A job normally takes about a minute; even a busy browser's backlog clears well within this.
+// a job takes ~1 min. if it's been QUEUED/PROCESSING for an hour something lost it
 const STALE_JOB_MINUTES = 60;
 
-// S3 deletes images and songs after this many days (the lifecycle rule in infra/terraform/storage.tf).
+// matches the S3 lifecycle rule in storage.tf - no point listing songs whose files are gone
 const FILE_RETENTION_DAYS = 30;
 
 export const pool = mysql.createPool({
@@ -61,8 +58,7 @@ export async function getGeneration(id: string): Promise<Generation | null> {
   return (rows[0] as Generation) ?? null;
 }
 
-/** One browser's songs, newest first. PENDING jobs are skipped: their image was never uploaded.
- *  Older songs are skipped too: S3 has deleted their files. */
+// history. skip PENDING (never got an upload) and anything older than the S3 lifecycle
 export async function listGenerations(clientId: string, limit: number): Promise<Generation[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT * FROM generations
@@ -71,7 +67,7 @@ export async function listGenerations(clientId: string, limit: number): Promise<
   return rows as Generation[];
 }
 
-/** How many songs this browser or IP address requested in the last hour. */
+// rate limit count. OR on ip so clearing localStorage doesn't reset your limit
 export async function countRecentGenerations(clientId: string, clientIp: string): Promise<number> {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT COUNT(*) AS count FROM generations
@@ -80,21 +76,22 @@ export async function countRecentGenerations(clientId: string, clientIp: string)
   return rows[0].count;
 }
 
-// Status changes. Each UPDATE only applies from the expected previous status and
-// reports whether it did, so a repeated or out-of-order call changes nothing.
+// --- status changes ---
+// every UPDATE has "AND status = <what it should be now>" and returns whether a row changed.
+// basically compare-and-set -> retries / duplicate deliveries can't mess up the state
 
-/** PENDING -> QUEUED. False if the job was already started. */
+// PENDING -> QUEUED. false = already started
 export async function markQueued(id: string): Promise<boolean> {
   return update("UPDATE generations SET status = 'QUEUED' WHERE id = ? AND status = 'PENDING'", [id]);
 }
 
-/** QUEUED -> PENDING, undoing markQueued when sending to SQS fails, so the user can retry. */
+// undo for markQueued when the SQS send fails, so they can hit start again
 export async function markPending(id: string): Promise<void> {
   await update("UPDATE generations SET status = 'PENDING' WHERE id = ? AND status = 'QUEUED'", [id]);
 }
 
-/** QUEUED -> PROCESSING. PROCESSING is accepted too, for a retry after a failed attempt.
- *  False if the job already finished, which happens when SQS delivers a message twice. */
+// QUEUED -> PROCESSING. also allows PROCESSING -> PROCESSING bc a retry starts from there.
+// false = already COMPLETED/FAILED (duplicate delivery)
 export async function startProcessing(id: string): Promise<boolean> {
   return update(
     "UPDATE generations SET status = 'PROCESSING' WHERE id = ? AND status IN ('QUEUED', 'PROCESSING')", [id]);
@@ -115,11 +112,9 @@ export async function markFailed(id: string, message: string): Promise<void> {
     [message, id]);
 }
 
-/**
- * Fails jobs stuck in QUEUED or PROCESSING, and returns how many. This catches the one
- * path the worker cannot: a worker that crashes on the final attempt never marks the job,
- * and SQS moves the message to the dead-letter queue on its next receive.
- */
+// sweeper. the one case the worker can't handle itself: it crashes on the LAST attempt ->
+// nobody marks the job failed, SQS just quietly moves the msg to the DLQ. this catches those
+// so the user isn't stuck on "creating your track..." forever
 export async function failStaleJobs(): Promise<number> {
   const [result] = await pool.query<ResultSetHeader>(
     `UPDATE generations SET status = 'FAILED', error_message = 'Timed out'
@@ -128,7 +123,7 @@ export async function failStaleJobs(): Promise<number> {
   return result.affectedRows;
 }
 
-/** Records a thumbs up or down on a finished song. False if it isn't this browser's finished song. */
+// client_id in the WHERE so you can only rate your own songs
 export async function setFeedback(id: string, clientId: string, feedback: Feedback): Promise<boolean> {
   return update(
     "UPDATE generations SET feedback = ? WHERE id = ? AND client_id = ? AND status = 'COMPLETED'",

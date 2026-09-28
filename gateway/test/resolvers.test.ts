@@ -1,5 +1,5 @@
-// Tests for the API's rules (src/resolvers.ts): rate limiting, scoping jobs to the
-// browser that created them, and the two-step create/start flow. MySQL, S3 and SQS are mocked.
+// resolver tests - rate limit, "can't see other people's jobs", and the create/start flow.
+// db, S3, SQS all mocked
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/aws/s3", () => ({
@@ -44,7 +44,7 @@ function row(overrides: Record<string, unknown> = {}) {
   } as never;
 }
 
-/** Runs a resolver and returns the GraphQL error code it threw. */
+// returns extensions.code from whatever the resolver threw (undefined if it didn't throw)
 async function errorCode(call: Promise<unknown>): Promise<unknown> {
   const error = await call.then(() => null, (thrown) => thrown);
   return error?.extensions?.code;

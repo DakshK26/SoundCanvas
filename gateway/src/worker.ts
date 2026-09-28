@@ -1,16 +1,15 @@
-// The job worker: takes jobs off the SQS FIFO queue one at a time and runs
-// each through cpp-core, ml and audio-producer (see pipeline.ts).
-// ECS runs more copies of this container when the queue backs up.
+// worker: pull a job off SQS, run it (pipeline.ts), repeat. one job at a time per task -
+// to go faster ECS just runs more of these (autoscaling on queue backlog, see ecs.tf)
 import { receiveJob } from "./aws/queue";
 import { failStaleJobs, pool } from "./db";
 import { log } from "./log";
 import { handleMessage } from "./pipeline";
 
-const SWEEP_INTERVAL_MS = 5 * 60 * 1000; // how often to look for lost jobs (see failStaleJobs)
-const ERROR_BACKOFF_MS = 5 * 1000; // pause after an SQS or database error instead of spinning
+const SWEEP_INTERVAL_MS = 5 * 60 * 1000; // check for lost jobs every 5 min (db.failStaleJobs)
+const ERROR_BACKOFF_MS = 5 * 1000; // if SQS/db is down don't spin in a tight loop hammering it
 
-// ECS sends SIGTERM when it scales in or deploys, then waits stopTimeout (120 s, ecs.tf)
-// before killing the task. Finishing the current job in that window means it is not redone.
+// ECS: SIGTERM -> waits stopTimeout (120s in ecs.tf) -> SIGKILL.
+// a song is ~1 min so there's time to finish the current one instead of redoing it
 let stopping = false;
 process.on("SIGTERM", () => {
   stopping = true;

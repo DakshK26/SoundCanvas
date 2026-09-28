@@ -1,9 +1,10 @@
-// The SQS FIFO job queue between the API and the worker.
+// SQS FIFO queue, API -> worker
 //
-// Each browser's jobs share a message group (its client id), so one person's
-// songs are made in the order they asked for them, while different people's
-// jobs run in parallel on as many workers as are running.
-// The job id is the deduplication id, so starting the same job twice queues it once.
+// notes on FIFO:
+// - MessageGroupId is required. using the browser's clientId -> one person's songs go in
+//   order + only 1 at a time, but different people run in parallel. free fairness basically
+// - MessageDeduplicationId = jobId, so double-clicking start only queues it once
+//   (dedup window is 5 min, which is plenty for that)
 import {
   ChangeMessageVisibilityCommand, DeleteMessageCommand, ReceiveMessageCommand, SendMessageCommand, SQSClient,
 } from "@aws-sdk/client-sqs";
@@ -11,12 +12,12 @@ import { requireEnv } from "../env";
 
 const sqs = new SQSClient({});
 const QUEUE_URL = requireEnv("SQS_QUEUE_URL");
-const LONG_POLL_SECONDS = 20; // the SQS maximum; waits for a message instead of polling empty
+const LONG_POLL_SECONDS = 20; // max allowed. long polling = way fewer empty receives (and cheaper)
 
 export interface QueuedJob {
   jobId: string;
-  receiptHandle: string; // identifies this delivery, to delete or delay the message
-  receiveCount: number; // 1 on the first attempt, 2 on the first retry, ...
+  receiptHandle: string; // NOT the message id - it's per delivery, need it to delete/change visibility
+  receiveCount: number; // 1 = first try, 2 = first retry...
 }
 
 export async function enqueueJob(jobId: string, clientId: string): Promise<void> {
@@ -28,7 +29,7 @@ export async function enqueueJob(jobId: string, clientId: string): Promise<void>
   }));
 }
 
-/** Waits up to 20 seconds for the next job. Returns null if none arrived. */
+// blocks up to 20s, null if nothing came in
 export async function receiveJob(): Promise<QueuedJob | null> {
   const { Messages } = await sqs.send(new ReceiveMessageCommand({
     QueueUrl: QUEUE_URL,
@@ -45,20 +46,19 @@ export async function receiveJob(): Promise<QueuedJob | null> {
   };
 }
 
-/** Removes a finished job from the queue. */
+// SQS never deletes on its own after a receive, you have to do it once the job's done
 export async function deleteJob(job: QueuedJob): Promise<void> {
   await sqs.send(new DeleteMessageCommand({ QueueUrl: QUEUE_URL, ReceiptHandle: job.receiptHandle }));
 }
 
-/**
- * Hands the message back to SQS, visible again after a delay. SQS then delivers it
- * for another attempt, or moves it to the dead-letter queue after the 3rd receive.
- */
+// "give it back": visible again after delaySeconds. after the 3rd receive the redrive
+// policy moves it to the DLQ instead of delivering it again
 export async function releaseJob(job: QueuedJob, delaySeconds: number): Promise<void> {
   await setVisibility(job, delaySeconds);
 }
 
-/** Heartbeat while a job runs: keeps the message hidden from other workers for another `seconds`. */
+// heartbeat - same API call as releaseJob, just used to keep it hidden longer.
+// two names so pipeline.ts reads right
 export async function extendVisibility(job: QueuedJob, seconds: number): Promise<void> {
   await setVisibility(job, seconds);
 }

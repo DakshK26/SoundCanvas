@@ -1,8 +1,8 @@
-// The GraphQL API the frontend talks to.
-// Every request carries an X-Client-Id header: an anonymous id the browser
-// generates once, which scopes history, feedback and rate limits to that browser.
+// the graphql schema the frontend uses.
+// every request has an X-Client-Id header (anonymous uuid per browser) - history,
+// ratings and the rate limit are all scoped to it
 
-/** The genres every service knows. The worker also checks the ml service's answer against this list. */
+// NOTE: these 5 names are shared by every service (cpp, ml, audio). ml/tests checks they all match
 export const GENRES = ["EDM_CHILL", "EDM_DROP", "RETROWAVE", "CINEMATIC", "HOUSE"] as const;
 export type Genre = (typeof GENRES)[number];
 

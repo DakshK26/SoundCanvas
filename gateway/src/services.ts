@@ -1,7 +1,6 @@
-// One function per call the worker makes to the three internal microservices.
-// Each service is stateless: bytes or JSON in, a result out.
-// Responses are checked before use, so a service returning the wrong shape fails the
-// job with a clear message instead of passing bad data further down the pipeline.
+// http calls to the 3 internal services. they're all stateless, bytes/json in -> result out.
+// checking the responses instead of trusting `as` casts - if a service sends back garbage I
+// want the job to fail right here w/ a clear error, not 2 steps later somewhere confusing
 import { requireEnv } from "./env";
 import { Genre, GENRES } from "./schema";
 
@@ -10,12 +9,11 @@ const CPP_CORE_URL = requireEnv("CPP_CORE_URL");
 const ML_URL = requireEnv("ML_URL");
 const AUDIO_PRODUCER_URL = requireEnv("AUDIO_PRODUCER_URL");
 
-// The slowest call, rendering, finishes well within a minute. A service that has not answered in
-// 2 minutes is treated as hung: the attempt fails and is retried, rather than the worker's
-// visibility heartbeat keeping a stuck job alive forever.
+// render is the slowest and it's well under a minute. no timeout + the heartbeat = a hung
+// service would keep the job "alive" forever. so 2 min then give up and retry
 const REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
 
-/** An error that retrying cannot fix, such as an image that cannot be decoded. */
+// thrown for 4xx - bad input, retrying won't help (e.g. corrupt image)
 export class PermanentError extends Error {}
 
 export interface Prediction {
@@ -23,11 +21,9 @@ export interface Prediction {
   confidence: number;
 }
 
-/**
- * POSTs a body and returns the response.
- * A 4xx answer means the input was bad (PermanentError). A 5xx answer, a timeout
- * or a network error is thrown as a plain Error, which the worker retries.
- */
+// the 4xx vs 5xx split is the whole retry strategy:
+//   4xx -> PermanentError -> job fails now
+//   5xx / timeout / network -> plain Error -> worker retries
 async function post(url: string, body: Buffer | string, contentType: string): Promise<Response> {
   const response = await fetch(url, {
     method: "POST",
@@ -44,7 +40,7 @@ async function post(url: string, body: Buffer | string, contentType: string): Pr
 
 const isFraction = (value: unknown) => typeof value === "number" && value >= 0 && value <= 1;
 
-/** cpp-core measures the image: 8 numbers from 0 to 1 for color, brightness and contrast. */
+// 8 numbers, all 0-1 (colour, brightness, contrast etc)
 export async function extractFeatures(image: Buffer): Promise<number[]> {
   const response = await post(`${CPP_CORE_URL}/features`, image, "application/octet-stream");
   const { features } = (await response.json()) as { features?: unknown };
@@ -54,7 +50,7 @@ export async function extractFeatures(image: Buffer): Promise<number[]> {
   return features;
 }
 
-/** The ml service's TensorFlow model picks a genre from the features. */
+// tf model -> genre + confidence
 export async function predictGenre(features: number[]): Promise<Prediction> {
   const response = await post(`${ML_URL}/predict`, JSON.stringify({ features }), "application/json");
   const prediction = (await response.json()) as { genre?: unknown; confidence?: unknown };
@@ -64,13 +60,13 @@ export async function predictGenre(features: number[]): Promise<Prediction> {
   return prediction as Prediction;
 }
 
-/** cpp-core composes a MIDI song for the features in the given genre. */
+// features + genre -> midi file bytes
 export async function composeMidi(features: number[], genre: string): Promise<Buffer> {
   const response = await post(`${CPP_CORE_URL}/compose`, JSON.stringify({ features, genre }), "application/json");
   return Buffer.from(await response.arrayBuffer());
 }
 
-/** audio-producer turns the MIDI into a mastered WAV. */
+// midi -> mastered wav (the slow one)
 export async function renderAudio(midi: Buffer, genre: string): Promise<Buffer> {
   const response = await post(`${AUDIO_PRODUCER_URL}/render?genre=${encodeURIComponent(genre)}`, midi, "audio/midi");
   return Buffer.from(await response.arrayBuffer());
