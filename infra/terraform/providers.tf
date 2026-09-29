@@ -1,14 +1,13 @@
-# state in S3 (not local) so my laptop and the deploy workflow use the same copy.
-# NOTE: the state bucket has to exist before `terraform init`, terraform can't create its own backend
+# The state bucket must exist before `terraform init`.
 terraform {
-  required_version = ">= 1.10" # 1.10+ = S3 can lock by itself, no dynamodb table needed anymore
+  required_version = ">= 1.10" # for use_lockfile
 
   backend "s3" {
     bucket       = "soundcanvas-terraform-state-dk"
     key          = "prototype/terraform.tfstate"
     region       = "us-east-2"
     encrypt      = true
-    use_lockfile = true # .tflock file next to the state -> 2 applies can't run at the same time
+    use_lockfile = true
   }
 
   required_providers {

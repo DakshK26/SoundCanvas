@@ -1,5 +1,3 @@
-# printed after apply. deploy.yml reads a few of these w/ `terraform output -raw`
-
 output "api_url" {
   description = "Set this as NEXT_PUBLIC_GRAPHQL_ENDPOINT in the frontend (after pointing a DNS name at it that matches the certificate)."
   value       = "https://${aws_lb.api.dns_name}/graphql"
@@ -27,7 +25,6 @@ output "deploy_role_arn" {
   value       = aws_iam_role.deploy.arn
 }
 
-# the rest are for deploy.yml's migrate step (where to run the one-off task)
 output "cluster_name" {
   value = aws_ecs_cluster.main.name
 }

@@ -1,9 +1,3 @@
-# IAM. least privilege - each container only gets what its code actually calls:
-#   gateway-api:    presign S3 up/downloads, HEAD an upload, send to SQS
-#   gateway-worker: get/put S3 objects, receive/delete/change visibility on SQS
-#   cpp-core, ml, audio-producer, migrate: nothing, they never touch AWS
-# db access isn't IAM at all, it's security groups + the password
-
 data "aws_iam_policy_document" "ecs_assume" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -14,10 +8,7 @@ data "aws_iam_policy_document" "ecs_assume" {
   }
 }
 
-# learned: 2 kinds of role.
-#   execution role = ECS itself uses it BEFORE the container starts (pull image, logs, fetch secrets)
-#   task role = what my code gets at runtime
-# they're easy to mix up, e.g. the DB secret goes on the EXECUTION role bc ECS injects it
+# ECS uses the execution role before the container starts, so the DB secret it injects is granted here.
 resource "aws_iam_role" "execution" {
   name               = "${var.app_name}-execution"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
@@ -40,7 +31,6 @@ resource "aws_iam_role_policy" "execution_db_secret" {
   })
 }
 
-# task roles (my code)
 resource "aws_iam_role" "api" {
   name               = "${var.app_name}-api"
   assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
@@ -52,15 +42,12 @@ resource "aws_iam_role_policy" "api" {
     Version = "2012-10-17"
     Statement = [
       {
-        # presigned url = signed w/ the API's creds, so the API needs the permission itself
-        # even though it's the browser doing the actual PUT/GET
         Effect   = "Allow"
         Action   = ["s3:PutObject", "s3:GetObject"]
         Resource = "${aws_s3_bucket.media.arn}/*"
       },
       {
-        # gotcha: w/o ListBucket, HEAD on a missing key gives 403 not 404,
-        # so "not uploaded yet" looks like a permissions error
+        # Without ListBucket, HEAD on a missing key returns 403 instead of 404.
         Effect    = "Allow"
         Action    = "s3:ListBucket"
         Resource  = aws_s3_bucket.media.arn
@@ -91,8 +78,7 @@ resource "aws_iam_role_policy" "worker" {
         Resource = "${aws_s3_bucket.media.arn}/*"
       },
       {
-        Effect = "Allow"
-        # ChangeMessageVisibility = heartbeat + retry delay
+        Effect   = "Allow"
         Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:ChangeMessageVisibility"]
         Resource = aws_sqs_queue.jobs.arn
       },
@@ -100,9 +86,6 @@ resource "aws_iam_role_policy" "worker" {
   })
 }
 
-# deploy.yml signs in w/ github's OIDC token -> no long lived AWS keys in github secrets.
-# the sub condition below = only jobs in this repo's "production" environment
-# (which needs my approval) can assume it
 resource "aws_iam_openid_connect_provider" "github" {
   url            = "https://token.actions.githubusercontent.com"
   client_id_list = ["sts.amazonaws.com"]
@@ -126,9 +109,7 @@ resource "aws_iam_role" "deploy" {
   })
 }
 
-# admin bc it runs terraform apply, which manages everything incl. IAM itself.
-# the trust policy above is the actual guard here, not this.
-# TODO(maybe): scope this down, it's the broadest thing in the whole repo
+# Broad because terraform apply manages IAM too. The trust policy above limits who can assume it.
 resource "aws_iam_role_policy_attachment" "deploy" {
   role       = aws_iam_role.deploy.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"

@@ -1,21 +1,15 @@
-# deploy current commit to AWS. manual only (Actions tab -> run workflow), and the
-# "production" environment makes me approve it before anything happens
-#
-# ORDER MATTERS: push images -> migrate db -> roll out new code.
-# old code is still live while the migration runs, so migrations can only ADD stuff
-# (new tables, nullable columns). never drop/rename or the old code breaks mid-deploy
-#
-# chicken and egg: this signs in w/ a role terraform creates, so the very first
-# deploy has to be a manual `terraform apply` (see README)
+# The old code is still live while the migration runs, so migrations may only add tables or
+# nullable columns. The first deploy must be a manual `terraform apply`, because this workflow
+# signs in with a role Terraform creates.
 name: Deploy
 
 on: workflow_dispatch
 
 permissions:
-  id-token: write # needed for OIDC -> AWS. no access keys stored in github at all
+  id-token: write
   contents: read
 
-concurrency: deploy # 2 applies at once = bad time
+concurrency: deploy
 
 jobs:
   deploy:
@@ -54,7 +48,7 @@ jobs:
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: "~1.10"
-          terraform_wrapper: false # gotcha: the wrapper adds extra junk to stdout and breaks `terraform output -raw`
+          terraform_wrapper: false # the wrapper adds to stdout, which breaks `terraform output -raw`
 
       - name: Read where to run the migration
         id: infra
@@ -66,8 +60,6 @@ jobs:
           echo "security_group=$(terraform output -raw tasks_security_group_id)" >> "$GITHUB_OUTPUT"
           echo "registry=$(terraform output -json ecr_repositories | jq -r .gateway)" >> "$GITHUB_OUTPUT"
 
-      # one-off ECS task: copy the migrate task def, swap in the NEW gateway image, run it,
-      # wait, check exit code. non-zero -> deploy stops here before any new code goes out
       - name: Migrate the database
         run: |
           aws ecs describe-task-definition --task-definition soundcanvas-migrate \
@@ -89,8 +81,6 @@ jobs:
           echo "migration exit code: $exit_code"
           test "$exit_code" = "0"
 
-      # rolls all services onto the new tag + waits for healthy.
-      # if new tasks keep crashing the circuit breaker rolls back and this step goes red
       - name: Deploy the new images
         working-directory: infra/terraform
         run: terraform apply -input=false -auto-approve

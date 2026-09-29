@@ -1,5 +1,3 @@
-# inputs. required ones go in terraform.tfvars (copy terraform.tfvars.example)
-
 variable "aws_region" {
   type    = string
   default = "us-east-2"
@@ -22,12 +20,12 @@ variable "frontend_origin" {
 }
 
 variable "certificate_arn" {
-  description = "ACM certificate for the API's HTTPS listener. Browsers block an HTTPS site from calling a plain-HTTP API."
+  description = "ACM certificate for the API's HTTPS listener."
   type        = string
 }
 
 variable "image_tag" {
-  description = "Image tag to deploy from each ECR repository: the git commit SHA, so every deploy names exactly what runs."
+  description = "Image tag to deploy from each ECR repository: the git commit SHA."
   type        = string
 }
 

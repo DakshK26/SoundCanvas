@@ -1,5 +1,5 @@
-# copy -> terraform.tfvars (gitignored), fill in
-# image_tag goes on the command line instead: terraform apply -var image_tag=$(git rev-parse HEAD)
+# Copy to terraform.tfvars and fill in. image_tag goes on the command line:
+# terraform apply -var image_tag=$(git rev-parse HEAD)
 bucket_name       = "soundcanvas-media-yourname"
 frontend_origin   = "https://soundcanvas.vercel.app"
 certificate_arn   = "arn:aws:acm:us-east-2:123456789012:certificate/xxxxxxxx"
