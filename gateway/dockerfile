@@ -1,6 +1,4 @@
-# gateway - 1 image, 3 ways to run it:
-#   API (default CMD), worker (npm run worker), migration once per deploy (npm run migrate)
-# same code everywhere -> api + worker can't end up on different versions
+# One image for the API (default), the worker (npm run worker) and migrations (npm run migrate).
 FROM node:22-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./

@@ -1,5 +1,3 @@
-// worker decision tests (pipeline.ts). everything external is mocked -> no AWS/docker needed.
-// mostly checking: does each kind of failure end up deleted / retried / DLQ'd correctly
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/aws/s3", () => ({
@@ -118,7 +116,7 @@ describe("handleMessage", () => {
     vi.mocked(services.renderAudio).mockReturnValue(new Promise((resolve) => { finishRender = resolve; }));
 
     const running = handleMessage(message());
-    await vi.advanceTimersByTimeAsync(150_000); // 2.5 min in -> should've heartbeat twice
+    await vi.advanceTimersByTimeAsync(150_000);
     expect(queue.extendVisibility).toHaveBeenCalledTimes(2);
     expect(queue.extendVisibility).toHaveBeenCalledWith(message(), VISIBILITY_TIMEOUT_SECONDS);
 

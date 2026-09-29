@@ -1,5 +1,3 @@
-// JSON lines logging. cloudwatch insights picks the fields up automatically so you can do
-// stuff like `stats avg(ms) by step` or `filter jobId = "..."` - way nicer than grepping text
 type Fields = Record<string, unknown>;
 
 function write(level: "info" | "warn" | "error", message: string, fields: Fields): void {

@@ -1,4 +1,3 @@
-// graphql resolvers. the API only writes rows + queues stuff, never does the slow work itself
 import { randomUUID } from "crypto";
 import { GraphQLError } from "graphql";
 import { audioKey, downloadUrl, imageKey, objectExists, uploadForm } from "./aws/s3";
@@ -8,18 +7,15 @@ import {
   markPending, markQueued, setFeedback,
 } from "./db";
 
-// built per request in api.ts
 export interface Context {
   clientId: string;
   clientIp: string;
 }
 
-// each song = ~1 min of fargate compute. 10/hr per browser or ip keeps the bill sane
 const SONGS_PER_HOUR = 10;
 const MAX_HISTORY = 50;
 const CONTENT_TYPES = { JPEG: "image/jpeg", PNG: "image/png" };
 
-// db row -> graphql shape. presigns fresh links every time (old ones expire after 15 min)
 async function toGraphQL(row: Generation) {
   return {
     id: row.id,
@@ -34,7 +30,7 @@ async function toGraphQL(row: Generation) {
   };
 }
 
-// someone else's job looks exactly like a missing one, so you can't probe for ids
+// Someone else's job looks the same as a missing one, so ids can't be probed.
 async function findOwnJob(jobId: string, clientId: string): Promise<Generation> {
   const row = await getGeneration(jobId);
   if (!row || row.client_id !== clientId) {
@@ -57,15 +53,13 @@ export const resolvers = {
   },
 
   Mutation: {
-    // step 1 of 2: rate limit, make the row, hand back an S3 upload form
     createGeneration: async (
       _: unknown,
       { genre, imageType }: { genre?: string; imageType: keyof typeof CONTENT_TYPES },
       { clientId, clientIp }: Context,
     ) => {
-      // insert THEN count (not count then insert). with count-first, 2 requests at the same
-      // time both see 9 and both get in. this way they both see each other's row, so worst
-      // case both get rejected - can undershoot the limit but never go over it
+      // Insert, then count. Two requests at once then both see each other's row, so the
+      // limit can be undershot but never exceeded.
       const jobId = randomUUID();
       await insertGeneration({ id: jobId, clientId, clientIp, requestedGenre: genre ?? null });
       if ((await countRecentGenerations(clientId, clientIp)) > SONGS_PER_HOUR) {
@@ -81,8 +75,6 @@ export const resolvers = {
       };
     },
 
-    // step 2: browser uploaded to S3, now actually queue it.
-    // (2 steps bc the worker needs the image to already be there when it picks the job up)
     startGeneration: async (_: unknown, { jobId }: { jobId: string }, { clientId }: Context) => {
       await findOwnJob(jobId, clientId);
       if (!(await objectExists(imageKey(jobId)))) {
@@ -94,7 +86,7 @@ export const resolvers = {
       try {
         await enqueueJob(jobId, clientId);
       } catch (error) {
-        await markPending(jobId); // SQS send failed -> undo so they can just hit start again
+        await markPending(jobId);
         throw error;
       }
       return toGraphQL(await findOwnJob(jobId, clientId));

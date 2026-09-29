@@ -1,5 +1,3 @@
-// resolver tests - rate limit, "can't see other people's jobs", and the create/start flow.
-// db, S3, SQS all mocked
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/aws/s3", () => ({
@@ -44,7 +42,6 @@ function row(overrides: Record<string, unknown> = {}) {
   } as never;
 }
 
-// returns extensions.code from whatever the resolver threw (undefined if it didn't throw)
 async function errorCode(call: Promise<unknown>): Promise<unknown> {
   const error = await call.then(() => null, (thrown) => thrown);
   return error?.extensions?.code;

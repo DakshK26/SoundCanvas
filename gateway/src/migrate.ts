@@ -1,6 +1,3 @@
-// tiny migration runner (didn't want a whole ORM for one table).
-// runs any migrations/*.sql not in schema_migrations yet, in filename order.
-// deploy.yml runs this as a one-off ECS task before rolling out the new code
 import { readdir, readFile } from "fs/promises";
 import path from "path";
 import { RowDataPacket } from "mysql2/promise";
@@ -18,8 +15,7 @@ async function migrate(): Promise<void> {
 
   const files = (await readdir(MIGRATIONS_DIR)).filter((name) => name.endsWith(".sql")).sort();
   for (const name of files.filter((file) => !applied.has(file))) {
-    // one statement per file! mysql auto-commits DDL so there's no rolling back a file
-    // halfway. one statement = it either happened or it didn't
+    // One statement per file. MySQL auto-commits DDL, so a half-applied file can't be rolled back.
     await pool.query(await readFile(path.join(MIGRATIONS_DIR, name), "utf8"));
     await pool.query("INSERT INTO schema_migrations (name) VALUES (?)", [name]);
     log.info("applied migration", { name });
