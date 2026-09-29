@@ -18,7 +18,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Generation, Genre, GENRE_LABELS, ImageType, SongGenre, GenerationStatus as Status } from '@/types/graphql';
-import { exampleImage, exampleSong } from '@/lib/examples';
+import { exampleImage, exampleSong, findExample } from '@/lib/examples';
 import { Upload, Loader2, AlertCircle, CheckCircle2 } from 'lucide-react';
 import AudioPlayer from '@/components/AudioPlayer';
 
@@ -43,9 +43,10 @@ interface PlaygroundProps {
 }
 
 export default function Playground({ initialImageUrl, initialGenre, exampleId }: PlaygroundProps) {
+    const exampleGenre = findExample(exampleId ?? null)?.genre;
     const [selectedImage, setSelectedImage] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(initialImageUrl || null);
-    const [genre, setGenre] = useState<Genre>(initialGenre ?? Genre.AUTO);
+    const [genre, setGenre] = useState<Genre>(initialGenre ?? exampleGenre ?? Genre.AUTO);
     const [status, setStatus] = useState<Status | null>(null);
     const [generation, setGeneration] = useState<Generation | null>(null);
     const [networkError, setNetworkError] = useState<string | null>(null);
@@ -100,23 +101,6 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         }, POLL_INTERVAL_MS);
     };
 
-    // fake a COMPLETED generation pointing at the static files, no backend call
-    const showExample = (id: string) => {
-        const example: Generation = {
-            id: `example-${id}-${Date.now()}`,
-            status: Status.COMPLETED,
-            genre: initialGenre ?? null,
-            confidence: null,
-            feedback: null,
-            imageUrl: exampleImage(id),
-            audioUrl: exampleSong(id),
-            errorMessage: null,
-            createdAt: new Date().toISOString(),
-        };
-        setGeneration(example);
-        setStatus(Status.COMPLETED);
-    };
-
     // example url -> File, so it can go through the same upload path as a real one
     const loadExampleImage = async (id: string): Promise<File> => {
         const response = await fetch(exampleImage(id));
@@ -146,15 +130,16 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         pollUntilDone(jobId);
     };
 
-    // example + same genre = just play the wav. different genre = real job
-    const playsPrerenderedExample = !selectedImage && Boolean(exampleId) && genre === initialGenre;
+    // the example's own photo + genre already has a rendered song, anything else is a real job
+    const playsPrerenderedExample = !selectedImage && exampleGenre !== undefined && genre === exampleGenre;
+
+    const handleGenreChange = (value: Genre) => {
+        setGenre(value);
+        if (exampleId && !selectedImage) reset();
+    };
 
     const handleGenerate = async () => {
         reset();
-        if (playsPrerenderedExample) {
-            showExample(exampleId!);
-            return;
-        }
         setStatus(Status.PENDING);
         try {
             await generate(selectedImage ?? await loadExampleImage(exampleId!));
@@ -232,7 +217,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-[#1A1814]">Genre</label>
-                            <Select value={genre} onValueChange={(value) => setGenre(value as Genre)} disabled={isGenerating}>
+                            <Select value={genre} onValueChange={(value) => handleGenreChange(value as Genre)} disabled={isGenerating}>
                                 <SelectTrigger className="border-[#E8E0D8] focus:ring-[#E07A5F] focus:border-[#E07A5F]">
                                     <SelectValue placeholder="Select genre" />
                                 </SelectTrigger>
@@ -277,21 +262,27 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
                     )}
 
                     {/* Generate Button */}
-                    <Button
-                        onClick={handleGenerate}
-                        disabled={isDisabled}
-                        className="w-full py-7 text-lg rounded-2xl shadow-xl shadow-[#E07A5F]/20 transition-all hover:shadow-2xl disabled:opacity-50 disabled:shadow-none"
-                        size="lg"
-                    >
-                        {isGenerating ? (
-                            <>
-                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                {status === Status.PENDING ? 'Uploading...' : 'Creating your track...'}
-                            </>
-                        ) : (
-                            'Generate Track'
-                        )}
-                    </Button>
+                    {playsPrerenderedExample ? (
+                        <p className="text-sm text-center text-[#8C8279]">
+                            Change the genre to make a new track from this photo.
+                        </p>
+                    ) : (
+                        <Button
+                            onClick={handleGenerate}
+                            disabled={isDisabled}
+                            className="w-full py-7 text-lg rounded-2xl shadow-xl shadow-[#E07A5F]/20 transition-all hover:shadow-2xl disabled:opacity-50 disabled:shadow-none"
+                            size="lg"
+                        >
+                            {isGenerating ? (
+                                <>
+                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                    {status === Status.PENDING ? 'Uploading...' : 'Creating your track...'}
+                                </>
+                            ) : (
+                                'Generate Track'
+                            )}
+                        </Button>
+                    )}
 
                     {/* Error Message */}
                     {status === Status.FAILED && (
@@ -310,14 +301,15 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
                     )}
 
                     {/* Audio Player */}
+                    {playsPrerenderedExample && (
+                        <AudioPlayer audioUrl={exampleSong(exampleId!)} genre={exampleGenre} confidence={null} />
+                    )}
                     {status === Status.COMPLETED && generation?.audioUrl && (
                         <AudioPlayer
                             audioUrl={generation.audioUrl}
                             genre={generation.genre}
                             confidence={generation.confidence}
-                            rating={generation.id.startsWith('example-')
-                                ? undefined
-                                : { jobId: generation.id, feedback: generation.feedback }}
+                            rating={{ jobId: generation.id, feedback: generation.feedback }}
                         />
                     )}
                 </CardContent>
