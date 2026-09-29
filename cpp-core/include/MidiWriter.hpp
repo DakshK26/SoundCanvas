@@ -1,5 +1,3 @@
-// bare minimum .mid writer (format 1). no lib needed, the format is simple enough
-// to write by hand (~100 lines)
 #pragma once
 
 #include <cstdint>
@@ -15,10 +13,8 @@ class MidiWriter {
   void addProgramChange(int track, int tick, int channel, int program);
   void addNote(int track, int startTick, int lengthTicks, int channel, int note, int velocity);
 
-  // text marker e.g. "drop" -> audio-producer puts risers/impacts here
   void addMarker(int track, int tick, const std::string& text);
 
-  // whole file as bytes
   std::string toBytes() const;
 
  private:

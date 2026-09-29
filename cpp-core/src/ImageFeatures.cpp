@@ -1,5 +1,3 @@
-// image -> 8 features, single pass over the pixels.
-// !! must match ml/features.py exactly, the model was trained on those numbers
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -11,27 +9,25 @@
 
 namespace {
 
-// the paper uses 0-255 pixels and ~100 already = "extremely colorful".
-// I'm working in 0-1 so multiply by 255/100 -> roughly 0..1 (then clamp)
+// The paper's scale is 0-255, where about 100 is "extremely colorful".
 constexpr double COLORFULNESS_SCALE = 255.0 / 100.0;
 
-// BT.601 luma weights (green looks brightest to eyes, blue the least)
+// BT.601, same as ml/features.py.
 constexpr double LUMA_RED = 0.299, LUMA_GREEN = 0.587, LUMA_BLUE = 0.114;
 
-// phones save at ~12MP by default. 40MP = 120MB of RGB once decoded, that's plenty
-constexpr long long MAX_PIXELS = 40'000'000;
+constexpr long long MAX_PIXELS = 40'000'000;  // 120 MB of RGB once decoded
 
-// std dev of values in [0,1] maxes out at 0.5 (half black half white)
+// The std dev of values in 0..1 can't go past 0.5.
 constexpr size_t CONTRAST_INDEX = 7;
 constexpr float MAX_CONTRAST = 0.5f;
 
-// std dev from running sums so I don't need a 2nd pass. max(0,..) bc float error can go slightly negative
+// Rounding can make the variance slightly negative.
 double stdDev(double sum, double sumOfSquares, double count) {
   double mean = sum / count;
   return std::sqrt(std::max(0.0, sumOfSquares / count - mean * mean));
 }
 
-// rgb -> hsv hue + saturation for 1 pixel (python side uses PIL's convert("HSV"), same idea)
+// Same as PIL's convert("HSV"), which ml/features.py uses.
 void hueAndSaturation(double r, double g, double b, double& hue, double& saturation) {
   double maxChannel = std::max({r, g, b});
   double minChannel = std::min({r, g, b});
@@ -48,7 +44,7 @@ void hueAndSaturation(double r, double g, double b, double& hue, double& saturat
   } else {
     hue = (r - g) / range + 4.0;
   }
-  hue /= 6.0;  // 6 sectors of 60deg -> 0..1
+  hue /= 6.0;
   if (hue < 0.0) hue += 1.0;
 }
 
@@ -59,8 +55,7 @@ std::array<float, 8> ImageFeatures::toArray() const {
 }
 
 ImageFeatures ImageFeatures::fromArray(const std::array<float, 8>& v) {
-  // reject out of range stuff, e.g. brightness -5 would mean a negative tempo lol.
-  // gotcha: written as !(x >= 0 && x <= max) on purpose so NaN fails too (NaN < 0 is false)
+  // Written as !(in range) so NaN fails too.
   for (size_t i = 0; i < v.size(); ++i) {
     float max = i == CONTRAST_INDEX ? MAX_CONTRAST : 1.0f;
     if (!(v[i] >= 0.0f && v[i] <= max)) {
@@ -76,8 +71,8 @@ ImageFeatures extractFeatures(const std::string& imageBytes) {
   const int size = static_cast<int>(imageBytes.size());
   int width = 0, height = 0, channels = 0;
 
-  // header only first - a tiny file can claim to be 100000x100000 and eat all the memory
-  // when decoded (decompression bomb). check size before actually decoding
+  // Check the size from the header before decoding, since a tiny file can claim to be
+  // 100000x100000.
   if (!stbi_info_from_memory(data, size, &width, &height, &channels)) {
     throw std::invalid_argument(std::string("Could not decode image: ") + stbi_failure_reason());
   }
@@ -107,7 +102,6 @@ ImageFeatures extractFeatures(const std::string& imageBytes) {
     sumHue += hue;
     sumSat += saturation;
 
-    // colorfulness = 2 "opponent" axes, red-green and yellow-blue
     double redGreen = r - g;
     double yellowBlue = 0.5 * (r + g) - b;
     sumRG += redGreen;

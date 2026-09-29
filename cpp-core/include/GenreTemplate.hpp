@@ -1,5 +1,3 @@
-// genre "recipes". ml picks WHICH genre, this is what each one actually sounds like
-// (tempo range, scale, chords, drum patterns, instruments...)
 #pragma once
 
 #include <string>
@@ -9,18 +7,16 @@ enum class Genre { EDM_CHILL, EDM_DROP, RETROWAVE, CINEMATIC, HOUSE };
 
 enum class SectionType { INTRO, BUILD, DROP, BREAK, OUTRO };
 
-// "drop", "intro" etc. goes into the midi as a marker -> audio-producer reads these
-// to know where sections start (for risers/fx). don't rename w/o changing the python side
+// Written into the MIDI as markers; audio-producer/fx.py looks for "drop" and "break".
 const char* sectionName(SectionType type);
 
-// a chunk of the song, like 8 bars of drop at energy 1.0
 struct Section {
   SectionType type;
   int bars;
-  float energy;  // 0 quiet .. 1 full. higher = more parts come in
+  float energy;  // 0 to 1
 };
 
-// patterns as strings, 1 char = 1 16th step, 16 chars = 1 bar. (way easier to read/edit than arrays)
+// One character per 16th step, 16 per bar.
 //   drums:  x = hit, . = nothing
 //   bass:   R = root, F = fifth, O = octave up, - = hold, . = nothing
 //   chords: x = play, - = hold, . = nothing
@@ -33,7 +29,7 @@ struct Patterns {
   std::string chords;
 };
 
-// GM program numbers for the 4 non-drum parts
+// GM program numbers.
 struct Instruments {
   int bass;
   int chords;
@@ -44,18 +40,18 @@ struct Instruments {
 struct GenreTemplate {
   Genre genre;
   std::string name;
-  int minTempo;                  // bpm. brightness picks where in the range
+  int minTempo;  // bpm
   int maxTempo;
-  std::vector<int> scale;        // from MusicTheory.hpp
-  std::vector<int> progression;  // 1 chord/bar, loops
+  std::vector<int> scale;
+  std::vector<int> progression;  // one chord per bar
   std::vector<Section> sections;
   Patterns patterns;
-  int snareSound;                // snare pattern doesn't have to be a snare (clap for house, tom for cinematic)
+  int snareSound;  // the snare pattern can play a clap or a tom
   Instruments instruments;
-  std::vector<int> melody;       // 8 8th-notes per bar as scale steps, -1 = rest
+  std::vector<int> melody;  // 8 eighth notes per bar as scale steps, -1 is a rest
 };
 
-// "HOUSE" -> Genre::HOUSE, throws if unknown
+// Throws for an unknown name.
 Genre parseGenre(const std::string& name);
 
 const GenreTemplate& templateFor(Genre genre);

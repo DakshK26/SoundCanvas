@@ -1,6 +1,3 @@
-// the 5 recipes. tempos + drum patterns are just the usual conventions for each style
-// e.g. house = "four on the floor", kick every beat, 120-130bpm
-// TODO(maybe): more than one pattern per genre so songs of the same genre vary more
 #include "GenreTemplate.hpp"
 
 #include <stdexcept>
@@ -20,12 +17,12 @@ const GenreTemplate EDM_CHILL_TEMPLATE = {
     {{INTRO, 4, 0.2f}, {BUILD, 8, 0.5f}, {DROP, 8, 0.7f},
      {BREAK, 4, 0.4f}, {DROP, 8, 0.7f}, {OUTRO, 4, 0.2f}},
     {
-        "x.......x.......",  // kick: beats 1 and 3, laid back
-        "....x.......x...",  // snare: beats 2 and 4
-        "x...x...x...x...",  // hats: on the beat
-        "",                  // no open hats
-        "R-------F-------",  // bass: long root and fifth
-        "x---------------",  // chords: one long chord per bar
+        "x.......x.......",  // kick
+        "....x.......x...",  // snare
+        "x...x...x...x...",  // hat
+        "",                  // open hat
+        "R-------F-------",  // bass
+        "x---------------",  // chords
     },
     SNARE,
     {SYNTH_BASS, ELECTRIC_PIANO, SQUARE_LEAD, WARM_PAD},
@@ -38,12 +35,12 @@ const GenreTemplate EDM_DROP_TEMPLATE = {
     {{INTRO, 4, 0.3f}, {BUILD, 8, 0.6f}, {DROP, 8, 1.0f},
      {BUILD, 4, 0.7f}, {DROP, 8, 1.0f}, {OUTRO, 4, 0.3f}},
     {
-        "x...x...x...x...",  // kick: every beat
-        "....x.......x...",  // snare: beats 2 and 4
-        "x.x.x.x.x.x.x.x.",  // hats: every 8th note
-        "..............x.",  // open hat leading into the next bar
-        "R-R-R-R-F-F-O-O-",  // bass: driving 8th notes
-        "x--x--x---x--x--",  // chords: syncopated stabs, 3+3+4+3+3
+        "x...x...x...x...",  // kick
+        "....x.......x...",  // snare
+        "x.x.x.x.x.x.x.x.",  // hat
+        "..............x.",  // open hat
+        "R-R-R-R-F-F-O-O-",  // bass
+        "x--x--x---x--x--",  // chords
     },
     SNARE,
     {SYNTH_BASS, SAW_LEAD, SAW_LEAD, POLYSYNTH_PAD},
@@ -56,12 +53,12 @@ const GenreTemplate RETROWAVE_TEMPLATE = {
     {{INTRO, 4, 0.3f}, {BUILD, 8, 0.5f}, {DROP, 8, 0.8f},
      {BREAK, 8, 0.5f}, {DROP, 8, 0.8f}, {OUTRO, 4, 0.3f}},
     {
-        "x.......x.x.....",  // kick: 80s rock beat
-        "....x.......x...",  // snare: 2 and 4 (where the big gated 80s snare goes)
-        "x.x.x.x.x.x.x.x.",  // hats: 8ths
-        "",
-        "R-O-R-O-R-O-R-O-",  // bass: octave jumps, THE synthwave bassline
-        "x-------x-------",  // chords: two long chords per bar
+        "x.......x.x.....",  // kick
+        "....x.......x...",  // snare
+        "x.x.x.x.x.x.x.x.",  // hat
+        "",                  // open hat
+        "R-O-R-O-R-O-R-O-",  // bass
+        "x-------x-------",  // chords
     },
     SNARE,
     {SYNTH_BASS, POLYSYNTH_PAD, SAW_LEAD, WARM_PAD},
@@ -74,12 +71,12 @@ const GenreTemplate CINEMATIC_TEMPLATE = {
     {{INTRO, 8, 0.2f}, {BUILD, 12, 0.5f}, {DROP, 8, 0.9f},
      {BREAK, 8, 0.4f}, {OUTRO, 8, 0.2f}},
     {
-        "x...............",  // kick: one deep hit per bar
-        "......x.......x.",  // toms: timpani-style hits
-        "",                  // no hats
-        "",
-        "R---------------",  // bass: one sustained note per bar
-        "x---------------",  // chords: sustained strings
+        "x...............",  // kick
+        "......x.......x.",  // snare
+        "",                  // hat
+        "",                  // open hat
+        "R---------------",  // bass
+        "x---------------",  // chords
     },
     LOW_TOM,
     {FINGERED_BASS, STRINGS, SYNTH_BRASS, CHOIR_PAD},
@@ -92,12 +89,12 @@ const GenreTemplate HOUSE_TEMPLATE = {
     {{INTRO, 8, 0.3f}, {BUILD, 8, 0.6f}, {DROP, 16, 0.9f},
      {BREAK, 8, 0.4f}, {DROP, 16, 1.0f}, {OUTRO, 8, 0.3f}},
     {
-        "x...x...x...x...",  // kick: four on the floor
-        "....x.......x...",  // clap: beats 2 and 4
-        "..x...x...x...x.",  // hats: off-beats. this is what makes it sound like house
-        "..............x.",  // open hat leading into the next bar
-        "..R-..R-..R-..O-",  // bass: off-beat notes between the kicks
-        "..x-..x-..x-..x-",  // chords: off-beat piano stabs
+        "x...x...x...x...",  // kick
+        "....x.......x...",  // snare
+        "..x...x...x...x.",  // hat
+        "..............x.",  // open hat
+        "..R-..R-..R-..O-",  // bass
+        "..x-..x-..x-..x-",  // chords
     },
     CLAP,
     {SYNTH_BASS, ACOUSTIC_PIANO, SQUARE_LEAD, WARM_PAD},

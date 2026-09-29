@@ -1,6 +1,3 @@
-// how it works: go bar by bar -> grab this bar's chord from the progression -> play each
-// part's 16 step pattern over it.
-// section energy = which parts are on. intro is mostly chords + pad, drop is everything
 #include "Composer.hpp"
 
 #include <vector>
@@ -12,40 +9,35 @@ using namespace music;
 
 namespace {
 
-// energy thresholds for each part (rough, nothing scientific)
-constexpr float BASS_MIN_ENERGY = 0.3f;      // quietest intros lose the bass
-constexpr float DRUMS_MIN_ENERGY = 0.4f;     // no beat in intro/outro usually
-constexpr float LEAD_MIN_ENERGY = 0.7f;      // melody only in drops
-constexpr float OPEN_HAT_MIN_ENERGY = 0.8f;  // open hats = extra, only when it's going hard
+// A part plays when the section's energy is at least this.
+constexpr float BASS_MIN_ENERGY = 0.3f;
+constexpr float DRUMS_MIN_ENERGY = 0.4f;
+constexpr float LEAD_MIN_ENERGY = 0.7f;
+constexpr float OPEN_HAT_MIN_ENERGY = 0.8f;
 
-// 1 channel per part bc program change (instrument) is per channel in midi
+// One channel per part, because a program change applies to the whole channel.
 constexpr int BASS_CHANNEL = 0;
 constexpr int CHORD_CHANNEL = 1;
 constexpr int LEAD_CHANNEL = 2;
 constexpr int PAD_CHANNEL = 3;
 
-// tiny gap before each note ends so the same note played twice in a row actually
-// re-triggers instead of sounding like one long note
+// Without the gap, the same note twice in a row sounds like one long note.
 constexpr int NOTE_GAP_TICKS = 10;
 
-// lead is in 8ths = 2 steps each
 constexpr int STEPS_PER_EIGHTH = 2;
 
 struct Tracks {
   int drums, bass, chords, lead, pad;
 };
 
-// velocity (1-127) goes 50 -> 110 w/ energy
 int velocityFor(float energy) { return 50 + static_cast<int>(energy * 60.0f); }
 
-// degree 7 in a 7 note scale = root an octave up, so wrap w/ / and %
 int scaleNote(int root, const std::vector<int>& scale, int degree) {
   int size = static_cast<int>(scale.size());
   return root + (degree / size) * SEMITONES_PER_OCTAVE + scale[degree % size];
 }
 
-// parses a pattern string -> play(startStep, lengthInSteps, symbol) per note.
-// '-' after a note extends it. all the play* functions below use this
+// Calls play(startStep, lengthInSteps, symbol) for each note in the pattern.
 template <typename PlayFn>
 void forEachNote(const std::string& pattern, PlayFn play) {
   for (int step = 0; step < static_cast<int>(pattern.size()); ++step) {
@@ -59,7 +51,6 @@ void forEachNote(const std::string& pattern, PlayFn play) {
   }
 }
 
-// 1 drum sound, hit on every x
 void playDrum(MidiWriter& midi, int track, int barTick, const std::string& pattern, int drum,
               int velocity) {
   forEachNote(pattern, [&](int step, int, char) {
@@ -68,7 +59,6 @@ void playDrum(MidiWriter& midi, int track, int barTick, const std::string& patte
   });
 }
 
-// snare roll on the last beat (4 16ths) right before a louder section
 void playFill(MidiWriter& midi, int track, int barTick, int snare, int velocity) {
   for (int step = STEPS_PER_BAR - 4; step < STEPS_PER_BAR; ++step) {
     midi.addNote(track, barTick + step * TICKS_PER_STEP, TICKS_PER_STEP, DRUM_CHANNEL, snare,
@@ -76,7 +66,6 @@ void playFill(MidiWriter& midi, int track, int barTick, int snare, int velocity)
   }
 }
 
-// bass sits an octave below the chord. R root, F fifth, O = back up to chord octave
 void playBass(MidiWriter& midi, int track, int barTick, const std::string& pattern,
               int chordRoot, int chordFifth, int velocity) {
   int bassRoot = chordRoot - SEMITONES_PER_OCTAVE;
@@ -89,7 +78,6 @@ void playBass(MidiWriter& midi, int track, int barTick, const std::string& patte
   });
 }
 
-// whole triad on every x
 void playChords(MidiWriter& midi, int track, int barTick, const std::string& pattern,
                 const std::vector<int>& chord, int velocity) {
   forEachNote(pattern, [&](int step, int length, char) {
@@ -100,8 +88,6 @@ void playChords(MidiWriter& midi, int track, int barTick, const std::string& pat
   });
 }
 
-// melody an octave up. it's relative to the chord degree so it follows the chords
-// instead of playing the same notes over everything
 void playLead(MidiWriter& midi, int track, int barTick, const SongPlan& plan, int chordDegree,
               int velocity) {
   const GenreTemplate& genre = *plan.genre;
@@ -115,7 +101,6 @@ void playLead(MidiWriter& midi, int track, int barTick, const SongPlan& plan, in
   }
 }
 
-// root + fifth held for the whole bar, fills in the background
 void playPad(MidiWriter& midi, int track, int barTick, int chordRoot, int chordFifth,
              int velocity) {
   for (int note : {chordRoot, chordFifth}) {
@@ -149,7 +134,7 @@ std::string composeMidi(const SongPlan& plan) {
       int barTick = bar * TICKS_PER_BAR;
       int degree = genre.progression[bar % genre.progression.size()];
 
-      // triad = stack of thirds -> root, +2 steps, +4 steps (in the scale, not semitones)
+      // Offsets are scale steps, not semitones.
       int chordRoot = scaleNote(plan.rootNote, genre.scale, degree);
       int chordThird = scaleNote(plan.rootNote, genre.scale, degree + 2);
       int chordFifth = scaleNote(plan.rootNote, genre.scale, degree + 4);

@@ -1,4 +1,3 @@
-// entry point, just starts the server. $PORT or 8080
 #include <cstdlib>
 #include <string>
 

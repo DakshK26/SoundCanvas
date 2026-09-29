@@ -1,5 +1,3 @@
-// genre + features -> the actual plan (tempo, key, sections w/ energy).
-// no notes yet, that's Composer's job
 #pragma once
 
 #include <vector>
@@ -10,8 +8,8 @@
 struct SongPlan {
   const GenreTemplate* genre;
   int tempoBpm;
-  int rootNote;                   // midi note # of the key (48-59)
-  std::vector<Section> sections;  // copy of the genre's sections w/ drop energy bumped
+  int rootNote;  // MIDI note, 48 to 59
+  std::vector<Section> sections;
 };
 
 SongPlan planSong(const ImageFeatures& features, Genre genre);
