@@ -19,6 +19,14 @@ import AudioPlayer from '@/components/AudioPlayer';
 import { addToLocalHistory } from '@/lib/historyStorage';
 import { useBackendWarmup } from '@/lib/useBackendWarmup';
 
+// Tempo and scale shown next to each example's pre-rendered track.
+const EXAMPLE_PARAMS: Record<string, { tempoBpm: number; scaleType: string }> = {
+    house: { tempoBpm: 125, scaleType: 'Minor' },
+    edm_chill: { tempoBpm: 110, scaleType: 'Major' },
+    edm_drop: { tempoBpm: 140, scaleType: 'Minor' },
+    cinematic: { tempoBpm: 90, scaleType: 'Dorian' },
+};
+
 interface PlaygroundProps {
     initialImageUrl?: string;
     initialGenre?: string;
@@ -40,7 +48,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
     const [isUploading, setIsUploading] = useState(false);
     const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const [usingExampleImage, setUsingExampleImage] = useState<boolean>(Boolean(exampleId));
-    const playsPrerenderedExample = Boolean(exampleId) && usingExampleImage && genre === initialGenre;
+    const playsPrerenderedExample = Boolean(exampleId && initialImageUrl) && usingExampleImage && genre === initialGenre;
 
     const { isWarm, isWarming } = useBackendWarmup();
 
@@ -169,56 +177,14 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         [getGenerationStatus]
     );
 
-    // Plays an example's pre-rendered track straight away, without calling the backend.
-    const showExample = (exampleId: string) => {
-        setErrorMessage(null);
-        setNetworkError(null);
-
-        const audioPath = `/examples/${exampleId}.wav`;
-        const imagePath = `/examples/${exampleId}.jpg`;
-
-        // Generate fake parameters based on genre
-        const genreMap: Record<string, { bpm: number, scale: string }> = {
-            'house': { bpm: 125, scale: 'Minor' },
-            'edm_chill': { bpm: 110, scale: 'Major' },
-            'edm_drop': { bpm: 140, scale: 'Minor' },
-            'cinematic': { bpm: 90, scale: 'Dorian' }
-        };
-
-        const fakeParams = genreMap[exampleId] || { bpm: 120, scale: 'Major' };
-
-        setAudioUrl(audioPath);
-        setImageUrl(imagePath);
-        setParams({
-            genre: genre,
-            tempoBpm: fakeParams.bpm,
-            scaleType: fakeParams.scale
-        });
-        setGenerationStatus(Status.COMPLETE);
-
-        // Add to history
-        addToLocalHistory({
-            id: `example-${exampleId}-${Date.now()}`,
-            imageUrl: imagePath,
-            audioUrl: audioPath,
-            genre: genre,
-            tempoBpm: fakeParams.bpm,
-            scaleType: fakeParams.scale,
-            status: Status.COMPLETE,
-            createdAt: new Date().toISOString(),
-            errorMessage: null,
-        });
+    const handleGenreChange = (value: string) => {
+        setGenre(value);
+        if (usingExampleImage) handleTryAgain();
     };
 
     const handleGenerate = async () => {
         if (!selectedImage) {
             setNetworkError('Please select an image first');
-            return;
-        }
-
-        // An untouched example plays its pre-rendered track; a new genre generates for real.
-        if (exampleId && playsPrerenderedExample) {
-            showExample(exampleId);
             return;
         }
 
@@ -355,7 +321,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <label className="text-sm font-medium text-[#1A1814]">Genre</label>
-                            <Select value={genre} onValueChange={setGenre} disabled={isGenerating}>
+                            <Select value={genre} onValueChange={handleGenreChange} disabled={isGenerating}>
                                 <SelectTrigger className="border-[#E8E0D8] focus:ring-[#E07A5F] focus:border-[#E07A5F]">
                                     <SelectValue placeholder="Select genre" />
                                 </SelectTrigger>
@@ -405,31 +371,37 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
                     )}
 
                     {/* Generate Button */}
-                    <Button
-                        onClick={handleGenerate}
-                        disabled={isDisabled}
-                        className="w-full py-7 text-lg rounded-2xl shadow-xl shadow-[#E07A5F]/20 transition-all hover:shadow-2xl disabled:opacity-50 disabled:shadow-none"
-                        size="lg"
-                    >
-                        {isUploading ? (
-                            <>
-                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                Uploading...
-                            </>
-                        ) : isGenerating ? (
-                            <>
-                                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                                Creating your track...
-                            </>
-                        ) : isServerWarming ? (
-                            <>
-                                <Clock className="mr-2 h-5 w-5" />
-                                Waiting for server...
-                            </>
-                        ) : (
-                            'Generate Track'
-                        )}
-                    </Button>
+                    {playsPrerenderedExample ? (
+                        <p className="text-sm text-center text-[#8C8279]">
+                            Change the genre to make a new track from this photo.
+                        </p>
+                    ) : (
+                        <Button
+                            onClick={handleGenerate}
+                            disabled={isDisabled}
+                            className="w-full py-7 text-lg rounded-2xl shadow-xl shadow-[#E07A5F]/20 transition-all hover:shadow-2xl disabled:opacity-50 disabled:shadow-none"
+                            size="lg"
+                        >
+                            {isUploading ? (
+                                <>
+                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                    Uploading...
+                                </>
+                            ) : isGenerating ? (
+                                <>
+                                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                                    Creating your track...
+                                </>
+                            ) : isServerWarming ? (
+                                <>
+                                    <Clock className="mr-2 h-5 w-5" />
+                                    Waiting for server...
+                                </>
+                            ) : (
+                                'Generate Track'
+                            )}
+                        </Button>
+                    )}
 
                     {/* Error Message */}
                     {errorMessage && (
@@ -448,6 +420,13 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
                     )}
 
                     {/* Audio Player */}
+                    {playsPrerenderedExample && exampleId && (
+                        <AudioPlayer
+                            audioUrl={`/examples/${exampleId}.wav`}
+                            params={{ genre, ...(EXAMPLE_PARAMS[exampleId] ?? { tempoBpm: 120, scaleType: 'Major' }) }}
+                            imageUrl={`/examples/${exampleId}.jpg`}
+                        />
+                    )}
                     {generationStatus === Status.COMPLETE && audioUrl && (
                         <AudioPlayer audioUrl={audioUrl} params={params} imageUrl={imageUrl} />
                     )}
