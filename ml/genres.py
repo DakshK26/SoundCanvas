@@ -1,6 +1,2 @@
-"""the 5 genres, index = model output index.
-
-these exact names are used everywhere: gateway/src/schema.ts, cpp-core GenreTemplate.cpp,
-audio-producer kits/mixes. ml/tests checks they all match. rename one -> rename all
-"""
+"""The index is the model's output index. The names must match the other services; ml/tests checks this."""
 GENRES = ["EDM_CHILL", "EDM_DROP", "RETROWAVE", "CINEMATIC", "HOUSE"]

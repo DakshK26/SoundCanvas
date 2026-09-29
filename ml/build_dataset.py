@@ -1,12 +1,4 @@
-"""
-training step 1: labels.csv -> dataset.csv
-
-computes the 8 features per labeled photo + gives it a split
-  train  80%  train.py does all its CV on this
-  test   20%  only scored once in evaluate.ipynb, never used to decide anything
-stratified -> each genre is split 80/20 on its own. otherwise retrowave (tiny) could
-randomly end up with 0 test photos
-"""
+"""Writes dataset.csv: the 8 features of every labeled photo and a stratified 80/20 train/test split."""
 import csv
 
 from sklearn.model_selection import train_test_split
@@ -18,7 +10,7 @@ TEST_SHARE = 0.20
 
 
 def assign_splits(labels: dict[str, str]) -> dict[str, str]:
-    """filename -> "train"/"test". sorted first so the same seed = same split every run"""
+    # Sorted so the same seed always gives the same split.
     images = sorted(labels)
     train, test = train_test_split(images, test_size=TEST_SHARE, random_state=SEED,
                                    stratify=[labels[image] for image in images])

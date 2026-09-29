@@ -1,7 +1,3 @@
-"""
-data side tests - features, labels, splits. (no tensorflow needed for these)
-  pip install -r ml/requirements-dev.txt && python -m unittest discover -s ml/tests
-"""
 import json
 import re
 import sys
@@ -19,8 +15,7 @@ from genres import GENRES  # noqa: E402
 
 
 class FeaturesMatchGolden(unittest.TestCase):
-    """features.py vs tests/feature_parity/golden.json.
-    test_core.cpp checks the C++ against the same file -> if both pass, python == C++"""
+    """test_core.cpp checks the C++ against the same golden.json."""
 
     def test_every_image(self):
         golden = json.loads((ROOT / "tests" / "feature_parity" / "golden.json").read_text())
@@ -38,12 +33,10 @@ class LabelsAreComplete(unittest.TestCase):
 
 
 class SplitsAreStratified(unittest.TestCase):
-    """each genre split 80/20 by itself (fake labels w/ a rare genre to make sure)"""
-
     def test_each_genre_is_split_80_20(self):
         labels = {f"image_{i:05d}.jpg": GENRES[i % 3] if i % 50 else "RETROWAVE" for i in range(1000)}
         splits = assign_splits(labels)
-        self.assertEqual(splits, assign_splits(labels))  # deterministic
+        self.assertEqual(splits, assign_splits(labels))
         for genre in set(labels.values()):
             names = [image for image, g in labels.items() if g == genre]
             shares = [sum(splits[n] == split for n in names) / len(names)
@@ -53,8 +46,6 @@ class SplitsAreStratified(unittest.TestCase):
 
 
 class GenreNamesAgree(unittest.TestCase):
-    """same 5 names in 4 services / 3 languages. regex'ing the source is hacky but it works"""
-
     def names_in(self, relative_path: str, pattern: str) -> set[str]:
         text = (ROOT / relative_path).read_text()
         return set(re.findall(pattern, text, re.MULTILINE))

@@ -1,19 +1,4 @@
-"""
-training step 2: pick the network size, train it, save it for the ml service.
-
-small MLP: 8 features -> a few dense layers -> softmax over 5 genres.
-only touches the 2,400 train photos. test split gets scored ONCE in evaluate.ipynb
-
-how:
-  1. 5-fold stratified CV for each candidate size. every train photo gets predicted
-     exactly once while held out -> choice is based on 2,400 predictions instead of
-     one small val set. early stopping in each fold also tells me how many epochs it needs
-  2. retrain the winner on all 2,400 for the avg epoch count -> models/genre_classifier.keras
-
-tried class weights bc RETROWAVE is only 1.6% of photos. same CV: accuracy went
-79.0% -> 74.5% and it found 9 of the 37 retrowave train photos instead of 1.
-not worth it imo, left them out. people can just pick retrowave manually
-"""
+"""Picks the network size with 5-fold cross-validation on the training split, then trains and saves it."""
 from itertools import product
 
 import numpy as np
@@ -23,21 +8,17 @@ from sklearn.model_selection import StratifiedKFold
 from data_files import MODEL_PATH, SEED, load_split
 from genres import GENRES
 
-# only 4 combos on purpose - try enough of them and one wins on the folds by luck
 HIDDEN_UNITS_OPTIONS = (64, 128)
 HIDDEN_LAYERS_OPTIONS = (2, 3)
 FOLDS = 5
-LEARNING_RATE = 0.001  # adam default
+LEARNING_RATE = 0.001
 MAX_EPOCHS = 300
 BATCH_SIZE = 64
-PATIENCE = 20  # epochs w/ no val accuracy improvement before stopping
+PATIENCE = 20  # epochs
 
 
 def build_model(train_features: np.ndarray, hidden_units: int, hidden_layers: int) -> tf.keras.Model:
-    """8 -> hidden layers -> 5 softmax"""
-    # normalization layer = mean 0 / std 1 per feature, fit on train rows only (no test leak).
-    # contrast only goes to .5 and colorfulness to 1, so w/o this they'd get weighted unevenly.
-    # it's baked into the saved model -> app.py can send raw features
+    # Normalization is part of the saved model, so app.py sends raw features.
     normalize = tf.keras.layers.Normalization()
     normalize.adapt(train_features)
 
@@ -55,9 +36,7 @@ def build_model(train_features: np.ndarray, hidden_units: int, hidden_layers: in
 
 
 def cross_validate(x: np.ndarray, y: np.ndarray, hidden_units: int, hidden_layers: int) -> tuple[list[float], list[int]]:
-    """per fold: best held-out accuracy + which epoch it happened at"""
-    # watching accuracy not loss. accuracy is what I'm picking on, and val loss can go up
-    # from the model getting overconfident even while its top picks are still improving
+    """Best held-out accuracy and the epoch it came at, per fold."""
     early_stopping = tf.keras.callbacks.EarlyStopping(
         monitor="val_accuracy", mode="max", patience=PATIENCE, restore_best_weights=True)
     folds = StratifiedKFold(n_splits=FOLDS, shuffle=True, random_state=SEED)

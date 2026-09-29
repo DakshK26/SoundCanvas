@@ -1,14 +1,4 @@
-"""
-makes golden.json = what ml/features.py gives for each test image
-
-why: model trained on python features, but in prod C++ computes them. if they drift
-the model gets inputs it never saw. so both get checked against this file:
-  - ml/tests/test_features.py -> python still gives these exact numbers
-  - cpp-core/tests/test_core.cpp -> C++ within TOLERANCE
-
-only rerun if I change a feature extractor ON PURPOSE (from repo root):
-  ml/.venv/Scripts/python tests/feature_parity/make_golden.py
-"""
+"""Writes golden.json, the features ml/features.py gives for each test image. Only rerun after changing a feature on purpose."""
 import json
 import sys
 from pathlib import Path
@@ -23,16 +13,13 @@ from features import FEATURE_NAMES, compute_features  # noqa: E402
 HERE = Path(__file__).parent
 SYNTHETIC_DIR = HERE / "images"
 
-# they can't match exactly: PIL rounds hue/sat to bytes (0-255) and decodes jpegs
-# differently than stb_image. 0.01 = 1% of the range, way below what changes a prediction
-# (actual max diff right now is ~0.003)
+# PIL rounds hue and saturation to bytes and decodes JPEGs differently from stb_image.
 TOLERANCE = 0.01
 
 SIZE = 64
 
 
 def make_synthetic_images() -> None:
-    """edge case pngs: gray (no colour), pure red/blue, gradient, noise"""
     SYNTHETIC_DIR.mkdir(exist_ok=True)
     rng = np.random.default_rng(42)
     ramp = np.linspace(0, 255, SIZE, dtype=np.uint8)
@@ -49,7 +36,6 @@ def make_synthetic_images() -> None:
 
 
 def test_images() -> list[Path]:
-    """synthetic pngs + the real example jpgs from the frontend (jpeg decoding is where they differ most)"""
     examples = sorted((ROOT / "frontend" / "public" / "examples").glob("*.jpg"))
     return sorted(SYNTHETIC_DIR.glob("*.png")) + examples
 
