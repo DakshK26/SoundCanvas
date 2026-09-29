@@ -1,9 +1,3 @@
-"""audio-producer tests. don't need fluidsynth or ffmpeg installed - only tests my code:
-midi handling, synth drums/fx, the mix, and the /render input checks (which run before
-either tool gets called)
-
-from repo root: python -m unittest discover -s audio-producer/tests -v
-"""
 import sys
 import unittest
 from pathlib import Path
@@ -20,11 +14,11 @@ from fx import SWEEP_SECONDS, render_fx  # noqa: E402
 from mixer import MIXES, mix, sidechain  # noqa: E402
 from synth import SAMPLE_RATE  # noqa: E402
 
-TICKS_PER_BEAT = 480  # no tempo msg -> mido assumes 120bpm -> 1 beat = 0.5s
+# With no tempo message mido assumes 120 bpm, so a beat is 0.5 s.
+TICKS_PER_BEAT = 480
 
 
 def song() -> mido.MidiFile:
-    """tiny song: bass note, kick on beat 2, "drop" marker on beat 3, all 1 track"""
     track = mido.MidiTrack([
         mido.Message("note_on", channel=0, note=40, velocity=90, time=0),
         mido.Message("note_on", channel=DRUM_CHANNEL, note=KICK, velocity=127, time=TICKS_PER_BEAT),
@@ -54,7 +48,7 @@ class MidiHandlingTest(unittest.TestCase):
 
 
 class RenderEndpointTest(unittest.TestCase):
-    """these HAVE to be 400/413 not 500, or the worker retries something that'll never work"""
+    """These must be 4xx, not 500, or the worker retries them."""
 
     def assert_status(self, status: int, genre: str, body: bytes):
         with self.assertRaises(HTTPException) as caught:
@@ -77,7 +71,7 @@ class SoundTest(unittest.TestCase):
     def test_drums_land_on_their_hits_and_render_the_same_every_time(self):
         for genre in KITS:
             track = render_drums([(1.0, KICK, 127)], genre, self.LENGTH)
-            self.assertTrue(np.all(track[: SAMPLE_RATE] == 0), genre)  # nothing before the hit
+            self.assertTrue(np.all(track[: SAMPLE_RATE] == 0), genre)
             self.assertGreater(np.abs(track[SAMPLE_RATE:]).max(), 0.5, genre)
             np.testing.assert_array_equal(track, render_drums([(1.0, KICK, 127)], genre, self.LENGTH))
 

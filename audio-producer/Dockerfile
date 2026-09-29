@@ -1,4 +1,3 @@
-# audio-producer = fluidsynth + FluidR3 GM soundfont + ffmpeg, python app on uvicorn
 FROM python:3.12-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends fluidsynth fluid-soundfont-gm ffmpeg libsndfile1 \
