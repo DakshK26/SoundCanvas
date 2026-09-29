@@ -1,9 +1,5 @@
 'use client';
 
-// main page: pick image + genre -> watch the job until the song's done
-// real upload: createGeneration -> POST image to S3 -> startGeneration -> poll generation
-// examples skip the backend entirely and just play the wav from /public/examples.
-// BUT if you change an example's genre it makes a real job w/ the example image
 import { useState, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useMutation, useLazyQuery } from '@apollo/client';
@@ -24,9 +20,8 @@ import AudioPlayer from '@/components/AudioPlayer';
 
 const POLL_INTERVAL_MS = 2500;
 
-// only types the gateway takes. the presigned form locks Content-Type, so S3 rejects anything else anyway
 const IMAGE_TYPES: Record<string, ImageType> = { 'image/jpeg': 'JPEG', 'image/png': 'PNG' };
-const MAX_IMAGE_MB = 10; // same as MAX_UPLOAD_BYTES in gateway/src/aws/s3.ts (check here first = nicer error)
+const MAX_IMAGE_MB = 10; // must match MAX_UPLOAD_BYTES in gateway/src/aws/s3.ts
 
 const STATUS_TEXT: Record<Status, string> = {
     [Status.PENDING]: 'Uploading your image...',
@@ -81,8 +76,6 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         multiple: false,
     });
 
-    // poll every 2.5s until COMPLETED/FAILED. network blips just show a warning and keep going
-    // TODO(maybe): subscriptions/websocket instead of polling
     const pollUntilDone = (jobId: string) => {
         pollRef.current = setInterval(async () => {
             try {
@@ -101,13 +94,11 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         }, POLL_INTERVAL_MS);
     };
 
-    // example url -> File, so it can go through the same upload path as a real one
     const loadExampleImage = async (id: string): Promise<File> => {
         const response = await fetch(exampleImage(id));
         return new File([await response.blob()], `${id}.jpg`, { type: 'image/jpeg' });
     };
 
-    // create job -> upload straight to S3 (never goes thru the gateway) -> start it
     const generate = async (image: File) => {
         const imageType = IMAGE_TYPES[image.type];
         if (!imageType) throw new Error('Please choose a JPG or PNG image');
@@ -116,9 +107,9 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         const { data } = await createGeneration({
             variables: { genre: genre === Genre.AUTO ? null : genre, imageType },
         });
-        const { jobId, upload } = data!.createGeneration; // ! is safe, apollo throws on errors
+        const { jobId, upload } = data!.createGeneration;
 
-        // gotcha: signed fields (key, Content-Type, policy, signature...) first, file LAST or S3 rejects it
+        // S3 rejects the form unless the file comes after the signed fields.
         const form = new FormData();
         for (const { name, value } of upload.fields) form.append(name, value);
         form.append('file', image);
@@ -130,7 +121,6 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         pollUntilDone(jobId);
     };
 
-    // the example's own photo + genre already has a rendered song, anything else is a real job
     const playsPrerenderedExample = !selectedImage && exampleGenre !== undefined && genre === exampleGenre;
 
     const handleGenreChange = (value: Genre) => {

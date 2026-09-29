@@ -1,8 +1,5 @@
 'use client';
 
-// history tab = this browser's songs (myGenerations query, rows live in RDS)
-// every load gets fresh presigned links -> old songs still play even tho links expire after 15 min
-// examples aren't jobs so they don't show up here
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@apollo/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,7 +19,7 @@ import FeedbackButtons from '@/components/FeedbackButtons';
 import { downloadBlob } from '@/lib/download';
 
 const ITEMS_PER_PAGE = 20;
-const REFRESH_INTERVAL_MS = 5000; // only polls while something's still in progress
+const REFRESH_INTERVAL_MS = 5000;
 
 const STATUS_STYLES: Record<GenerationStatus, string> = {
     [GenerationStatus.PENDING]: 'bg-amber-100 text-amber-800',
@@ -45,7 +42,7 @@ function formatDate(dateString: string): string {
 export default function History() {
     const { data, loading, error, startPolling, stopPolling } = useQuery(MY_GENERATIONS, {
         variables: { limit: ITEMS_PER_PAGE },
-        ssr: false, // client id is in localStorage -> doesn't exist on the server
+        ssr: false, // the client id lives in localStorage
     });
     const generations = data?.myGenerations ?? [];
     const [playingId, setPlayingId] = useState<string | null>(null);

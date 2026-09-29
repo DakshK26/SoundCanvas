@@ -1,44 +1,36 @@
-// landing page, just links into /playground (playground or examples tab). all decoration
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 
 export default function Home() {
   return (
     <div className="min-h-screen aurora-bg noise-overlay overflow-hidden">
-      {/* Abstract Background Elements */}
+      {/* Background */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        {/* Large gradient orb - top right */}
         <div
           className="absolute -top-32 -right-32 w-[500px] h-[500px] animate-blob-drift"
           style={{ background: 'radial-gradient(circle, rgba(224, 122, 95, 0.18) 0%, transparent 60%)', animationDuration: '20s' }}
         />
-        {/* Sage orb - bottom left */}
         <div
           className="absolute -bottom-20 -left-20 w-[400px] h-[400px] animate-blob-drift"
           style={{ background: 'radial-gradient(circle, rgba(129, 178, 154, 0.15) 0%, transparent 60%)', animationDelay: '-7s', animationDuration: '24s' }}
         />
-        {/* Golden orb - center right */}
         <div
           className="absolute top-1/2 -right-16 w-[350px] h-[350px] animate-blob-drift"
           style={{ background: 'radial-gradient(circle, rgba(242, 204, 143, 0.2) 0%, transparent 60%)', animationDelay: '-3s', animationDuration: '16s' }}
         />
-        {/* Extra orb - top left */}
         <div
           className="absolute top-20 -left-32 w-[300px] h-[300px] animate-blob-drift"
           style={{ background: 'radial-gradient(circle, rgba(224, 122, 95, 0.1) 0%, transparent 60%)', animationDelay: '-11s', animationDuration: '22s' }}
         />
-        {/* Extra orb - bottom right */}
         <div
           className="absolute bottom-1/4 right-1/4 w-[250px] h-[250px] animate-blob-drift"
           style={{ background: 'radial-gradient(circle, rgba(129, 178, 154, 0.12) 0%, transparent 60%)', animationDelay: '-5s', animationDuration: '18s' }}
         />
-        {/* Center orb */}
         <div
           className="absolute top-1/3 left-1/3 w-[200px] h-[200px] animate-blob-drift"
           style={{ background: 'radial-gradient(circle, rgba(242, 204, 143, 0.1) 0%, transparent 60%)', animationDelay: '-14s', animationDuration: '26s' }}
         />
 
-        {/* Floating dots - scattered across the page */}
         <div className="absolute top-[15%] left-[10%] w-3 h-3 rounded-full bg-[#E07A5F]/20 animate-float-wander" style={{ animationDuration: '9s' }} />
         <div className="absolute top-[25%] left-[20%] w-2 h-2 rounded-full bg-[#81B29A]/25 animate-float-wander-reverse" style={{ animationDelay: '-3s', animationDuration: '11s' }} />
         <div className="absolute top-[20%] left-[35%] w-2.5 h-2.5 rounded-full bg-[#F2CC8F]/30 animate-float-wander" style={{ animationDelay: '-6s', animationDuration: '13s' }} />
@@ -59,7 +51,6 @@ export default function Home() {
         <div className="absolute bottom-[15%] right-[30%] w-2.5 h-2.5 rounded-full bg-[#F2CC8F]/25 animate-float-wander-reverse" style={{ animationDelay: '-1s', animationDuration: '13s' }} />
         <div className="absolute bottom-[50%] right-[5%] w-2 h-2 rounded-full bg-[#E07A5F]/20 animate-float-wander" style={{ animationDelay: '-8s', animationDuration: '10s' }} />
 
-        {/* Subtle ring shapes */}
         <div className="absolute top-[18%] left-[18%] w-16 h-16 border border-[#E07A5F]/10 animate-ring-morph" style={{ animationDelay: '-5s', animationDuration: '18s' }} />
         <div className="absolute top-[60%] left-[8%] w-12 h-12 border border-[#81B29A]/15 animate-ring-morph" style={{ animationDelay: '-12s', animationDuration: '22s' }} />
         <div className="absolute top-[30%] right-[10%] w-20 h-20 border border-[#F2CC8F]/10 animate-ring-morph" style={{ animationDelay: '-3s', animationDuration: '16s' }} />
@@ -95,10 +86,9 @@ export default function Home() {
         {/* Hero Section */}
         <div className="flex-1 flex items-center justify-center py-12">
           <div className="max-w-3xl mx-auto text-center space-y-8">
-            {/* Main Title with Animated "Sound" */}
+            {/* Title */}
             <div className="space-y-4">
               <h1 className="text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight">
-                {/* Animated "Sound" - each letter has subtle bounce */}
                 <span className="inline-flex items-baseline">
                   {'Sound'.split('').map((letter, i) => (
                     <span

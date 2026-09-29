@@ -1,4 +1,3 @@
-// root layout, every route gets this: font, title, apollo provider
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
@@ -25,10 +24,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body
-        className={`${outfit.variable} antialiased`}
-        style={{ fontFamily: "'Outfit', system-ui, sans-serif" }}
-      >
+      <body className={`${outfit.variable} antialiased`}>
         <ApolloProviderWrapper>
           {children}
         </ApolloProviderWrapper>

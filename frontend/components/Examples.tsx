@@ -1,7 +1,5 @@
 'use client';
 
-// examples tab - the 4 samples from lib/examples.ts.
-// click -> opens in the Playground w/ ?example=, plays instantly bc the wav is already rendered
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { GENRE_LABELS } from '@/types/graphql';
 import { Example, EXAMPLES, exampleImage } from '@/lib/examples';

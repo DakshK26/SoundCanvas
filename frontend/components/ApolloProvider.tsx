@@ -1,6 +1,6 @@
 'use client';
 
-// wrapper bc ApolloProvider needs 'use client' and layout.tsx is a server component
+// layout.tsx is a server component, and ApolloProvider needs 'use client'.
 import { ApolloProvider } from '@apollo/client';
 import apolloClient from '@/lib/apollo-client';
 

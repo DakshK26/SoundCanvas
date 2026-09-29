@@ -1,12 +1,11 @@
-// examples = images + songs already rendered, sitting in /public/examples.
-// naming: <id>.jpg + <id>.wav (so adding one = drop in 2 files + a line here)
+// Each example is /public/examples/<id>.jpg and <id>.wav.
 import { Genre, SongGenre } from '@/types/graphql';
 
 export interface Example {
     id: string;
     genre: SongGenre;
     description: string;
-    color: string; // badge colour
+    color: string;
 }
 
 export const EXAMPLES: Example[] = [
