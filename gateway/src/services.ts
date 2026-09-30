@@ -48,6 +48,7 @@ export async function extractFeatures(image: Buffer): Promise<number[]> {
   return features;
 }
 
+// Skipped when the user already picked a genre. Confidence stays on the row for later retraining.
 export async function predictGenre(features: number[]): Promise<Prediction> {
   const response = await post(`${ML_URL}/predict`, JSON.stringify({ features }), "application/json");
   const prediction = (await response.json()) as { genre?: unknown; confidence?: unknown };
@@ -57,11 +58,13 @@ export async function predictGenre(features: number[]): Promise<Prediction> {
   return prediction as Prediction;
 }
 
+// Same 8 features plus the genre; cpp-core turns them into a Standard MIDI File.
 export async function composeMidi(features: number[], genre: string): Promise<Buffer> {
   const response = await post(`${CPP_CORE_URL}/compose`, JSON.stringify({ features, genre }), "application/json");
   return Buffer.from(await response.arrayBuffer());
 }
 
+// Genre is a query param so audio-producer can pick the drum kit and mix settings.
 export async function renderAudio(midi: Buffer, genre: string): Promise<Buffer> {
   const response = await post(`${AUDIO_PRODUCER_URL}/render?genre=${encodeURIComponent(genre)}`, midi, "audio/midi");
   return Buffer.from(await response.arrayBuffer());

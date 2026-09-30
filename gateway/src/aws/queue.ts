@@ -44,6 +44,7 @@ export async function receiveJob(): Promise<QueuedJob | null> {
   };
 }
 
+// After a success or a permanent failure the message has to leave the queue, or it will be retried.
 export async function deleteJob(job: QueuedJob): Promise<void> {
   await sqs.send(new DeleteMessageCommand({ QueueUrl: QUEUE_URL, ReceiptHandle: job.receiptHandle }));
 }

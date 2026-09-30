@@ -37,6 +37,7 @@ export const pool = mysql.createPool({
   connectionLimit: CONNECTIONS_PER_TASK,
 });
 
+// createGeneration writes the PENDING row before it counts, so the rate limit can never be exceeded.
 export async function insertGeneration(row: {
   id: string; clientId: string; clientIp: string; requestedGenre: string | null;
 }): Promise<void> {
@@ -45,10 +46,12 @@ export async function insertGeneration(row: {
     [row.id, row.clientId, row.clientIp, row.requestedGenre]);
 }
 
+// Used when the new row itself pushed this browser or IP over the hourly limit.
 export async function deleteGeneration(id: string): Promise<void> {
   await pool.query("DELETE FROM generations WHERE id = ?", [id]);
 }
 
+// Looked up by job id. The caller still has to check client_id; this does not.
 export async function getGeneration(id: string): Promise<Generation | null> {
   const [rows] = await pool.query<RowDataPacket[]>("SELECT * FROM generations WHERE id = ?", [id]);
   return (rows[0] as Generation) ?? null;
@@ -73,6 +76,7 @@ export async function countRecentGenerations(clientId: string, clientIp: string)
   return rows[0].count;
 }
 
+// PENDING to QUEUED. False means startGeneration was already called for this job.
 export async function markQueued(id: string): Promise<boolean> {
   return update("UPDATE generations SET status = 'QUEUED' WHERE id = ? AND status = 'PENDING'", [id]);
 }
@@ -88,6 +92,7 @@ export async function startProcessing(id: string): Promise<boolean> {
     "UPDATE generations SET status = 'PROCESSING' WHERE id = ? AND status IN ('QUEUED', 'PROCESSING')", [id]);
 }
 
+// Saves the genre, the model's confidence and the 8 features with the finished song.
 export async function markCompleted(
   id: string, genre: string, confidence: number | null, features: number[],
 ): Promise<void> {
@@ -97,6 +102,7 @@ export async function markCompleted(
     [genre, confidence, JSON.stringify(features), id]);
 }
 
+// Permanent failures and the last retry both land here; the message is what the browser shows.
 export async function markFailed(id: string, message: string): Promise<void> {
   await update(
     "UPDATE generations SET status = 'FAILED', error_message = ? WHERE id = ? AND status IN ('QUEUED', 'PROCESSING')",
@@ -112,6 +118,7 @@ export async function failStaleJobs(): Promise<number> {
   return result.affectedRows;
 }
 
+// Only a COMPLETED row owned by this client id can be rated.
 export async function setFeedback(id: string, clientId: string, feedback: Feedback): Promise<boolean> {
   return update(
     "UPDATE generations SET feedback = ? WHERE id = ? AND client_id = ? AND status = 'COMPLETED'",

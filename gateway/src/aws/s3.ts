@@ -35,6 +35,7 @@ export function uploadForm(key: string, contentType: string): Promise<UploadForm
   });
 }
 
+// Fresh 15-minute GET link. The frontend fetches the WAV into a blob so playback outlives this.
 export function downloadUrl(key: string): Promise<string> {
   return getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: key }), {
     expiresIn: URL_EXPIRY_SECONDS,
