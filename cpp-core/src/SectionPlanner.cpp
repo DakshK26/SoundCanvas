@@ -1,3 +1,5 @@
+// Works out tempo, key and section energies for one song. The genre gives the ranges and the photo
+// decides where in them this song lands, so two photos in the same genre still sound different.
 #include "SectionPlanner.hpp"
 
 #include <algorithm>
@@ -7,11 +9,13 @@
 
 namespace {
 
+// Brighter is faster: brightness 0 gives the genre's slowest tempo, 1 its fastest.
 int pickTempo(const ImageFeatures& f, const GenreTemplate& genre) {
   float range = static_cast<float>(genre.maxTempo - genre.minTempo);
   return genre.minTempo + static_cast<int>(std::round(f.brightness * range));
 }
 
+// Warmer photos (more red than blue) get a higher key, from C3 up to B3.
 int pickRootNote(const ImageFeatures& f) {
   float warmth = std::clamp((f.avgRed - f.avgBlue + 1.0f) / 2.0f, 0.0f, 1.0f);
   int semitonesUp = static_cast<int>(std::round(warmth * (music::SEMITONES_PER_OCTAVE - 1)));
@@ -31,6 +35,7 @@ SongPlan planSong(const ImageFeatures& features, Genre genre) {
   const GenreTemplate& recipe = templateFor(genre);
   SongPlan plan{&recipe, pickTempo(features, recipe), pickRootNote(features), recipe.sections};
 
+  // Only the drops get louder, so the quiet sections stay quiet and the song keeps its contrast.
   float boost = 0.3f * imageEnergy(features);
   for (Section& section : plan.sections) {
     if (section.type == SectionType::DROP) {

@@ -1,3 +1,5 @@
+// A minimal Standard MIDI File writer (format 1). The format is simple enough that writing it
+// by hand was easier than adding a library.
 #pragma once
 
 #include <cstdint>

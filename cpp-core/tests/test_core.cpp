@@ -1,3 +1,5 @@
+// cpp-core's tests. A small CHECK macro instead of a test framework, so they build anywhere with
+// no extra dependencies. Built with -DSOUNDCANVAS_TESTS=ON and run by ctest.
 #include <cmath>
 #include <cstdint>
 #include <fstream>
@@ -236,6 +238,7 @@ void midiWriterWritesTheStandardFormat() {
   CHECK(events[2].tick == 300 && events[2].status == 0x80);
 }
 
+// Every genre makes a file that parses, has no stuck notes, and has one marker per section.
 void composesValidMidiForEveryGenre() {
   for (const std::string& name : GENRE_NAMES) {
     SongPlan plan = planSong(someFeatures(0.5f), parseGenre(name));
@@ -249,7 +252,7 @@ void composesValidMidiForEveryGenre() {
     int notes = 0;
     std::vector<std::string> markers;
     for (const std::vector<MidiEvent>& track : file.tracks) {
-      std::map<int, int> held;
+      std::map<int, int> held;  // notes still on, keyed by channel * 128 + note
       for (const MidiEvent& event : track) {
         int kind = event.status & 0xF0;
         int key = (event.status & 0x0F) * 128 + event.data.at(0);

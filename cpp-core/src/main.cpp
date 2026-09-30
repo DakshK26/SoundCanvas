@@ -1,3 +1,4 @@
+// cpp-core's entry point: serve HTTP on $PORT, or 8080 if it isn't set.
 #include <cstdlib>
 #include <string>
 

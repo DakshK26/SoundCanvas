@@ -1,9 +1,12 @@
+// Writes a Standard MIDI File by hand: an MThd header chunk, then one MTrk chunk per track. Events
+// are stored with absolute ticks and only turned into delta times when the file is written.
 #include "MidiWriter.hpp"
 
 #include <algorithm>
 
 namespace {
 
+// Status bytes: the top 4 bits are the event type and the bottom 4 the channel.
 constexpr uint8_t NOTE_OFF = 0x80;
 constexpr uint8_t NOTE_ON = 0x90;
 constexpr uint8_t PROGRAM_CHANGE = 0xC0;
@@ -46,6 +49,7 @@ void MidiWriter::addProgramChange(int track, int tick, int channel, int program)
                                    static_cast<uint8_t>(program)}});
 }
 
+// A note is two events: note on at the start and note off at the end.
 void MidiWriter::addNote(int track, int startTick, int lengthTicks, int channel, int note,
                          int velocity) {
   auto pitch = static_cast<uint8_t>(std::clamp(note, 0, 127));
@@ -63,6 +67,8 @@ void MidiWriter::addMarker(int track, int tick, const std::string& text) {
 }
 
 std::vector<uint8_t> MidiWriter::encodeTrack(size_t index) const {
+  // Events were added part by part, so sort them by time. stable_sort keeps same-tick events in
+  // the order they were added, so a program change stays ahead of the first note.
   std::vector<Event> events = tracks_[index];
   std::stable_sort(events.begin(), events.end(),
                    [](const Event& a, const Event& b) { return a.tick < b.tick; });
@@ -74,6 +80,7 @@ std::vector<uint8_t> MidiWriter::encodeTrack(size_t index) const {
     writeBigEndian(out, MICROSECONDS_PER_MINUTE / tempoBpm_, 3);
   }
 
+  // Each event is written as the ticks since the previous one, then its bytes.
   int previousTick = 0;
   for (const Event& event : events) {
     writeVarLen(out, static_cast<uint32_t>(event.tick - previousTick));

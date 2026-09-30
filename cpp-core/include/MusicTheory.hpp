@@ -1,3 +1,5 @@
+// The music theory numbers the composer uses: timing, scales, chord progressions and the
+// General MIDI drum and instrument numbers.
 #pragma once
 
 #include <vector>

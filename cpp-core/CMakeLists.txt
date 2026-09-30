@@ -1,3 +1,5 @@
+# Builds the music and image code as a static library, the HTTP server on top of it, and the
+# tests when SOUNDCANVAS_TESTS is on. Tests link the library without starting a server.
 cmake_minimum_required(VERSION 3.15)
 project(soundcanvas_core CXX)
 

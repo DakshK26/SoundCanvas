@@ -1,3 +1,6 @@
+// Turns a SongPlan into MIDI. Walks the song bar by bar, takes that bar's chord from the
+// progression, and plays each part's 16-step pattern over it. Section energy decides which
+// parts play, so an intro is mostly chords and pad and a drop has everything.
 #include "Composer.hpp"
 
 #include <vector>
@@ -30,14 +33,18 @@ struct Tracks {
   int drums, bass, chords, lead, pad;
 };
 
+// Louder sections hit harder: velocity 50 at energy 0, up to 110 at energy 1.
 int velocityFor(float energy) { return 50 + static_cast<int>(energy * 60.0f); }
 
+// Scale degree to MIDI note. Degrees past the end of the scale go up an octave, so degree 7
+// in a 7-note scale is the root one octave higher.
 int scaleNote(int root, const std::vector<int>& scale, int degree) {
   int size = static_cast<int>(scale.size());
   return root + (degree / size) * SEMITONES_PER_OCTAVE + scale[degree % size];
 }
 
-// Calls play(startStep, lengthInSteps, symbol) for each note in the pattern.
+// Calls play(startStep, lengthInSteps, symbol) for each note in the pattern. Every play*
+// function below goes through this, so the pattern parsing lives in one place.
 template <typename PlayFn>
 void forEachNote(const std::string& pattern, PlayFn play) {
   for (int step = 0; step < static_cast<int>(pattern.size()); ++step) {
@@ -59,6 +66,7 @@ void playDrum(MidiWriter& midi, int track, int barTick, const std::string& patte
   });
 }
 
+// A snare roll on the last beat of the bar, played just before a louder section.
 void playFill(MidiWriter& midi, int track, int barTick, int snare, int velocity) {
   for (int step = STEPS_PER_BAR - 4; step < STEPS_PER_BAR; ++step) {
     midi.addNote(track, barTick + step * TICKS_PER_STEP, TICKS_PER_STEP, DRUM_CHANNEL, snare,
@@ -66,6 +74,7 @@ void playFill(MidiWriter& midi, int track, int barTick, int snare, int velocity)
   }
 }
 
+// The bass sits an octave below the chord; 'O' jumps back up to the chord's own octave.
 void playBass(MidiWriter& midi, int track, int barTick, const std::string& pattern,
               int chordRoot, int chordFifth, int velocity) {
   int bassRoot = chordRoot - SEMITONES_PER_OCTAVE;
@@ -78,6 +87,7 @@ void playBass(MidiWriter& midi, int track, int barTick, const std::string& patte
   });
 }
 
+// The whole triad on every chord hit.
 void playChords(MidiWriter& midi, int track, int barTick, const std::string& pattern,
                 const std::vector<int>& chord, int velocity) {
   forEachNote(pattern, [&](int step, int length, char) {
@@ -88,6 +98,8 @@ void playChords(MidiWriter& midi, int track, int barTick, const std::string& pat
   });
 }
 
+// The melody is written relative to the current chord, so it follows the progression instead of
+// repeating the same notes over every chord. It plays an octave above the key.
 void playLead(MidiWriter& midi, int track, int barTick, const SongPlan& plan, int chordDegree,
               int velocity) {
   const GenreTemplate& genre = *plan.genre;
@@ -101,6 +113,7 @@ void playLead(MidiWriter& midi, int track, int barTick, const SongPlan& plan, in
   }
 }
 
+// Root and fifth held for the whole bar, as a background under everything else.
 void playPad(MidiWriter& midi, int track, int barTick, int chordRoot, int chordFifth,
              int velocity) {
   for (int note : {chordRoot, chordFifth}) {
@@ -114,6 +127,7 @@ std::string composeMidi(const SongPlan& plan) {
   const GenreTemplate& genre = *plan.genre;
   const Patterns& patterns = genre.patterns;
 
+  // One track per part. The drums are track 0, which also carries the tempo and section markers.
   MidiWriter midi(TICKS_PER_BEAT);
   midi.setTempo(plan.tempoBpm);
   Tracks tracks{midi.addTrack(), midi.addTrack(), midi.addTrack(), midi.addTrack(),
@@ -128,6 +142,7 @@ std::string composeMidi(const SongPlan& plan) {
     const Section& section = plan.sections[s];
     bool nextIsLouder = s + 1 < plan.sections.size() && plan.sections[s + 1].energy > section.energy;
     int velocity = velocityFor(section.energy);
+    // audio-producer reads these markers to place its risers and impacts.
     midi.addMarker(tracks.drums, bar * TICKS_PER_BAR, sectionName(section.type));
 
     for (int barInSection = 0; barInSection < section.bars; ++barInSection, ++bar) {

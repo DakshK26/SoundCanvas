@@ -1,3 +1,5 @@
+// Image bytes to the 8 features, in one pass over the pixels using running sums. stb_image does
+// the JPEG and PNG decoding; anything it can't read becomes invalid_argument, which is a 400.
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -21,7 +23,8 @@ constexpr long long MAX_PIXELS = 40'000'000;  // 120 MB of RGB once decoded
 constexpr size_t CONTRAST_INDEX = 7;
 constexpr float MAX_CONTRAST = 0.5f;
 
-// Rounding can make the variance slightly negative.
+// Std dev from running sums (variance is the mean of squares minus the squared mean), so no
+// second pass is needed. Rounding can make the variance slightly negative.
 double stdDev(double sum, double sumOfSquares, double count) {
   double mean = sum / count;
   return std::sqrt(std::max(0.0, sumOfSquares / count - mean * mean));
@@ -54,6 +57,7 @@ std::array<float, 8> ImageFeatures::toArray() const {
   return {avgRed, avgGreen, avgBlue, brightness, hue, saturation, colorfulness, contrast};
 }
 
+// /compose gets features as JSON from outside, so impossible values are rejected here.
 ImageFeatures ImageFeatures::fromArray(const std::array<float, 8>& v) {
   // Written as !(in range) so NaN fails too.
   for (size_t i = 0; i < v.size(); ++i) {
@@ -80,6 +84,7 @@ ImageFeatures extractFeatures(const std::string& imageBytes) {
     throw std::invalid_argument("Image is larger than 40 megapixels");
   }
 
+  // The last argument asks for 3 channels, so PNGs with alpha or grayscale come back as RGB.
   unsigned char* pixels = stbi_load_from_memory(data, size, &width, &height, &channels, 3);
   if (!pixels) {
     throw std::invalid_argument(std::string("Could not decode image: ") + stbi_failure_reason());
@@ -102,6 +107,7 @@ ImageFeatures extractFeatures(const std::string& imageBytes) {
     sumHue += hue;
     sumSat += saturation;
 
+    // The two opponent colour axes the colourfulness metric is built on.
     double redGreen = r - g;
     double yellowBlue = 0.5 * (r + g) - b;
     sumRG += redGreen;
@@ -115,6 +121,8 @@ ImageFeatures extractFeatures(const std::string& imageBytes) {
   }
   stbi_image_free(pixels);
 
+  // Hasler and Suesstrunk: how spread out the opponent values are, plus 0.3 times how far their
+  // mean is from gray.
   double spread = std::hypot(stdDev(sumRG, sumRGSq, count), stdDev(sumYB, sumYBSq, count));
   double offset = std::hypot(sumRG / count, sumYB / count);
   double colorfulness = std::min((spread + 0.3 * offset) * COLORFULNESS_SCALE, 1.0);

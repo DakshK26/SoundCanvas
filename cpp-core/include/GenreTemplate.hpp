@@ -1,3 +1,5 @@
+// What each genre sounds like: tempo range, scale, chords, sections, patterns and instruments.
+// The model only picks the genre; this decides how that genre is played.
 #pragma once
 
 #include <string>

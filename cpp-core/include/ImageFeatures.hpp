@@ -1,3 +1,4 @@
+// The 8 numbers an image is reduced to. They are the model's input and also shape the song.
 // Must match ml/features.py, which built the training set; tests/feature_parity checks this.
 #pragma once
 

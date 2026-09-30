@@ -1,3 +1,5 @@
+// cpp-core's HTTP API. The worker calls /features with the image, then /compose with the features
+// and the genre. Nothing is stored between calls; bytes or JSON in, a result out.
 #include "HttpServer.hpp"
 
 #include <array>
@@ -23,6 +25,7 @@ void handleFeatures(const httplib::Request& req, httplib::Response& res) {
   res.set_content(json{{"features", features.toArray()}}.dump(), "application/json");
 }
 
+// {"features": [8 numbers], "genre": "HOUSE"} in, a .mid file out.
 void handleCompose(const httplib::Request& req, httplib::Response& res) {
   json body = json::parse(req.body);
   auto features = ImageFeatures::fromArray(body.at("features").get<std::array<float, 8>>());
@@ -52,6 +55,7 @@ void handleError(const httplib::Request&, httplib::Response& res, std::exception
 
 }  // namespace
 
+// cpp-httplib runs each request on a thread from its pool; the handlers share no state.
 void runHttpServer(int port) {
   httplib::Server server;
   server.set_payload_max_length(MAX_REQUEST_BYTES);

@@ -1,3 +1,5 @@
+// The five genre recipes. Tempos and drum patterns follow each style's usual conventions, like
+// house: a kick on every beat, hats on the off-beats, 120 to 130 bpm.
 #include "GenreTemplate.hpp"
 
 #include <stdexcept>
@@ -8,6 +10,8 @@ using namespace music;
 
 namespace {
 
+// Each template, in field order: genre, name, tempo range, scale, progression, sections as
+// (type, bars, energy), patterns, snare sound, instruments (bass, chords, lead, pad), melody.
 constexpr SectionType INTRO = SectionType::INTRO, BUILD = SectionType::BUILD, DROP = SectionType::DROP,
                       BREAK = SectionType::BREAK, OUTRO = SectionType::OUTRO;
 

@@ -1,3 +1,5 @@
+// Genre plus image features to a SongPlan: tempo, key, and the sections with their energies.
+// No notes yet; Composer turns the plan into MIDI.
 #pragma once
 
 #include <vector>
