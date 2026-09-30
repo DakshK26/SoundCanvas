@@ -1,4 +1,6 @@
-"""Renders cpp-core's MIDI to a mastered WAV: POST /render?genre=HOUSE with the .mid bytes."""
+"""The audio-producer service. The worker POSTs cpp-core's MIDI to /render?genre=HOUSE and gets back
+a mastered WAV. fluidsynth plays the instruments, drums.py and fx.py make the rest in numpy, and
+mixer.py puts them together and masters the result."""
 import io
 import os
 import subprocess
@@ -35,6 +37,8 @@ def read_events(midi: mido.MidiFile):
     return hits, markers
 
 
+# fluidsynth only plays the instruments. The drums are made in drums.py, so each genre gets its
+# own kit instead of the soundfont's generic one.
 def without_drums(midi: mido.MidiFile) -> mido.MidiFile:
     stripped = mido.MidiFile(ticks_per_beat=midi.ticks_per_beat)
     for track in midi.tracks:
@@ -50,6 +54,7 @@ def without_drums(midi: mido.MidiFile) -> mido.MidiFile:
     return stripped
 
 
+# fluidsynth plays the MIDI through a General MIDI soundfont into a WAV file.
 def render_instruments(midi: mido.MidiFile, work_dir: Path):
     midi_path, wav_path = work_dir / "instruments.mid", work_dir / "instruments.wav"
     without_drums(midi).save(midi_path)
@@ -70,6 +75,8 @@ def parse_midi(midi_bytes: bytes) -> mido.MidiFile:
         raise ValueError(f"Invalid MIDI file: {error}") from error
 
 
+# The instruments set the length. Drums and effects are made at that same length so the three
+# arrays can be added together.
 def render_song(midi: mido.MidiFile, genre: str) -> bytes:
     hits, markers = read_events(midi)
     with tempfile.TemporaryDirectory() as tmp:

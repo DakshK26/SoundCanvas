@@ -1,4 +1,6 @@
-"""Writes golden.json, the features ml/features.py gives for each test image. Only rerun after changing a feature on purpose."""
+"""Writes golden.json, the features ml/features.py gives for each test image. The Python and C++
+tests both compare against it, which is how the two copies are kept in step. Only rerun after
+changing a feature on purpose."""
 import json
 import sys
 from pathlib import Path
@@ -19,6 +21,8 @@ TOLERANCE = 0.01
 SIZE = 64
 
 
+# Simple images with known answers (flat gray has no color, pure red is fully saturated) plus
+# noise and a gradient for the harder cases.
 def make_synthetic_images() -> None:
     SYNTHETIC_DIR.mkdir(exist_ok=True)
     rng = np.random.default_rng(42)

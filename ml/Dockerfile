@@ -1,3 +1,4 @@
+# Only what serving needs: the app, its two helpers and the trained model. No training scripts or data.
 FROM python:3.12-slim
 
 WORKDIR /app

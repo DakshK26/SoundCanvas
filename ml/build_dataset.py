@@ -1,4 +1,5 @@
-"""Writes dataset.csv: the 8 features of every labeled photo and a stratified 80/20 train/test split."""
+"""Step 1 of training: turns every labeled photo into its 8 features and writes them to dataset.csv
+with a stratified 80/20 train/test split. train.py and evaluate.ipynb read that file."""
 import csv
 
 from sklearn.model_selection import train_test_split
@@ -10,7 +11,8 @@ TEST_SHARE = 0.20
 
 
 def assign_splits(labels: dict[str, str]) -> dict[str, str]:
-    # Sorted so the same seed always gives the same split.
+    # Stratified so both halves have the same mix of genres. Sorted so the same seed always gives
+    # the same split.
     images = sorted(labels)
     train, test = train_test_split(images, test_size=TEST_SHARE, random_state=SEED,
                                    stratify=[labels[image] for image in images])

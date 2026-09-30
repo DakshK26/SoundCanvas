@@ -1,3 +1,5 @@
+"""Checks the serving side: /predict's input rules, the dataset file, and that the committed model
+still gets its reported accuracy."""
 import sys
 import unittest
 from pathlib import Path

@@ -1,4 +1,5 @@
-"""Drums synthesized from the MIDI drum notes, with one Kit of settings per genre."""
+"""Drums synthesized from the MIDI drum notes, with one Kit of settings per genre. app.py passes in
+the drum hits it read from the MIDI and gets back one mono track."""
 from dataclasses import dataclass
 
 import numpy as np
@@ -31,6 +32,8 @@ KITS = {
 }
 
 
+# A kick is a sine that starts at 5 times its pitch, drops fast, then fades. tanh saturates it
+# for punch; more drive is a harder kick.
 def pitched_drum(base_hz: float, decay_seconds: float, drive: float) -> np.ndarray:
     seconds = TAIL_LENGTH * decay_seconds
     pitch = base_hz * (1 + 4 * np.exp(-time_axis(seconds) * 40))
@@ -38,6 +41,7 @@ def pitched_drum(base_hz: float, decay_seconds: float, drive: float) -> np.ndarr
     return np.tanh(body * drive)
 
 
+# A short tone for the drum head plus band-passed noise for the wires under it.
 def snare(kit: Kit) -> np.ndarray:
     seconds = 0.25
     head = np.sin(2 * np.pi * kit.snare_hz * time_axis(seconds)) * decay(seconds, 0.05)
@@ -45,6 +49,7 @@ def snare(kit: Kit) -> np.ndarray:
     return 0.5 * head + wires
 
 
+# Three bursts of noise 10 ms apart, like a few hands clapping not quite together.
 def clap() -> np.ndarray:
     seconds = 0.3
     burst = np.zeros(int(seconds * SAMPLE_RATE))
@@ -53,6 +58,7 @@ def clap() -> np.ndarray:
     return filtered_noise(seconds, 1000, 3000) * burst
 
 
+# Hats and crashes are high-passed noise; mostly the fade time tells them apart.
 def cymbal(decay_seconds: float, low_hz: float) -> np.ndarray:
     seconds = TAIL_LENGTH * decay_seconds
     return filtered_noise(seconds, low_hz) * decay(seconds, decay_seconds)
@@ -69,6 +75,7 @@ def drum_sounds(genre: str) -> dict[int, np.ndarray]:
         OPEN_HAT: cymbal(4 * kit.hat_decay, 7000),
         CRASH: cymbal(1.2, 5000),
     }
+    # Every sound peaks at 1, so the MIDI velocity alone sets how loud a hit is.
     return {note: sound / np.abs(sound).max() for note, sound in sounds.items()}
 
 

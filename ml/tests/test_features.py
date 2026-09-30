@@ -1,3 +1,5 @@
+"""Checks the training data side: features match the golden file, every photo has a label, the
+split is stratified, and all services use the same genre names."""
 import json
 import re
 import sys
@@ -34,6 +36,7 @@ class LabelsAreComplete(unittest.TestCase):
 
 class SplitsAreStratified(unittest.TestCase):
     def test_each_genre_is_split_80_20(self):
+        # A made-up set with one rare genre, like Retrowave in the real labels.
         labels = {f"image_{i:05d}.jpg": GENRES[i % 3] if i % 50 else "RETROWAVE" for i in range(1000)}
         splits = assign_splits(labels)
         self.assertEqual(splits, assign_splits(labels))
@@ -51,6 +54,7 @@ class GenreNamesAgree(unittest.TestCase):
         return set(re.findall(pattern, text, re.MULTILINE))
 
     def test_all_services_use_the_same_names(self):
+        # Reads each service's source as text and pulls out its genre names.
         expected = set(GENRES)
         schema = (ROOT / "gateway/src/schema.ts").read_text()
         self.assertEqual(set(re.findall(r'"([A-Z_]+)"', re.search(r"GENRES = \[([^\]]*)\]", schema).group(1))), expected)

@@ -1,3 +1,4 @@
+# fluidsynth and its General MIDI soundfont play the instruments; ffmpeg does the mastering.
 FROM python:3.12-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends fluidsynth fluid-soundfont-gm ffmpeg libsndfile1 \

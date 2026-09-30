@@ -1,4 +1,6 @@
-"""Python copy of cpp-core/src/ImageFeatures.cpp for building the training set; tests/feature_parity checks they match."""
+"""Python copy of cpp-core/src/ImageFeatures.cpp. build_dataset.py uses it to turn each training
+photo into 8 numbers; in production cpp-core does that, so the two must match. tests/feature_parity
+checks they do."""
 from pathlib import Path
 
 import numpy as np
@@ -24,6 +26,7 @@ LUMA_WEIGHTS = (0.299, 0.587, 0.114)
 
 
 def compute_features(path: str | Path) -> np.ndarray:
+    # PIL stores every channel, HSV too, as 0-255, so dividing by 255 puts them all on 0..1.
     rgb_image = Image.open(path).convert("RGB")
     rgb = np.asarray(rgb_image, dtype=np.float32) / 255.0
     hsv = np.asarray(rgb_image.convert("HSV"), dtype=np.float32) / 255.0
@@ -36,6 +39,8 @@ def compute_features(path: str | Path) -> np.ndarray:
     hue = hsv[:, :, 0].mean()
     saturation = hsv[:, :, 1].mean()
 
+    # Colorfulness: how spread out the colors are on two opponent axes, plus a little for how far
+    # the average color is from gray.
     red_green = red - green
     yellow_blue = 0.5 * (red + green) - blue
     spread = np.sqrt(red_green.std() ** 2 + yellow_blue.std() ** 2)

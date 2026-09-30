@@ -1,4 +1,6 @@
-"""Picks the network size with 5-fold cross-validation on the training split, then trains and saves it."""
+"""Step 2 of training: picks the network size with 5-fold cross-validation on the training split,
+then retrains it on the whole training split and saves it for app.py. The test split is left for
+evaluate.ipynb."""
 from itertools import product
 
 import numpy as np
@@ -37,6 +39,7 @@ def build_model(train_features: np.ndarray, hidden_units: int, hidden_layers: in
 
 def cross_validate(x: np.ndarray, y: np.ndarray, hidden_units: int, hidden_layers: int) -> tuple[list[float], list[int]]:
     """Best held-out accuracy and the epoch it came at, per fold."""
+    # Each fold stops once held-out accuracy hasn't improved for PATIENCE epochs.
     early_stopping = tf.keras.callbacks.EarlyStopping(
         monitor="val_accuracy", mode="max", patience=PATIENCE, restore_best_weights=True)
     folds = StratifiedKFold(n_splits=FOLDS, shuffle=True, random_state=SEED)
@@ -56,6 +59,7 @@ def cross_validate(x: np.ndarray, y: np.ndarray, hidden_units: int, hidden_layer
 def main():
     x_train, y_train = load_split("train")
 
+    # Try all four sizes and keep the one with the best average held-out accuracy.
     results = {}
     for hidden_units, hidden_layers in product(HIDDEN_UNITS_OPTIONS, HIDDEN_LAYERS_OPTIONS):
         accuracies, epochs = cross_validate(x_train, y_train, hidden_units, hidden_layers)
@@ -67,6 +71,7 @@ def main():
     print(f"chosen: {hidden_layers} x {hidden_units} units ({accuracy:.1%}); retraining on all "
           f"{len(y_train)} training photos for {epochs} epochs")
 
+    # No held-out rows are left to stop on, so train for the folds' average best epoch count.
     tf.keras.utils.set_random_seed(SEED)
     model = build_model(x_train, hidden_units, hidden_layers)
     model.fit(x_train, y_train, epochs=epochs, batch_size=BATCH_SIZE, verbose=0)

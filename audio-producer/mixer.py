@@ -1,3 +1,5 @@
+"""The last step of a render: mixes the instruments, drums and effects at each genre's levels, then
+masters the result with ffmpeg into the WAV the user hears."""
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -26,6 +28,8 @@ MIXES = {
     "CINEMATIC": Mix(instruments=1.0, drums=0.7, fx=0.6, duck=0.1),
 }
 
+# A little more bass, less mud in the mids, a bit of air on top, then compress, bring the
+# loudness to -14 LUFS like streaming services do, and stop any peak going over.
 # Order matters: loudnorm has to come after the compressor, or the compressor undoes it.
 MASTERING_CHAIN = ",".join([
     "equalizer=f=100:t=h:width=200:g=3",
@@ -38,6 +42,8 @@ MASTERING_CHAIN = ",".join([
 MASTER_TIMEOUT_SECONDS = 60
 
 
+# Sidechain ducking: the instruments dip on every kick and come back over about 0.1 s. That
+# pumping is a big part of the house and EDM sound.
 def sidechain(kick_times: list[float], length: int, depth: float) -> np.ndarray:
     curve = np.ones(length)
     dip = 1 - depth * np.exp(-time_axis(4 * DUCK_RECOVERY_SECONDS) / DUCK_RECOVERY_SECONDS)
@@ -53,6 +59,7 @@ def mix(instruments: np.ndarray, drums: np.ndarray, fx: np.ndarray,
         kick_times: list[float], genre: str) -> np.ndarray:
     levels = MIXES[genre]
     ducking = sidechain(kick_times, len(instruments), levels.duck)
+    # fluidsynth's output is stereo; drums and effects are mono, so they go equally in both sides.
     mono_layers = levels.drums * drums + levels.fx * fx
     stereo = levels.instruments * instruments * ducking[:, None] + mono_layers[:, None]
     return stereo / np.abs(stereo).max()

@@ -1,3 +1,5 @@
+"""Small building blocks for making sounds in numpy: sweeps, filtered noise, fades, and place() to
+drop a sound into a track. drums.py and fx.py are built from these."""
 import numpy as np
 from scipy import signal
 
@@ -16,6 +18,8 @@ def sine_sweep(frequencies_hz: np.ndarray) -> np.ndarray:
     return np.sin(2 * np.pi * np.cumsum(frequencies_hz) / SAMPLE_RATE)
 
 
+# White noise with the lows cut, and the highs too if high_hz is given. Hats, snares and risers
+# all start from this.
 def filtered_noise(seconds: float, low_hz: float, high_hz: float | None = None) -> np.ndarray:
     noise = np.random.default_rng(NOISE_SEED).standard_normal(int(seconds * SAMPLE_RATE))
     if high_hz is None:
@@ -29,6 +33,7 @@ def decay(seconds: float, time_constant: float) -> np.ndarray:
     return np.exp(-time_axis(seconds) / time_constant)
 
 
+# Adds a sound into the track at a time, cut off at the end of the track.
 def place(track: np.ndarray, sound: np.ndarray, start_seconds: float, gain: float = 1.0) -> None:
     start = int(start_seconds * SAMPLE_RATE)
     end = min(start + len(sound), len(track))

@@ -1,4 +1,5 @@
-"""Paths and CSV helpers shared by the scripts in ml/."""
+"""Paths and CSV helpers shared by the scripts in ml/. The fixed seed makes the split and the
+training repeatable."""
 import csv
 from pathlib import Path
 
@@ -25,6 +26,7 @@ def load_labels() -> dict[str, str]:
 
 def load_split(split: str) -> tuple[np.ndarray, np.ndarray]:
     """Features (N x 8) and genre indices for "train" or "test"."""
+    # Columns: image, split, genre, then the 8 features.
     with DATASET_PATH.open(newline="") as file:
         reader = csv.reader(file)
         next(reader)

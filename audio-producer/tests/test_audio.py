@@ -1,3 +1,5 @@
+"""Tests for the parts written here: MIDI handling, the error codes, and the numpy sound code.
+fluidsynth and ffmpeg aren't called, so these run without them installed."""
 import sys
 import unittest
 from pathlib import Path
@@ -18,6 +20,7 @@ from synth import SAMPLE_RATE  # noqa: E402
 TICKS_PER_BEAT = 480
 
 
+# A bass note at 0 s, a kick at 0.5 s, a drop marker at 1 s, and the bass note ending at 1.5 s.
 def song() -> mido.MidiFile:
     track = mido.MidiTrack([
         mido.Message("note_on", channel=0, note=40, velocity=90, time=0),
