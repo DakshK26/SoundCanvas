@@ -1,6 +1,6 @@
 // Works out tempo, key and section energies for one song. The genre gives the ranges and the photo
 // decides where in them this song lands, so two photos in the same genre still sound different.
-#include "SectionPlanner.hpp"
+#include "SongPlanner.hpp"
 
 #include <algorithm>
 #include <cmath>

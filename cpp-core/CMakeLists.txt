@@ -12,7 +12,7 @@ endif()
 add_library(soundcanvas_lib STATIC
     src/ImageFeatures.cpp
     src/GenreTemplate.cpp
-    src/SectionPlanner.cpp
+    src/SongPlanner.cpp
     src/Composer.cpp
     src/MidiWriter.cpp
 )

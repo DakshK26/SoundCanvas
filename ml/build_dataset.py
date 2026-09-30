@@ -4,7 +4,7 @@ import csv
 
 from sklearn.model_selection import train_test_split
 
-from data_files import DATASET_PATH, IMAGES_DIR, SEED, load_labels
+from dataset import DATASET_PATH, IMAGES_DIR, SEED, load_labels
 from features import FEATURE_NAMES, compute_features
 
 TEST_SHARE = 0.20

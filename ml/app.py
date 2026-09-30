@@ -7,7 +7,7 @@ import tensorflow as tf
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
-from data_files import MODEL_PATH
+from dataset import MODEL_PATH
 from genres import GENRES
 
 app = FastAPI(title="SoundCanvas ml")

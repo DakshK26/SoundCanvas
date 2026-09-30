@@ -16,7 +16,7 @@
 #include "ImageFeatures.hpp"
 #include "MidiWriter.hpp"
 #include "MusicTheory.hpp"
-#include "SectionPlanner.hpp"
+#include "SongPlanner.hpp"
 #include "json.hpp"
 
 using json = nlohmann::json;

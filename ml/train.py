@@ -7,7 +7,7 @@ import numpy as np
 import tensorflow as tf
 from sklearn.model_selection import StratifiedKFold
 
-from data_files import MODEL_PATH, SEED, load_split
+from dataset import MODEL_PATH, SEED, load_split
 from genres import GENRES
 
 HIDDEN_UNITS_OPTIONS = (64, 128)

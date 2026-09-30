@@ -11,7 +11,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "ml"))
 from build_dataset import assign_splits  # noqa: E402
-from data_files import all_images, load_labels  # noqa: E402
+from dataset import all_images, load_labels  # noqa: E402
 from features import FEATURE_NAMES, compute_features  # noqa: E402
 from genres import GENRES  # noqa: E402
 

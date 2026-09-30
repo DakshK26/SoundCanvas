@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "ml"))
 from app import PredictRequest, model, predict  # noqa: E402
 from build_dataset import assign_splits  # noqa: E402
-from data_files import DATASET_PATH, load_labels, load_split  # noqa: E402
+from dataset import DATASET_PATH, load_labels, load_split  # noqa: E402
 from genres import GENRES  # noqa: E402
 from train import build_model  # noqa: E402
 

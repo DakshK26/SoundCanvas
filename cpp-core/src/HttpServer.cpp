@@ -8,7 +8,7 @@
 
 #include "Composer.hpp"
 #include "ImageFeatures.hpp"
-#include "SectionPlanner.hpp"
+#include "SongPlanner.hpp"
 #include "httplib.h"
 #include "json.hpp"
 

@@ -3,6 +3,6 @@
 
 #include <string>
 
-#include "SectionPlanner.hpp"
+#include "SongPlanner.hpp"
 
 std::string composeMidi(const SongPlan& plan);
