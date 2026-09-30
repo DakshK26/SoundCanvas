@@ -35,6 +35,7 @@ def predict(request: PredictRequest) -> PredictResponse:
     return PredictResponse(genre=GENRES[best], confidence=float(probabilities[best]))
 
 
+# ECS hits this; the model is already loaded, so a 200 means the service can predict.
 @app.get("/health")
 def health() -> dict:
     return {"ok": True}
