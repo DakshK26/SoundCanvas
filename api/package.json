@@ -1,5 +1,5 @@
 {
-  "name": "soundcanvas-gateway",
+  "name": "soundcanvas-api",
   "version": "1.0.0",
   "private": true,
   "description": "GraphQL API and SQS job worker for SoundCanvas.",

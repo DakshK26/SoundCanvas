@@ -132,7 +132,7 @@ resource "aws_security_group" "db" {
   vpc_id = aws_vpc.main.id
 
   ingress {
-    description     = "MySQL from the gateway API and worker"
+    description     = "MySQL from the API and worker"
     from_port       = 3306
     to_port         = 3306
     protocol        = "tcp"

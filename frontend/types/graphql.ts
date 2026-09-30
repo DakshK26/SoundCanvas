@@ -1,4 +1,4 @@
-// Hand-written copies of the types in gateway/src/schema.ts; keep them in sync.
+// Hand-written copies of the types in api/src/schema.ts; keep them in sync.
 
 export enum GenerationStatus {
     PENDING = 'PENDING',

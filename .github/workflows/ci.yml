@@ -1,4 +1,4 @@
-# Runs on every push: gateway tsc and tests, cpp-core tests, ml and audio tests, frontend lint
+# Runs on every push: api tsc and tests, cpp-core tests, ml and audio tests, frontend lint
 # and tsc, terraform fmt and validate.
 
 name: CI
@@ -8,18 +8,18 @@ on:
   pull_request:
 
 jobs:
-  gateway:
+  api:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: gateway
+        working-directory: api
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: gateway/package-lock.json
+          cache-dependency-path: api/package-lock.json
       - run: npm ci
       - run: npm run build
       - run: npm test

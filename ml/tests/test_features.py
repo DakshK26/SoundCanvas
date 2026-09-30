@@ -57,7 +57,7 @@ class GenreNamesAgree(unittest.TestCase):
     def test_all_services_use_the_same_names(self):
         # Reads each service's source as text and pulls out its genre names.
         expected = set(GENRES)
-        schema = (ROOT / "gateway/src/schema.ts").read_text()
+        schema = (ROOT / "api/src/schema.ts").read_text()
         self.assertEqual(set(re.findall(r'"([A-Z_]+)"', re.search(r"GENRES = \[([^\]]*)\]", schema).group(1))), expected)
         self.assertEqual(self.names_in("cpp-core/src/GenreTemplate.cpp", r'name == "([A-Z_]+)"'), expected)
         self.assertEqual(self.names_in("audio-producer/drums.py", r'^\s+"([A-Z_]+)": Kit\('), expected)

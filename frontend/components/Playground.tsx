@@ -24,7 +24,7 @@ import AudioPlayer from '@/components/AudioPlayer';
 const POLL_INTERVAL_MS = 2500;
 
 const IMAGE_TYPES: Record<string, ImageType> = { 'image/jpeg': 'JPEG', 'image/png': 'PNG' };
-const MAX_IMAGE_MB = 10; // must match MAX_UPLOAD_BYTES in gateway/src/aws/s3.ts
+const MAX_IMAGE_MB = 10; // must match MAX_UPLOAD_BYTES in api/src/aws/s3.ts
 
 const STATUS_TEXT: Record<Status, string> = {
     [Status.PENDING]: 'Uploading your image...',

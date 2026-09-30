@@ -25,8 +25,8 @@ flowchart LR
     Alarms["CloudWatch alarms<br/>SNS email"]
 
     subgraph Private["Private subnets (ECS Fargate)"]
-      API["gateway API<br/>GraphQL"]
-      Worker["gateway worker<br/>1-5 tasks"]
+      API["api<br/>GraphQL"]
+      Worker["worker<br/>1-5 tasks"]
       Cpp["cpp-core<br/>/features, /compose"]
       ML["ml<br/>/predict"]
       Audio["audio-producer<br/>/render"]
@@ -59,7 +59,7 @@ playing as soon as there's an audio link.
 ## Stack
 
 - frontend: Next.js, Apollo Client, Tailwind
-- gateway: TypeScript, Apollo Server on Express, the SQS worker and the SQL migrations. It's the only part that talks to AWS.
+- api: TypeScript, Apollo Server on Express, the SQS worker and the SQL migrations. It's the only part that talks to AWS.
 - cpp-core: C++17 with cpp-httplib, nlohmann/json and stb_image, for the loops over pixels and bytes
 - ml: Python, TensorFlow, FastAPI
 - audio-producer: Python, FluidSynth, numpy and ffmpeg, in its own image so nothing else carries the 140 MB soundfont
@@ -73,7 +73,7 @@ scaled on its own.
 ### Queue and retries
 
 - The queue is SQS FIFO with the browser's client id as the message group. One person's songs finish in order and only ever use one worker at a time, so a heavy user can't starve everyone else.
-- The job id is the deduplication id, so a double click or a client retry only queues the job once.
+- The generation id is the deduplication id, so a double click or a client retry only queues the job once.
 - I used a queue rather than calling the services from the API because holding a request open for a minute runs into load balancer timeouts and ties up a connection per render.
 - A 4xx from a service fails the job straight away, since retrying won't help. A 5xx, a network error or a call over 2 minutes is retried after 30 seconds.
 - After 3 failed attempts the job is marked `FAILED`, SQS moves the message to the dead-letter queue and an alarm emails me.
@@ -97,7 +97,7 @@ scaled on its own.
 
 - Workers scale from 1 to 5 on backlog per worker with a target of 2. CPU would be the wrong signal, because workers mostly wait on the services.
 - cpp-core, ml and audio-producer scale from 1 to 5 on CPU at 60%, and new tasks show up in Cloud Map DNS by themselves.
-- Each gateway task has a pool of 5 database connections, so at most 30 at the current caps, against roughly 60 for a `db.t4g.micro`.
+- Each API and worker task has a pool of 5 database connections, so at most 30 at the current caps, against roughly 60 for a `db.t4g.micro`.
 - At the caps that's about 300 songs an hour. At 10x I'd raise the caps and give each worker a database pool of one or two connections. Beyond that I'd split the job into stages with their own queues, render on Fargate Spot and put RDS Proxy in front of MySQL.
 - I picked Fargate over Lambda because ml keeps TensorFlow loaded in memory and the renderer has large native dependencies.
 - I picked MySQL over DynamoDB because the queries are relational: a time-ordered history, a count over a sliding window across two keys, and compare-and-set updates.
@@ -166,7 +166,7 @@ back to the last working version.
 
 ## Tests
 
-- `gateway/test/`: the resolver rules and the worker's retry, dead-letter, duplicate and heartbeat decisions, with AWS mocked.
+- `api/test/`: the resolver rules and the worker's retry, dead-letter, duplicate and heartbeat decisions, with AWS mocked.
 - `cpp-core/tests/`: feature parity with Python, bad and oversized images, out-of-range features, the genre templates, and MIDI that parses back for every genre.
 - `ml/tests/`: feature parity, the labels and the split, the `/predict` contract, and the committed model still scoring 80.9%.
 - `audio-producer/tests/`: MIDI parsing, drums, effects, the sidechain, the mix and the `/render` error responses.
@@ -179,7 +179,7 @@ Actions runs all of these on every push, along with the frontend lint and type c
 
 ```text
 frontend/        Next.js app: Playground, Examples, History
-gateway/         GraphQL API, SQS worker and migrations
+api/             GraphQL API, SQS worker and migrations
 cpp-core/        image features and MIDI composer
 ml/              dataset, training, evaluation notebook and the /predict service
 audio-producer/  MIDI to mastered WAV

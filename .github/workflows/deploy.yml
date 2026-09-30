@@ -39,7 +39,7 @@ jobs:
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
-          for service in gateway cpp-core ml audio-producer; do
+          for service in api cpp-core ml audio-producer; do
             image="$REGISTRY/soundcanvas/$service:$TAG"
             docker build -t "$image" "$service"
             docker push "$image"
@@ -58,7 +58,7 @@ jobs:
           echo "cluster=$(terraform output -raw cluster_name)" >> "$GITHUB_OUTPUT"
           echo "subnets=$(terraform output -raw private_subnet_ids)" >> "$GITHUB_OUTPUT"
           echo "security_group=$(terraform output -raw tasks_security_group_id)" >> "$GITHUB_OUTPUT"
-          echo "registry=$(terraform output -json ecr_repositories | jq -r .gateway)" >> "$GITHUB_OUTPUT"
+          echo "registry=$(terraform output -json ecr_repositories | jq -r .api)" >> "$GITHUB_OUTPUT"
 
       - name: Migrate the database
         run: |

@@ -1,10 +1,10 @@
 # The five ECS services, their images, autoscaling and the one-off migrate task.
-# gateway-api sits behind the ALB; the others are reached by Cloud Map name.
+# api sits behind the ALB; the others are reached by Cloud Map name.
 
 locals {
   namespace = "${var.app_name}.local"
 
-  gateway_env = [
+  app_env = [
     { name = "AWS_REGION", value = var.aws_region },
     { name = "S3_BUCKET", value = aws_s3_bucket.media.bucket },
     { name = "SQS_QUEUE_URL", value = aws_sqs_queue.jobs.url },
@@ -16,7 +16,7 @@ locals {
     { name = "ML_URL", value = "http://ml.${local.namespace}:5000" },
     { name = "AUDIO_PRODUCER_URL", value = "http://audio-producer.${local.namespace}:9001" },
   ]
-  gateway_secrets = [
+  app_secrets = [
     { name = "DB_PASSWORD", valueFrom = "${aws_db_instance.main.master_user_secret[0].secret_arn}:password::" },
   ]
 
@@ -25,14 +25,14 @@ locals {
 
   # cpu in 1/1024 vCPU, memory in MB
   services = {
-    gateway-api = {
-      repo   = "gateway", port = 4000, cpu = 256, memory = 512, command = null
-      env    = local.gateway_env, secrets = local.gateway_secrets, role = aws_iam_role.api.arn
+    api = {
+      repo   = "api", port = 4000, cpu = 256, memory = 512, command = null
+      env    = local.app_env, secrets = local.app_secrets, role = aws_iam_role.api.arn
       health = null, stop_timeout = null
     }
-    gateway-worker = {
-      repo = "gateway", port = null, cpu = 256, memory = 512, command = ["npm", "run", "worker"]
-      env  = local.gateway_env, secrets = local.gateway_secrets, role = aws_iam_role.worker.arn
+    worker = {
+      repo = "api", port = null, cpu = 256, memory = 512, command = ["npm", "run", "worker"]
+      env  = local.app_env, secrets = local.app_secrets, role = aws_iam_role.worker.arn
       # 120 s is the Fargate maximum, enough for the worker to finish its current song.
       health = null, stop_timeout = 120
     }
@@ -55,8 +55,8 @@ locals {
 
   tasks = merge(local.services, {
     migrate = {
-      repo   = "gateway", port = null, cpu = 256, memory = 512, command = ["npm", "run", "migrate"]
-      env    = local.gateway_env, secrets = local.gateway_secrets, role = null
+      repo   = "api", port = null, cpu = 256, memory = 512, command = ["npm", "run", "migrate"]
+      env    = local.app_env, secrets = local.app_secrets, role = null
       health = null, stop_timeout = null
     }
   })
@@ -65,7 +65,7 @@ locals {
 }
 
 resource "aws_ecr_repository" "repo" {
-  for_each             = toset(["gateway", "cpp-core", "ml", "audio-producer"])
+  for_each             = toset(["api", "cpp-core", "ml", "audio-producer"])
   name                 = "${var.app_name}/${each.key}"
   image_tag_mutability = "IMMUTABLE"
 
@@ -181,7 +181,7 @@ resource "aws_ecs_service" "service" {
   }
 
   dynamic "load_balancer" {
-    for_each = each.key == "gateway-api" ? [1] : []
+    for_each = each.key == "api" ? [1] : []
     content {
       target_group_arn = aws_lb_target_group.api.arn
       container_name   = each.key
@@ -204,7 +204,7 @@ resource "aws_ecs_service" "service" {
 }
 
 resource "aws_appautoscaling_target" "service" {
-  for_each           = setunion(local.internal_services, ["gateway-worker"])
+  for_each           = setunion(local.internal_services, ["worker"])
   service_namespace  = "ecs"
   scalable_dimension = "ecs:service:DesiredCount"
   resource_id        = "service/${aws_ecs_cluster.main.name}/${aws_ecs_service.service[each.key].name}"
@@ -215,9 +215,9 @@ resource "aws_appautoscaling_target" "service" {
 resource "aws_appautoscaling_policy" "worker_backlog" {
   name               = "${var.app_name}-worker-backlog"
   policy_type        = "TargetTrackingScaling"
-  service_namespace  = aws_appautoscaling_target.service["gateway-worker"].service_namespace
-  scalable_dimension = aws_appautoscaling_target.service["gateway-worker"].scalable_dimension
-  resource_id        = aws_appautoscaling_target.service["gateway-worker"].resource_id
+  service_namespace  = aws_appautoscaling_target.service["worker"].service_namespace
+  scalable_dimension = aws_appautoscaling_target.service["worker"].scalable_dimension
+  resource_id        = aws_appautoscaling_target.service["worker"].resource_id
 
   target_tracking_scaling_policy_configuration {
     target_value = 2
@@ -251,7 +251,7 @@ resource "aws_appautoscaling_policy" "worker_backlog" {
             }
             dimensions {
               name  = "ServiceName"
-              value = aws_ecs_service.service["gateway-worker"].name
+              value = aws_ecs_service.service["worker"].name
             }
           }
         }

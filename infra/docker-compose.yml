@@ -1,8 +1,8 @@
 # Local stack: the same five services as AWS, plus MySQL and LocalStack for S3 and SQS.
 # Run from infra/: docker compose up --build
 
-x-gateway: &gateway
-  build: ../gateway
+x-api: &api
+  build: ../api
   environment:
     AWS_REGION: us-east-2
     AWS_ACCESS_KEY_ID: test # LocalStack accepts any keys
@@ -26,17 +26,17 @@ x-after-migrate: &after-migrate
 
 services:
   migrate:
-    <<: *gateway
+    <<: *api
     command: ["npm", "run", "migrate"]
     depends_on:
       mysql: { condition: service_healthy }
 
-  gateway-api:
-    <<: [*gateway, *after-migrate]
+  api:
+    <<: [*api, *after-migrate]
     ports: ["4000:4000"]
 
-  gateway-worker:
-    <<: [*gateway, *after-migrate]
+  worker:
+    <<: [*api, *after-migrate]
     command: ["npm", "run", "worker"]
 
   cpp-core:
