@@ -1,3 +1,6 @@
+# Inputs the deploy workflow and a first-time apply have to fill in (bucket, frontend URL,
+# certificate, GitHub repo, alarm email).
+
 variable "aws_region" {
   type    = string
   default = "us-east-2"

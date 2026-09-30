@@ -1,3 +1,5 @@
+# Values needed after apply: the GraphQL URL for the frontend, the ECR repos, and the deploy role ARN.
+
 output "api_url" {
   description = "Set this as NEXT_PUBLIC_GRAPHQL_ENDPOINT in the frontend (after pointing a DNS name at it that matches the certificate)."
   value       = "https://${aws_lb.api.dns_name}/graphql"

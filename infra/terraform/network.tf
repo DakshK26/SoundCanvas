@@ -1,3 +1,6 @@
+# VPC, two public and two private subnets, one NAT, the ALB, security groups and Cloud Map.
+# Only the ALB is public; every container sits on a private subnet.
+
 data "aws_availability_zones" "available" {
   state = "available"
 }

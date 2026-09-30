@@ -1,3 +1,6 @@
+# Three CloudWatch alarms emailed through SNS: a message in the DLQ, a job waiting over 10 minutes,
+# or 5 or more API 5xx errors in 5 minutes.
+
 resource "aws_sns_topic" "alarms" {
   name = "${var.app_name}-alarms"
 }

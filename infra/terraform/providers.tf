@@ -1,3 +1,4 @@
+# Terraform entry: the AWS provider and the remote state in S3.
 # The state bucket must exist before `terraform init`.
 terraform {
   required_version = ">= 1.10" # for use_lockfile

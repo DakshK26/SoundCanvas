@@ -1,3 +1,6 @@
+# Runs on every push: gateway tsc and tests, cpp-core tests, ml and audio tests, frontend lint
+# and tsc, terraform fmt and validate.
+
 name: CI
 
 on:

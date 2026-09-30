@@ -1,3 +1,5 @@
+# The FIFO job queue and its dead-letter queue. Visibility and maxReceiveCount must match pipeline.ts.
+
 resource "aws_sqs_queue" "jobs_dlq" {
   name                      = "${var.app_name}-jobs-dlq.fifo" # a FIFO queue's DLQ must also be FIFO
   fifo_queue                = true

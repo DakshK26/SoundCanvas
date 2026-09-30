@@ -1,3 +1,5 @@
+# The S3 bucket for images and WAVs (CORS, 30-day lifecycle) and the RDS MySQL instance.
+
 resource "aws_s3_bucket" "media" {
   bucket = var.bucket_name
 }

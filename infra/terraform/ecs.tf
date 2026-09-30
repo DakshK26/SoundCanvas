@@ -1,3 +1,6 @@
+# The five ECS services, their images, autoscaling and the one-off migrate task.
+# gateway-api sits behind the ALB; the others are reached by Cloud Map name.
+
 locals {
   namespace = "${var.app_name}.local"
 

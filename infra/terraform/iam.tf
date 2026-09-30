@@ -1,3 +1,6 @@
+# Least-privilege roles: execution (pull images, inject the DB secret), API (S3 + SQS send + RDS),
+# worker (S3 + SQS receive + RDS), and the GitHub OIDC deploy role.
+
 data "aws_iam_policy_document" "ecs_assume" {
   statement {
     actions = ["sts:AssumeRole"]

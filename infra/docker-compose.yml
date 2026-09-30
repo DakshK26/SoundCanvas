@@ -1,3 +1,6 @@
+# Local stack: the same five services as AWS, plus MySQL and LocalStack for S3 and SQS.
+# Run from infra/: docker compose up --build
+
 x-gateway: &gateway
   build: ../gateway
   environment:
