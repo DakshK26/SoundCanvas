@@ -1,5 +1,5 @@
 // The SQS FIFO queue between startGeneration (sends) and the workers (receive, delete, release).
-// A message only holds the job id; everything else about the job lives in MySQL.
+// A job message only holds the generation id; everything else lives in MySQL.
 import {
   ChangeMessageVisibilityCommand, DeleteMessageCommand, ReceiveMessageCommand, SendMessageCommand, SQSClient,
 } from "@aws-sdk/client-sqs";
@@ -10,19 +10,19 @@ const QUEUE_URL = requireEnv("SQS_QUEUE_URL");
 const LONG_POLL_SECONDS = 20; // the SQS maximum
 
 export interface QueuedJob {
-  jobId: string;
+  generationId: string;
   receiptHandle: string;
   receiveCount: number;
 }
 
 // The group id keeps one browser's jobs in order and on one worker at a time. The dedup id makes
-// sending the same job again within SQS's five-minute window a no-op.
-export async function enqueueJob(jobId: string, clientId: string): Promise<void> {
+// sending the same generation again within SQS's five-minute window a no-op.
+export async function enqueueJob(generationId: string, clientId: string): Promise<void> {
   await sqs.send(new SendMessageCommand({
     QueueUrl: QUEUE_URL,
-    MessageBody: JSON.stringify({ jobId }),
+    MessageBody: JSON.stringify({ generationId }),
     MessageGroupId: clientId,
-    MessageDeduplicationId: jobId,
+    MessageDeduplicationId: generationId,
   }));
 }
 
@@ -38,7 +38,7 @@ export async function receiveJob(): Promise<QueuedJob | null> {
   if (!Messages?.length) return null;
   const [message] = Messages;
   return {
-    jobId: JSON.parse(message.Body!).jobId,
+    generationId: JSON.parse(message.Body!).generationId,
     receiptHandle: message.ReceiptHandle!,
     receiveCount: Number(message.Attributes!.ApproximateReceiveCount),
   };

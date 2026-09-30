@@ -1,12 +1,12 @@
 // Tests the API rules: the rate limit, scoping to the caller, upload before start, start only
-// once, and putting the job back if SQS fails. S3, SQS and MySQL are mocked.
+// once, and putting the generation back if SQS fails. S3, SQS and MySQL are mocked.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/aws/s3", () => ({
   imageKey: (id: string) => `images/${id}`,
   audioKey: (id: string) => `audio/${id}.wav`,
-  downloadUrl: vi.fn(async (key: string) => `https://s3.example/${key}`),
-  uploadForm: vi.fn(),
+  signDownloadUrl: vi.fn(async (key: string) => `https://s3.example/${key}`),
+  createUploadForm: vi.fn(),
   objectExists: vi.fn(),
 }));
 vi.mock("../src/aws/queue", () => ({ enqueueJob: vi.fn() }));
@@ -30,7 +30,7 @@ const ME: Context = { clientId: "client-me", clientIp: "203.0.113.7" };
 
 function row(overrides: Record<string, unknown> = {}) {
   return {
-    id: "job-1",
+    id: "gen-1",
     client_id: ME.clientId,
     status: "PENDING",
     requested_genre: null,
@@ -54,15 +54,15 @@ beforeEach(() => {
   vi.mocked(db.getGeneration).mockResolvedValue(row());
   vi.mocked(db.markQueued).mockResolvedValue(true);
   vi.mocked(s3.objectExists).mockResolvedValue(true);
-  vi.mocked(s3.uploadForm).mockResolvedValue({ url: "https://s3.example/upload", fields: { key: "images/x" } });
+  vi.mocked(s3.createUploadForm).mockResolvedValue({ url: "https://s3.example/upload", fields: { key: "images/x" } });
 });
 
 describe("createGeneration", () => {
-  it("records the job and returns an upload form", async () => {
+  it("records the generation and returns an upload form", async () => {
     const result = await Mutation.createGeneration({}, { genre: "HOUSE", imageType: "PNG" }, ME);
 
     expect(db.insertGeneration).toHaveBeenCalledWith(expect.objectContaining({ ...ME, requestedGenre: "HOUSE" }));
-    expect(s3.uploadForm).toHaveBeenCalledWith(`images/${result.jobId}`, "image/png");
+    expect(s3.createUploadForm).toHaveBeenCalledWith(`images/${result.id}`, "image/png");
     expect(result.upload.fields).toEqual([{ name: "key", value: "images/x" }]);
   });
 
@@ -74,61 +74,61 @@ describe("createGeneration", () => {
     vi.mocked(db.countRecentGenerations).mockResolvedValue(11);
     expect(await errorCode(Mutation.createGeneration({}, { imageType: "JPEG" }, ME))).toBe("RATE_LIMITED");
     expect(db.deleteGeneration).toHaveBeenCalledOnce();
-    expect(s3.uploadForm).toHaveBeenCalledOnce();
+    expect(s3.createUploadForm).toHaveBeenCalledOnce();
   });
 });
 
 describe("startGeneration", () => {
-  it("queues an uploaded job", async () => {
-    await Mutation.startGeneration({}, { jobId: "job-1" }, ME);
+  it("queues an uploaded generation", async () => {
+    await Mutation.startGeneration({}, { id: "gen-1" }, ME);
 
-    expect(db.markQueued).toHaveBeenCalledWith("job-1");
-    expect(queue.enqueueJob).toHaveBeenCalledWith("job-1", ME.clientId);
+    expect(db.markQueued).toHaveBeenCalledWith("gen-1");
+    expect(queue.enqueueJob).toHaveBeenCalledWith("gen-1", ME.clientId);
   });
 
-  it("treats another browser's job as not found", async () => {
+  it("treats another browser's generation as not found", async () => {
     vi.mocked(db.getGeneration).mockResolvedValue(row({ client_id: "someone-else" }));
 
-    expect(await errorCode(Mutation.startGeneration({}, { jobId: "job-1" }, ME))).toBe("NOT_FOUND");
+    expect(await errorCode(Mutation.startGeneration({}, { id: "gen-1" }, ME))).toBe("NOT_FOUND");
     expect(queue.enqueueJob).not.toHaveBeenCalled();
   });
 
   it("refuses to start before the image is uploaded", async () => {
     vi.mocked(s3.objectExists).mockResolvedValue(false);
 
-    expect(await errorCode(Mutation.startGeneration({}, { jobId: "job-1" }, ME))).toBe("BAD_REQUEST");
+    expect(await errorCode(Mutation.startGeneration({}, { id: "gen-1" }, ME))).toBe("BAD_REQUEST");
     expect(db.markQueued).not.toHaveBeenCalled();
   });
 
-  it("refuses to start the same job twice", async () => {
+  it("refuses to start the same generation twice", async () => {
     vi.mocked(db.markQueued).mockResolvedValue(false);
 
-    expect(await errorCode(Mutation.startGeneration({}, { jobId: "job-1" }, ME))).toBe("BAD_REQUEST");
+    expect(await errorCode(Mutation.startGeneration({}, { id: "gen-1" }, ME))).toBe("BAD_REQUEST");
     expect(queue.enqueueJob).not.toHaveBeenCalled();
   });
 
-  it("puts the job back to PENDING if SQS is unavailable, so it can be started again", async () => {
+  it("puts the generation back to PENDING if SQS is unavailable, so it can be started again", async () => {
     vi.mocked(queue.enqueueJob).mockRejectedValue(new Error("SQS unavailable"));
 
-    await expect(Mutation.startGeneration({}, { jobId: "job-1" }, ME)).rejects.toThrow("SQS unavailable");
-    expect(db.markPending).toHaveBeenCalledWith("job-1");
+    await expect(Mutation.startGeneration({}, { id: "gen-1" }, ME)).rejects.toThrow("SQS unavailable");
+    expect(db.markPending).toHaveBeenCalledWith("gen-1");
   });
 });
 
 describe("queries", () => {
-  it("hides another browser's job", async () => {
+  it("hides another browser's generation", async () => {
     vi.mocked(db.getGeneration).mockResolvedValue(row({ client_id: "someone-else" }));
 
-    expect(await Query.generation({}, { jobId: "job-1" }, ME)).toBeNull();
+    expect(await Query.generation({}, { id: "gen-1" }, ME)).toBeNull();
   });
 
   it("only links the audio once the song is finished", async () => {
     vi.mocked(db.getGeneration).mockResolvedValue(row({ status: "COMPLETED", genre: "HOUSE" }));
-    const done = await Query.generation({}, { jobId: "job-1" }, ME);
-    expect(done?.audioUrl).toBe("https://s3.example/audio/job-1.wav");
+    const done = await Query.generation({}, { id: "gen-1" }, ME);
+    expect(done?.audioUrl).toBe("https://s3.example/audio/gen-1.wav");
 
     vi.mocked(db.getGeneration).mockResolvedValue(row({ status: "PROCESSING" }));
-    expect((await Query.generation({}, { jobId: "job-1" }, ME))?.audioUrl).toBeNull();
+    expect((await Query.generation({}, { id: "gen-1" }, ME))?.audioUrl).toBeNull();
   });
 
   it("keeps the history limit between 1 and 50", async () => {

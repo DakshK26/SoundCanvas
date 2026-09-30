@@ -35,19 +35,19 @@ export const typeDefs = `#graphql
   }
 
   type NewGeneration {
-    jobId: ID!
+    id: ID!
     upload: ImageUpload!
   }
 
   type Query {
-    generation(jobId: ID!): Generation
+    generation(id: ID!): Generation
     myGenerations(limit: Int = 20): [Generation!]!
   }
 
-  # Making a song is two calls: createGeneration, upload to S3, then startGeneration.
+  # A generation takes two calls: createGeneration, upload to S3, then startGeneration.
   type Mutation {
     # leaving genre out lets the model pick
     createGeneration(genre: Genre, imageType: ImageType!): NewGeneration!
-    startGeneration(jobId: ID!): Generation!
+    startGeneration(id: ID!): Generation!
   }
 `;

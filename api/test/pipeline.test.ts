@@ -12,11 +12,11 @@ vi.mock("../src/aws/queue", () => ({ deleteJob: vi.fn(), releaseJob: vi.fn(), ex
 vi.mock("../src/log", () => ({ log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
 vi.mock("../src/db", () => ({
   getGeneration: vi.fn(),
-  startProcessing: vi.fn(),
+  markProcessing: vi.fn(),
   markCompleted: vi.fn(),
   markFailed: vi.fn(),
 }));
-vi.mock("../src/services", async () => {
+vi.mock("../src/serviceClients", async () => {
   class PermanentError extends Error {}
   return {
     PermanentError,
@@ -30,21 +30,21 @@ vi.mock("../src/services", async () => {
 import * as s3 from "../src/aws/s3";
 import * as queue from "../src/aws/queue";
 import * as db from "../src/db";
-import * as services from "../src/services";
+import * as services from "../src/serviceClients";
 import { handleMessage, MAX_ATTEMPTS, RETRY_DELAY_SECONDS, VISIBILITY_TIMEOUT_SECONDS } from "../src/pipeline";
 
 const FEATURES = [0.5, 0.4, 0.3, 0.45, 0.6, 0.7, 0.2, 0.3];
-const message = (receiveCount = 1) => ({ jobId: "job-1", receiptHandle: "handle", receiveCount });
+const message = (receiveCount = 1) => ({ generationId: "gen-1", receiptHandle: "handle", receiveCount });
 
-function jobRow(requestedGenre: string | null = null) {
-  return { id: "job-1", status: "QUEUED", requested_genre: requestedGenre } as never;
+function generationRow(requestedGenre: string | null = null) {
+  return { id: "gen-1", status: "QUEUED", requested_genre: requestedGenre } as never;
 }
 
 // By default every step succeeds; each test breaks the one it cares about.
 beforeEach(() => {
   vi.resetAllMocks();
-  vi.mocked(db.getGeneration).mockResolvedValue(jobRow());
-  vi.mocked(db.startProcessing).mockResolvedValue(true);
+  vi.mocked(db.getGeneration).mockResolvedValue(generationRow());
+  vi.mocked(db.markProcessing).mockResolvedValue(true);
   vi.mocked(s3.getObject).mockResolvedValue(Buffer.from("image"));
   vi.mocked(services.extractFeatures).mockResolvedValue(FEATURES);
   vi.mocked(services.predictGenre).mockResolvedValue({ genre: "HOUSE", confidence: 0.9 });
@@ -54,23 +54,23 @@ beforeEach(() => {
 });
 
 describe("handleMessage", () => {
-  it("completes a job, saves the song and deletes the message", async () => {
+  it("completes a generation, saves the song and deletes the message", async () => {
     await handleMessage(message());
 
-    expect(s3.putObject).toHaveBeenCalledWith("audio/job-1.wav", Buffer.from("wav"), "audio/wav");
-    expect(db.markCompleted).toHaveBeenCalledWith("job-1", "HOUSE", 0.9, FEATURES);
+    expect(s3.putObject).toHaveBeenCalledWith("audio/gen-1.wav", Buffer.from("wav"), "audio/wav");
+    expect(db.markCompleted).toHaveBeenCalledWith("gen-1", "HOUSE", 0.9, FEATURES);
     expect(queue.deleteJob).toHaveBeenCalledOnce();
     expect(queue.releaseJob).not.toHaveBeenCalled();
   });
 
   it("skips the model when the user picked a genre", async () => {
-    vi.mocked(db.getGeneration).mockResolvedValue(jobRow("HOUSE"));
+    vi.mocked(db.getGeneration).mockResolvedValue(generationRow("HOUSE"));
 
     await handleMessage(message());
 
     expect(services.predictGenre).not.toHaveBeenCalled();
     expect(services.composeMidi).toHaveBeenCalledWith(FEATURES, "HOUSE");
-    expect(db.markCompleted).toHaveBeenCalledWith("job-1", "HOUSE", null, FEATURES);
+    expect(db.markCompleted).toHaveBeenCalledWith("gen-1", "HOUSE", null, FEATURES);
   });
 
   it("fails straight away on bad input, without retrying", async () => {
@@ -78,12 +78,12 @@ describe("handleMessage", () => {
 
     await handleMessage(message());
 
-    expect(db.markFailed).toHaveBeenCalledWith("job-1", "cannot decode image");
+    expect(db.markFailed).toHaveBeenCalledWith("gen-1", "cannot decode image");
     expect(queue.deleteJob).toHaveBeenCalledOnce();
     expect(queue.releaseJob).not.toHaveBeenCalled();
   });
 
-  it("retries a temporary error later and leaves the job running", async () => {
+  it("retries a temporary error later and leaves the generation running", async () => {
     vi.mocked(services.renderAudio).mockRejectedValue(new Error("audio-producer failed (503)"));
 
     await handleMessage(message(1));
@@ -93,18 +93,18 @@ describe("handleMessage", () => {
     expect(queue.deleteJob).not.toHaveBeenCalled();
   });
 
-  it("marks the job failed on the last attempt and releases the message to the dead-letter queue", async () => {
+  it("marks the generation failed on the last attempt and releases the message to the dead-letter queue", async () => {
     vi.mocked(services.renderAudio).mockRejectedValue(new Error("audio-producer failed (503)"));
 
     await handleMessage(message(MAX_ATTEMPTS));
 
-    expect(db.markFailed).toHaveBeenCalledWith("job-1", "audio-producer failed (503)");
+    expect(db.markFailed).toHaveBeenCalledWith("gen-1", "audio-producer failed (503)");
     expect(queue.releaseJob).toHaveBeenCalledWith(message(MAX_ATTEMPTS), 0);
     expect(queue.deleteJob).not.toHaveBeenCalled();
   });
 
-  it("does nothing but delete a duplicate delivery of a finished job", async () => {
-    vi.mocked(db.startProcessing).mockResolvedValue(false);
+  it("does nothing but delete a duplicate delivery of a finished generation", async () => {
+    vi.mocked(db.markProcessing).mockResolvedValue(false);
 
     await handleMessage(message(2));
 
@@ -131,7 +131,7 @@ describe("handleMessage", () => {
     vi.useRealTimers();
   });
 
-  it("fails a message whose job is not in the database", async () => {
+  it("fails a message whose generation is not in the database", async () => {
     vi.mocked(db.getGeneration).mockResolvedValue(null);
 
     await handleMessage(message());

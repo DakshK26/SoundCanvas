@@ -11,8 +11,8 @@ const BUCKET = requireEnv("S3_BUCKET");
 const URL_EXPIRY_SECONDS = 15 * 60;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
-export const imageKey = (jobId: string) => `images/${jobId}`;
-export const audioKey = (jobId: string) => `audio/${jobId}.wav`;
+export const imageKey = (generationId: string) => `images/${generationId}`;
+export const audioKey = (generationId: string) => `audio/${generationId}.wav`;
 
 export interface UploadForm {
   url: string;
@@ -22,7 +22,7 @@ export interface UploadForm {
 
 // The policy is signed into the form, so S3 itself refuses a different key, a different content
 // type, or a file outside 1 byte to 10 MB.
-export function uploadForm(key: string, contentType: string): Promise<UploadForm> {
+export function createUploadForm(key: string, contentType: string): Promise<UploadForm> {
   return createPresignedPost(s3, {
     Bucket: BUCKET,
     Key: key,
@@ -36,7 +36,7 @@ export function uploadForm(key: string, contentType: string): Promise<UploadForm
 }
 
 // Fresh 15-minute GET link. The frontend fetches the WAV into a blob so playback outlives this.
-export function downloadUrl(key: string): Promise<string> {
+export function signDownloadUrl(key: string): Promise<string> {
   return getSignedUrl(s3, new GetObjectCommand({ Bucket: BUCKET, Key: key }), {
     expiresIn: URL_EXPIRY_SECONDS,
   });

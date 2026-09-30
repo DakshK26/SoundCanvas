@@ -1,7 +1,7 @@
 // The worker process: its own ECS service, same image as the API. One job at a time, forever:
-// sweep stuck jobs every 5 minutes, wait for a message, run it through pipeline.ts.
+// sweep stuck generations every 5 minutes, wait for a message, run it through pipeline.ts.
 import { receiveJob } from "./aws/queue";
-import { failStaleJobs, pool } from "./db";
+import { failStaleGenerations, pool } from "./db";
 import { log } from "./log";
 import { handleMessage } from "./pipeline";
 
@@ -24,8 +24,8 @@ async function main(): Promise<void> {
     try {
       if (Date.now() - lastSweep > SWEEP_INTERVAL_MS) {
         lastSweep = Date.now();
-        const failed = await failStaleJobs();
-        if (failed > 0) log.warn("failed stale jobs", { count: failed });
+        const failed = await failStaleGenerations();
+        if (failed > 0) log.warn("failed stale generations", { count: failed });
       }
       const message = await receiveJob();
       if (message) await handleMessage(message);

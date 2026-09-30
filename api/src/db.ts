@@ -21,8 +21,8 @@ export interface Generation {
 // db.t4g.micro allows about 60 connections; 1 API task and up to 5 workers at 5 each is 30.
 const CONNECTIONS_PER_TASK = 5;
 
-// The sweeper fails jobs stuck in QUEUED or PROCESSING for longer than this.
-const STALE_JOB_MINUTES = 60;
+// The sweeper fails generations stuck in QUEUED or PROCESSING for longer than this.
+const STALE_MINUTES = 60;
 
 // Must match the S3 lifecycle rule in storage.tf.
 const FILE_RETENTION_DAYS = 30;
@@ -49,13 +49,13 @@ export async function deleteGeneration(id: string): Promise<void> {
   await pool.query("DELETE FROM generations WHERE id = ?", [id]);
 }
 
-// Looked up by job id. The caller still has to check client_id; this does not.
+// Looked up by id. The caller still has to check client_id; this does not.
 export async function getGeneration(id: string): Promise<Generation | null> {
   const [rows] = await pool.query<RowDataPacket[]>("SELECT * FROM generations WHERE id = ?", [id]);
   return (rows[0] as Generation) ?? null;
 }
 
-// History: this browser's started jobs from the last 30 days, newest first. Uses history_lookup.
+// History: this browser's started generations from the last 30 days, newest first. Uses history_lookup.
 export async function listGenerations(clientId: string, limit: number): Promise<Generation[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT * FROM generations
@@ -74,7 +74,7 @@ export async function countRecentGenerations(clientId: string, clientIp: string)
   return rows[0].count;
 }
 
-// PENDING to QUEUED. False means startGeneration was already called for this job.
+// PENDING to QUEUED. False means startGeneration was already called for this generation.
 export async function markQueued(id: string): Promise<boolean> {
   return update("UPDATE generations SET status = 'QUEUED' WHERE id = ? AND status = 'PENDING'", [id]);
 }
@@ -84,8 +84,8 @@ export async function markPending(id: string): Promise<void> {
   await update("UPDATE generations SET status = 'PENDING' WHERE id = ? AND status = 'QUEUED'", [id]);
 }
 
-// PROCESSING is allowed too, because a retry picks the job up in that state.
-export async function startProcessing(id: string): Promise<boolean> {
+// PROCESSING is allowed too, because a retry picks the generation up in that state.
+export async function markProcessing(id: string): Promise<boolean> {
   return update(
     "UPDATE generations SET status = 'PROCESSING' WHERE id = ? AND status IN ('QUEUED', 'PROCESSING')", [id]);
 }
@@ -107,12 +107,13 @@ export async function markFailed(id: string, message: string): Promise<void> {
     [message, id]);
 }
 
-// A worker that crashes on the last attempt never marks its job failed; SQS just moves it to the DLQ.
-export async function failStaleJobs(): Promise<number> {
+// A worker that crashes on the last attempt never marks its generation failed; SQS just moves the
+// job to the DLQ.
+export async function failStaleGenerations(): Promise<number> {
   const [result] = await pool.query<ResultSetHeader>(
     `UPDATE generations SET status = 'FAILED', error_message = 'Timed out'
      WHERE status IN ('QUEUED', 'PROCESSING') AND updated_at < NOW() - INTERVAL ? MINUTE`,
-    [STALE_JOB_MINUTES]);
+    [STALE_MINUTES]);
   return result.affectedRows;
 }
 

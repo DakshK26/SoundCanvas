@@ -1,5 +1,5 @@
 // One JSON line per event. ECS ships stdout to CloudWatch, and Logs Insights can then filter and
-// group on fields like jobId, step and ms.
+// group on fields like generationId, step and ms.
 type Fields = Record<string, unknown>;
 
 function write(level: "info" | "warn" | "error", message: string, fields: Fields): void {
