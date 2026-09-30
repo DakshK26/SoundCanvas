@@ -24,7 +24,6 @@ MIXES = {
     "HOUSE": Mix(instruments=0.8, drums=0.9, fx=0.5, duck=0.5),
     "EDM_DROP": Mix(instruments=0.8, drums=1.0, fx=0.6, duck=0.6),
     "EDM_CHILL": Mix(instruments=0.9, drums=0.7, fx=0.4, duck=0.3),
-    "RETROWAVE": Mix(instruments=0.85, drums=0.8, fx=0.5, duck=0.3),
     "CINEMATIC": Mix(instruments=1.0, drums=0.7, fx=0.6, duck=0.1),
 }
 

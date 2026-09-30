@@ -2,13 +2,12 @@
 // hand-written copy of these types.
 
 // Must match the genre names in cpp-core, ml and audio-producer; ml/tests checks this.
-export const GENRES = ["EDM_CHILL", "EDM_DROP", "RETROWAVE", "CINEMATIC", "HOUSE"] as const;
+export const GENRES = ["EDM_CHILL", "EDM_DROP", "CINEMATIC", "HOUSE"] as const;
 export type Genre = (typeof GENRES)[number];
 
 export const typeDefs = `#graphql
   enum Genre { ${GENRES.join(" ")} }
   enum ImageType { JPEG PNG }
-  enum Feedback { UP DOWN }
   # PENDING waits for the upload, QUEUED is in SQS, PROCESSING is with a worker.
   enum Status { PENDING QUEUED PROCESSING COMPLETED FAILED }
 
@@ -18,7 +17,6 @@ export const typeDefs = `#graphql
     genre: Genre
     # null when the user picked the genre, so the model never ran
     confidence: Float
-    feedback: Feedback
     imageUrl: String!
     audioUrl: String
     errorMessage: String
@@ -51,6 +49,5 @@ export const typeDefs = `#graphql
     # leaving genre out lets the model pick
     createGeneration(genre: Genre, imageType: ImageType!): NewGeneration!
     startGeneration(jobId: ID!): Generation!
-    rateGeneration(jobId: ID!, feedback: Feedback!): Generation!
   }
 `;

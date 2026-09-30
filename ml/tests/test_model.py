@@ -44,10 +44,10 @@ class TrainingData(unittest.TestCase):
         self.assertEqual({image: split for image, split, _ in rows}, splits)
         self.assertEqual({image: genre for image, _, genre in rows}, load_labels())
 
-    def test_splits_are_2400_train_and_600_test(self):
+    def test_splits_are_2362_train_and_591_test(self):
         x_train, _ = load_split("train")
         x_test, _ = load_split("test")
-        self.assertEqual((len(x_train), len(x_test)), (2400, 600))
+        self.assertEqual((len(x_train), len(x_test)), (2362, 591))
 
 
 class TrainedModel(unittest.TestCase):
@@ -58,10 +58,10 @@ class TrainedModel(unittest.TestCase):
         np.testing.assert_allclose(probabilities.sum(axis=1), 1, rtol=1e-5)
 
     def test_committed_model_reproduces_its_reported_test_accuracy(self):
-        """Committed model must still hit the reported 79.2%."""
+        """Committed model must still hit the reported 80.9%."""
         x_test, y_test = load_split("test")
         accuracy = (model(x_test, training=False).numpy().argmax(axis=1) == y_test).mean()
-        self.assertAlmostEqual(accuracy, 0.792, delta=0.001)
+        self.assertAlmostEqual(accuracy, 0.809, delta=0.001)
 
 
 if __name__ == "__main__":

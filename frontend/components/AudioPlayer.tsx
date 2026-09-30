@@ -5,15 +5,13 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download, Loader2, Play, Pause, Volume2, VolumeX } from 'lucide-react';
-import FeedbackButtons from '@/components/FeedbackButtons';
 import { downloadBlob } from '@/lib/download';
-import { Feedback, SongGenre } from '@/types/graphql';
+import { SongGenre } from '@/types/graphql';
 
 interface AudioPlayerProps {
     audioUrl: string;
     genre: SongGenre | null;
     confidence: number | null;
-    rating?: { jobId: string; feedback: Feedback | null };
 }
 
 function formatTime(seconds: number): string {
@@ -23,7 +21,7 @@ function formatTime(seconds: number): string {
     return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
-export default function AudioPlayer({ audioUrl, genre, confidence, rating }: AudioPlayerProps) {
+export default function AudioPlayer({ audioUrl, genre, confidence }: AudioPlayerProps) {
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [blobUrl, setBlobUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -214,13 +212,6 @@ export default function AudioPlayer({ audioUrl, genre, confidence, rating }: Aud
                                 {confidence == null ? 'You' : `Model (${Math.round(confidence * 100)}% confident)`}
                             </p>
                         </div>
-                    </div>
-                )}
-
-                {rating && (
-                    <div className="flex items-center justify-between px-4 py-2 bg-white/60 rounded-xl">
-                        <p className="text-sm text-[#5C5549]">Does the music match the image?</p>
-                        <FeedbackButtons jobId={rating.jobId} initial={rating.feedback} />
                     </div>
                 )}
 

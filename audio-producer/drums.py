@@ -27,7 +27,6 @@ KITS = {
     "HOUSE": Kit(kick_hz=60, kick_decay=0.18, drive=1.3, snare_hz=200, hat_decay=0.05),
     "EDM_CHILL": Kit(kick_hz=48, kick_decay=0.28, drive=1.1, snare_hz=180, hat_decay=0.08),
     "EDM_DROP": Kit(kick_hz=65, kick_decay=0.14, drive=1.8, snare_hz=220, hat_decay=0.04),
-    "RETROWAVE": Kit(kick_hz=55, kick_decay=0.22, drive=1.4, snare_hz=190, hat_decay=0.06),
     "CINEMATIC": Kit(kick_hz=40, kick_decay=0.45, drive=0.9, snare_hz=160, hat_decay=0.10),
 }
 

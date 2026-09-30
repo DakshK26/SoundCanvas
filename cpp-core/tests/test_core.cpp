@@ -33,8 +33,7 @@ int failures = 0;
     }                                                                             \
   } while (0)
 
-const std::vector<std::string> GENRE_NAMES = {"EDM_CHILL", "EDM_DROP", "RETROWAVE", "CINEMATIC",
-                                              "HOUSE"};
+const std::vector<std::string> GENRE_NAMES = {"EDM_CHILL", "EDM_DROP", "CINEMATIC", "HOUSE"};
 
 std::string readFile(const std::string& path) {
   std::ifstream file(path, std::ios::binary);

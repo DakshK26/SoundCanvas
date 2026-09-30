@@ -64,13 +64,13 @@ describe("handleMessage", () => {
   });
 
   it("skips the model when the user picked a genre", async () => {
-    vi.mocked(db.getGeneration).mockResolvedValue(jobRow("RETROWAVE"));
+    vi.mocked(db.getGeneration).mockResolvedValue(jobRow("HOUSE"));
 
     await handleMessage(message());
 
     expect(services.predictGenre).not.toHaveBeenCalled();
-    expect(services.composeMidi).toHaveBeenCalledWith(FEATURES, "RETROWAVE");
-    expect(db.markCompleted).toHaveBeenCalledWith("job-1", "RETROWAVE", null, FEATURES);
+    expect(services.composeMidi).toHaveBeenCalledWith(FEATURES, "HOUSE");
+    expect(db.markCompleted).toHaveBeenCalledWith("job-1", "HOUSE", null, FEATURES);
   });
 
   it("fails straight away on bad input, without retrying", async () => {

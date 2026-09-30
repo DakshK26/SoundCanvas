@@ -1,4 +1,4 @@
-// The five genre recipes. Tempos and drum patterns follow each style's usual conventions, like
+// The genre recipes. Tempos and drum patterns follow each style's usual conventions, like
 // house: a kick on every beat, hats on the off-beats, 120 to 130 bpm.
 #include "GenreTemplate.hpp"
 
@@ -49,24 +49,6 @@ const GenreTemplate EDM_DROP_TEMPLATE = {
     SNARE,
     {SYNTH_BASS, SAW_LEAD, SAW_LEAD, POLYSYNTH_PAD},
     {0, 0, 2, 4, 4, 2, 4, 5},
-};
-
-const GenreTemplate RETROWAVE_TEMPLATE = {
-    Genre::RETROWAVE, "RETROWAVE", 90, 110,
-    MINOR_SCALE, MINOR_LOOP_PROGRESSION,
-    {{INTRO, 4, 0.3f}, {BUILD, 8, 0.5f}, {DROP, 8, 0.8f},
-     {BREAK, 8, 0.5f}, {DROP, 8, 0.8f}, {OUTRO, 4, 0.3f}},
-    {
-        "x.......x.x.....",  // kick
-        "....x.......x...",  // snare
-        "x.x.x.x.x.x.x.x.",  // hat
-        "",                  // open hat
-        "R-O-R-O-R-O-R-O-",  // bass
-        "x-------x-------",  // chords
-    },
-    SNARE,
-    {SYNTH_BASS, POLYSYNTH_PAD, SAW_LEAD, WARM_PAD},
-    {4, -1, 2, 0, -1, 2, 4, 5},
 };
 
 const GenreTemplate CINEMATIC_TEMPLATE = {
@@ -123,7 +105,6 @@ const char* sectionName(SectionType type) {
 Genre parseGenre(const std::string& name) {
   if (name == "EDM_CHILL") return Genre::EDM_CHILL;
   if (name == "EDM_DROP") return Genre::EDM_DROP;
-  if (name == "RETROWAVE") return Genre::RETROWAVE;
   if (name == "CINEMATIC") return Genre::CINEMATIC;
   if (name == "HOUSE") return Genre::HOUSE;
   throw std::invalid_argument("Unknown genre: " + name);
@@ -133,7 +114,6 @@ const GenreTemplate& templateFor(Genre genre) {
   switch (genre) {
     case Genre::EDM_CHILL: return EDM_CHILL_TEMPLATE;
     case Genre::EDM_DROP: return EDM_DROP_TEMPLATE;
-    case Genre::RETROWAVE: return RETROWAVE_TEMPLATE;
     case Genre::CINEMATIC: return CINEMATIC_TEMPLATE;
     case Genre::HOUSE: return HOUSE_TEMPLATE;
   }

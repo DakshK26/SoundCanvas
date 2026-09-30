@@ -1,7 +1,7 @@
 // The GraphQL operations the UI runs. The fragment is the fields every screen needs for a job.
 
 import { gql, TypedDocumentNode } from '@apollo/client';
-import { Feedback, Generation, GenerationStatus, ImageType, ImageUpload, SongGenre } from '@/types/graphql';
+import { Generation, GenerationStatus, ImageType, ImageUpload, SongGenre } from '@/types/graphql';
 
 const GENERATION_FIELDS = gql`
   fragment GenerationFields on Generation {
@@ -9,7 +9,6 @@ const GENERATION_FIELDS = gql`
     status
     genre
     confidence
-    feedback
     imageUrl
     audioUrl
     errorMessage
@@ -61,18 +60,6 @@ export const MY_GENERATIONS: TypedDocumentNode<{ myGenerations: Generation[] }, 
   query MyGenerations($limit: Int) {
     myGenerations(limit: $limit) {
       ...GenerationFields
-    }
-  }
-`;
-
-export const RATE_GENERATION: TypedDocumentNode<
-    { rateGeneration: { id: string; feedback: Feedback | null } },
-    { jobId: string; feedback: Feedback }
-> = gql`
-  mutation RateGeneration($jobId: ID!, $feedback: Feedback!) {
-    rateGeneration(jobId: $jobId, feedback: $feedback) {
-      id
-      feedback
     }
   }
 `;

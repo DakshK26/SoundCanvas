@@ -1,7 +1,7 @@
 # SoundCanvas
 
 SoundCanvas turns a photo into a short instrumental song. It measures the photo's
-colours, a small TensorFlow model picks one of five genres, C++ composes a MIDI
+colours, a small TensorFlow model picks one of four genres, C++ composes a MIDI
 arrangement, and a Python service renders and masters it to a WAV.
 
 I built it mainly to learn AWS properly: ECS Fargate, SQS, RDS, S3, IAM and Terraform,
@@ -36,7 +36,7 @@ flowchart LR
 
   Browser -- "GraphQL + X-Client-Id" --> ALB --> API
   Browser -- "presigned POST / GET" --> S3
-  API -- "jobs, history, ratings" --> RDS
+  API -- "jobs, history" --> RDS
   API -- "SendMessage (group = browser)" --> SQS
   SQS -- "ReceiveMessage" --> Worker
   SQS -. "after 3 failed attempts" .-> DLQ -.-> Alarms
@@ -107,25 +107,22 @@ scaled on its own.
 The model doesn't look at pixels. Its input is 8 colour features: average red, green and
 blue, brightness, hue, saturation, colourfulness (Hasler and Süsstrunk 2003) and
 contrast. The labels are about colour and mood rather than objects, so a CNN would learn
-the wrong thing. Each of the 3,000 photos has one of the five genres as its label, and I
-split them once into 2,400 for training and 600 for testing, stratified by genre. The
+the wrong thing. Each of the 2,953 photos has one of the four genres as its label, and I
+split them once into 2,362 for training and 591 for testing, stratified by genre. The
 network is a `Normalization` layer, two ReLU layers of 64 units and a softmax. I chose
 that size from four candidates with 5-fold cross-validation; they were all within noise,
 so I took the smallest.
 
-Results on the 600 test photos:
+Results on the 591 test photos:
 
-- Top-1 accuracy: 79.2% (95% bootstrap interval 75.8% to 82.3%)
-- Top-2 accuracy: 93.8% (91.8% to 95.7%)
-- Logistic regression on the same 8 features: 76.8%
-- Always guessing the most common genre: 35.7%
-- Agreement between two label sets on 150 photos: 74.7% (Cohen's kappa 0.64)
+- Top-1 accuracy: 80.9% (95% bootstrap interval 77.7% to 84.1%)
+- Top-2 accuracy: 95.6% (93.9% to 97.1%)
+- Logistic regression on the same 8 features: 78.5%
+- Always guessing the most common genre: 36.4%
+- Agreement between two label sets on 149 photos: 74.5% (Cohen's kappa 0.64)
 
-The lead over logistic regression is small (2.3 points, interval 0.0 to 4.7), so most of
-the accuracy comes from the features rather than the network. Retrowave is the weak spot:
-it's 1.6% of the photos and the model rarely predicts it. Class weights found 9 of its 37
-training photos instead of 1, but cross-validated accuracy dropped from 79.0% to 74.5%, so
-I left them out.
+The lead over logistic regression is small (2.4 points, interval 0.0 to 4.7), so most of
+the accuracy comes from the features rather than the network.
 
 The per-genre breakdown and the confusion matrix are in `ml/evaluate.ipynb`. To rebuild
 the model, run `build_dataset.py` and then `train.py` in `ml/`.
@@ -171,7 +168,7 @@ back to the last working version.
 
 - `gateway/test/`: the resolver rules and the worker's retry, dead-letter, duplicate and heartbeat decisions, with AWS mocked.
 - `cpp-core/tests/`: feature parity with Python, bad and oversized images, out-of-range features, the genre templates, and MIDI that parses back for every genre.
-- `ml/tests/`: feature parity, the labels and the split, the `/predict` contract, and the committed model still scoring 79.2%.
+- `ml/tests/`: feature parity, the labels and the split, the `/predict` contract, and the committed model still scoring 80.9%.
 - `audio-producer/tests/`: MIDI parsing, drums, effects, the sidechain, the mix and the `/render` error responses.
 
 Both parity tests check against the golden features in `tests/feature_parity/`. GitHub

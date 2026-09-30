@@ -18,7 +18,6 @@ import { Button } from '@/components/ui/button';
 import { Play, Download, Loader2, Clock, AlertCircle } from 'lucide-react';
 import { MY_GENERATIONS } from '@/graphql/operations';
 import { Generation, GenerationStatus } from '@/types/graphql';
-import FeedbackButtons from '@/components/FeedbackButtons';
 import { downloadBlob } from '@/lib/download';
 
 const ITEMS_PER_PAGE = 20;
@@ -109,7 +108,7 @@ export default function History() {
                     Your Tracks
                 </CardTitle>
                 <CardDescription className="text-[#8C8279] mt-1">
-                    Tracks made in this browser. Rate them to help improve the genre model.
+                    Tracks made in this browser.
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -173,7 +172,6 @@ export default function History() {
                                             <TableCell className="text-right space-x-2">
                                                 {gen.status === GenerationStatus.COMPLETED && gen.audioUrl ? (
                                                     <>
-                                                        <FeedbackButtons jobId={gen.id} initial={gen.feedback} />
                                                         <Button
                                                             variant="ghost"
                                                             size="sm"

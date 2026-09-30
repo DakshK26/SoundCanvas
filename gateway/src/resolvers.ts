@@ -5,8 +5,8 @@ import { GraphQLError } from "graphql";
 import { audioKey, downloadUrl, imageKey, objectExists, uploadForm } from "./aws/s3";
 import { enqueueJob } from "./aws/queue";
 import {
-  countRecentGenerations, deleteGeneration, Feedback, Generation, getGeneration, insertGeneration, listGenerations,
-  markPending, markQueued, setFeedback,
+  countRecentGenerations, deleteGeneration, Generation, getGeneration, insertGeneration, listGenerations,
+  markPending, markQueued,
 } from "./db";
 
 export interface Context {
@@ -25,7 +25,6 @@ async function toGraphQL(row: Generation) {
     status: row.status,
     genre: row.genre ?? row.requested_genre,
     confidence: row.confidence,
-    feedback: row.feedback,
     imageUrl: await downloadUrl(imageKey(row.id)),
     audioUrl: row.status === "COMPLETED" ? await downloadUrl(audioKey(row.id)) : null,
     errorMessage: row.error_message,
@@ -94,18 +93,6 @@ export const resolvers = {
       } catch (error) {
         await markPending(jobId);
         throw error;
-      }
-      return toGraphQL(await findOwnJob(jobId, clientId));
-    },
-
-    // The UPDATE only matches the caller's own COMPLETED job, so it doubles as the ownership check.
-    rateGeneration: async (
-      _: unknown,
-      { jobId, feedback }: { jobId: string; feedback: Feedback },
-      { clientId }: Context,
-    ) => {
-      if (!(await setFeedback(jobId, clientId, feedback))) {
-        throw new GraphQLError("Only your own finished songs can be rated", { extensions: { code: "BAD_REQUEST" } });
       }
       return toGraphQL(await findOwnJob(jobId, clientId));
     },

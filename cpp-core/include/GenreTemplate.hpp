@@ -5,7 +5,7 @@
 #include <string>
 #include <vector>
 
-enum class Genre { EDM_CHILL, EDM_DROP, RETROWAVE, CINEMATIC, HOUSE };
+enum class Genre { EDM_CHILL, EDM_DROP, CINEMATIC, HOUSE };
 
 enum class SectionType { INTRO, BUILD, DROP, BREAK, OUTRO };
 

@@ -8,8 +8,7 @@ CREATE TABLE generations (
   requested_genre VARCHAR(20),           -- NULL means let the model pick
   genre           VARCHAR(20),
   confidence      FLOAT,
-  features        JSON,                  -- kept with the feedback for retraining later
-  feedback        ENUM('UP','DOWN'),
+  features        JSON,                  -- the 8 colour features for this song
   error_message   TEXT,
   created_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at      TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

@@ -306,7 +306,6 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
                             audioUrl={generation.audioUrl}
                             genre={generation.genre}
                             confidence={generation.confidence}
-                            rating={{ jobId: generation.id, feedback: generation.feedback }}
                         />
                     )}
                 </CardContent>

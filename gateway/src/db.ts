@@ -5,7 +5,6 @@ import mysql, { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { requireEnv } from "./env";
 
 export type Status = "PENDING" | "QUEUED" | "PROCESSING" | "COMPLETED" | "FAILED";
-export type Feedback = "UP" | "DOWN";
 
 export interface Generation {
   id: string;
@@ -15,7 +14,6 @@ export interface Generation {
   genre: string | null;
   confidence: number | null;
   features: number[] | null;
-  feedback: Feedback | null;
   error_message: string | null;
   created_at: Date;
 }
@@ -116,13 +114,6 @@ export async function failStaleJobs(): Promise<number> {
      WHERE status IN ('QUEUED', 'PROCESSING') AND updated_at < NOW() - INTERVAL ? MINUTE`,
     [STALE_JOB_MINUTES]);
   return result.affectedRows;
-}
-
-// Only a COMPLETED row owned by this client id can be rated.
-export async function setFeedback(id: string, clientId: string, feedback: Feedback): Promise<boolean> {
-  return update(
-    "UPDATE generations SET feedback = ? WHERE id = ? AND client_id = ? AND status = 'COMPLETED'",
-    [feedback, id, clientId]);
 }
 
 // True if exactly one row changed, meaning the status the query expected was really there.

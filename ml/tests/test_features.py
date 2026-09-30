@@ -36,8 +36,9 @@ class LabelsAreComplete(unittest.TestCase):
 
 class SplitsAreStratified(unittest.TestCase):
     def test_each_genre_is_split_80_20(self):
-        # A made-up set with one rare genre, like Retrowave in the real labels.
-        labels = {f"image_{i:05d}.jpg": GENRES[i % 3] if i % 50 else "RETROWAVE" for i in range(1000)}
+        # A made-up set with one rare genre, so the split still holds for a small class.
+        rare = GENRES[-1]
+        labels = {f"image_{i:05d}.jpg": GENRES[i % (len(GENRES) - 1)] if i % 50 else rare for i in range(1000)}
         splits = assign_splits(labels)
         self.assertEqual(splits, assign_splits(labels))
         for genre in set(labels.values()):

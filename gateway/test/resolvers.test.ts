@@ -18,7 +18,6 @@ vi.mock("../src/db", () => ({
   listGenerations: vi.fn(),
   markPending: vi.fn(),
   markQueued: vi.fn(),
-  setFeedback: vi.fn(),
 }));
 
 import * as s3 from "../src/aws/s3";
@@ -37,7 +36,6 @@ function row(overrides: Record<string, unknown> = {}) {
     requested_genre: null,
     genre: null,
     confidence: null,
-    feedback: null,
     error_message: null,
     created_at: new Date("2026-01-01T00:00:00Z"),
     ...overrides,
@@ -140,13 +138,5 @@ describe("queries", () => {
     await Query.myGenerations({}, { limit: -5 }, ME);
 
     expect(vi.mocked(db.listGenerations).mock.calls.map(([, limit]) => limit)).toEqual([50, 1]);
-  });
-});
-
-describe("rateGeneration", () => {
-  it("refuses feedback the database did not accept (not yours, or not finished)", async () => {
-    vi.mocked(db.setFeedback).mockResolvedValue(false);
-
-    expect(await errorCode(Mutation.rateGeneration({}, { jobId: "job-1", feedback: "UP" }, ME))).toBe("BAD_REQUEST");
   });
 });

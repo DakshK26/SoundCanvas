@@ -15,12 +15,12 @@ MODEL_PATH = Path(__file__).parent / "models" / "genre_classifier.keras"
 SEED = 42
 
 
-# The 3,000 training photos, by filename. labels.csv has one row per name.
+# Every labeled photo, by filename. labels.csv has one row per name.
 def all_images() -> list[str]:
     return sorted(path.name for path in IMAGES_DIR.glob("*.jpg"))
 
 
-# image filename to one of the five genre names.
+# image filename to one of the genre names.
 def load_labels() -> dict[str, str]:
     with LABELS_PATH.open(newline="") as file:
         return {row["image"]: row["genre"] for row in csv.DictReader(file)}

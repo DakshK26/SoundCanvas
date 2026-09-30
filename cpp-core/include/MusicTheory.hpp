@@ -22,7 +22,6 @@ const std::vector<int> DORIAN_SCALE = {0, 2, 3, 5, 7, 9, 10};
 const std::vector<int> POP_PROGRESSION = {0, 4, 5, 3};
 const std::vector<int> ANTHEM_PROGRESSION = {5, 3, 0, 4};
 const std::vector<int> EPIC_MINOR_PROGRESSION = {0, 5, 2, 6};
-const std::vector<int> MINOR_LOOP_PROGRESSION = {0, 3, 4, 0};
 
 // GM drums are on channel 10, which is 9 counting from 0.
 // The note numbers must match audio-producer/drums.py.
