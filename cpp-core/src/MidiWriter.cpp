@@ -27,6 +27,7 @@ void writeVarLen(std::vector<uint8_t>& out, uint32_t value) {
   out.insert(out.end(), bytes.rbegin(), bytes.rend());
 }
 
+// MIDI writes multi-byte numbers most-significant byte first.
 void writeBigEndian(std::vector<uint8_t>& out, uint32_t value, int size) {
   for (int shift = (size - 1) * 8; shift >= 0; shift -= 8) {
     out.push_back(static_cast<uint8_t>((value >> shift) & 0xFF));
@@ -59,6 +60,7 @@ void MidiWriter::addNote(int track, int startTick, int lengthTicks, int channel,
       {startTick + lengthTicks, {static_cast<uint8_t>(NOTE_OFF | channel), pitch, 0}});
 }
 
+// A text marker at this tick, written as a MIDI meta event. Used for section names.
 void MidiWriter::addMarker(int track, int tick, const std::string& text) {
   std::vector<uint8_t> data = {META, META_MARKER};
   writeVarLen(data, static_cast<uint32_t>(text.size()));

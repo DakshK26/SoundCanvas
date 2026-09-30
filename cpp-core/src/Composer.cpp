@@ -58,6 +58,7 @@ void forEachNote(const std::string& pattern, PlayFn play) {
   }
 }
 
+// One drum sound, one hit per 'x'. Hats use this too, with a quieter velocity.
 void playDrum(MidiWriter& midi, int track, int barTick, const std::string& pattern, int drum,
               int velocity) {
   forEachNote(pattern, [&](int step, int, char) {

@@ -107,6 +107,7 @@ const GenreTemplate HOUSE_TEMPLATE = {
 
 }  // namespace
 
+// These lowercase names are what audio-producer sees in the MIDI markers.
 const char* sectionName(SectionType type) {
   switch (type) {
     case SectionType::INTRO: return "intro";
@@ -118,6 +119,7 @@ const char* sectionName(SectionType type) {
   throw std::invalid_argument("Unknown section type");
 }
 
+// The genre string from GraphQL and from ml/predict, mapped to the enum.
 Genre parseGenre(const std::string& name) {
   if (name == "EDM_CHILL") return Genre::EDM_CHILL;
   if (name == "EDM_DROP") return Genre::EDM_DROP;

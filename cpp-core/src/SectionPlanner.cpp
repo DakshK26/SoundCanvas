@@ -31,6 +31,7 @@ float imageEnergy(const ImageFeatures& f) {
 
 }  // namespace
 
+// Copies the genre's sections, then bumps only the drops using the photo's energy.
 SongPlan planSong(const ImageFeatures& features, Genre genre) {
   const GenreTemplate& recipe = templateFor(genre);
   SongPlan plan{&recipe, pickTempo(features, recipe), pickRootNote(features), recipe.sections};
