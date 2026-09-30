@@ -1,3 +1,5 @@
+/* Shared colours, fonts and a few landing-page animations. The font itself is loaded in layout.tsx. */
+
 @import "tailwindcss";
 @import "tw-animate-css";
 

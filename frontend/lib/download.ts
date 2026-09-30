@@ -1,3 +1,4 @@
+// Triggers a file download from a blob already in memory (the WAV the player fetched).
 export function downloadBlob(blob: Blob, filename: string): void {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

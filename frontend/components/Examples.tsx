@@ -1,5 +1,8 @@
 'use client';
 
+// The examples tab. Clicking one opens Playground with that photo and its genre, so the
+// pre-made WAV plays straight away.
+
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { GENRE_LABELS } from '@/types/graphql';
 import { Example, EXAMPLES, exampleImage } from '@/lib/examples';

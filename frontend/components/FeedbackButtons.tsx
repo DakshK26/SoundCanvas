@@ -1,5 +1,8 @@
 'use client';
 
+// Thumbs up or down on a finished song. Updates the button first, then the API; a failure
+// puts the previous value back.
+
 import { useState } from 'react';
 import { useMutation } from '@apollo/client';
 import { ThumbsUp, ThumbsDown } from 'lucide-react';

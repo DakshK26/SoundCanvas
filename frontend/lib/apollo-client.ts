@@ -1,3 +1,5 @@
+// The Apollo client the whole app shares. Every request gets X-Client-Id, and queries always
+// hit the network so a poll is not served from the cache.
 // NEXT_PUBLIC_GRAPHQL_ENDPOINT is baked in at build time, not read at runtime.
 import { ApolloClient, ApolloLink, InMemoryCache, HttpLink } from '@apollo/client';
 import { getClientId } from '@/lib/clientId';

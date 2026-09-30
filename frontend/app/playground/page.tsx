@@ -1,5 +1,8 @@
 'use client';
 
+// The /playground page: three tabs (create, examples, history). The URL holds the tab and
+// which example is open, so a refresh lands on the same screen.
+
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Link from 'next/link';

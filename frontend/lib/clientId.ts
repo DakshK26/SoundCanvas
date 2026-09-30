@@ -1,4 +1,5 @@
-// Not auth: anyone with the id can see that browser's songs.
+// One random UUID per browser, kept in localStorage. The API uses it to group history and
+// rate-limit songs. Not auth: anyone with the id can see that browser's songs.
 const STORAGE_KEY = 'soundcanvas-client-id';
 
 export function getClientId(): string {

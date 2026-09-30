@@ -1,3 +1,5 @@
+// The landing page. All decoration; the two buttons go to /playground or the examples tab.
+
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 

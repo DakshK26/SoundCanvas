@@ -1,5 +1,8 @@
 'use client';
 
+// The main create-a-song screen. A real upload is createGeneration, POST the image to S3,
+// startGeneration, then poll. An example with its own genre just plays the WAV from /public.
+
 import { useState, useRef, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useMutation, useLazyQuery } from '@apollo/client';
@@ -76,6 +79,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         multiple: false,
     });
 
+    // Ask the API every 2.5 s until COMPLETED or FAILED. A blip just shows a warning and keeps going.
     const pollUntilDone = (jobId: string) => {
         pollRef.current = setInterval(async () => {
             try {
@@ -94,11 +98,13 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         }, POLL_INTERVAL_MS);
     };
 
+    // Turn the example photo into a File so it can go through the same upload path as a real one.
     const loadExampleImage = async (id: string): Promise<File> => {
         const response = await fetch(exampleImage(id));
         return new File([await response.blob()], `${id}.jpg`, { type: 'image/jpeg' });
     };
 
+    // The two-step API: create a job, upload straight to S3, then start it.
     const generate = async (image: File) => {
         const imageType = IMAGE_TYPES[image.type];
         if (!imageType) throw new Error('Please choose a JPG or PNG image');
@@ -121,6 +127,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         pollUntilDone(jobId);
     };
 
+    // The example's own photo and genre already has a rendered song; anything else is a real job.
     const playsPrerenderedExample = !selectedImage && exampleGenre !== undefined && genre === exampleGenre;
 
     const handleGenreChange = (value: Genre) => {

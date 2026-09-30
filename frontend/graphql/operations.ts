@@ -1,3 +1,5 @@
+// The GraphQL operations the UI runs. The fragment is the fields every screen needs for a job.
+
 import { gql, TypedDocumentNode } from '@apollo/client';
 import { Feedback, Generation, GenerationStatus, ImageType, ImageUpload, SongGenre } from '@/types/graphql';
 

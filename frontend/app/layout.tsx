@@ -1,3 +1,5 @@
+// Root layout: the Outfit font, the page title, and the Apollo provider around every page.
+
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";

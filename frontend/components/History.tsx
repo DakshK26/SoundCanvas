@@ -1,5 +1,8 @@
 'use client';
 
+// This browser's songs from the last 30 days, from myGenerations. Polls every 5 s while a
+// job is still running so a song that finishes on another tab shows up here too.
+
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@apollo/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
