@@ -1,3 +1,5 @@
+// The GraphQL API process, its own ECS service behind the load balancer. It only talks to MySQL,
+// S3 and SQS and answers in milliseconds; the slow song-making happens in worker.ts.
 import { ApolloServer, ApolloServerPlugin } from "@apollo/server";
 import { expressMiddleware } from "@apollo/server/express4";
 import cors from "cors";
@@ -13,6 +15,7 @@ const PORT = 4000;
 const FRONTEND_ORIGIN = requireEnv("FRONTEND_ORIGIN");
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// Every resolver gets this context, and requests without a valid X-Client-Id stop here.
 // The client id is not auth, just a random id the browser keeps.
 function requestContext(req: Request): Context {
   const clientId = req.header("X-Client-Id");
@@ -24,6 +27,8 @@ function requestContext(req: Request): Context {
   return { clientId, clientIp: req.ip! };
 }
 
+// A GraphQLError is an expected answer like NOT_FOUND or RATE_LIMITED. Anything else is a bug or
+// an outage (database, S3), so it gets logged and every 5xx alarm has a log line behind it.
 const logUnexpectedErrors: ApolloServerPlugin<Context> = {
   async requestDidStart() {
     return {
@@ -53,6 +58,8 @@ async function main(): Promise<void> {
   );
   const httpServer = app.listen(PORT, () => log.info("GraphQL API ready", { port: PORT }));
 
+  // On a deploy ECS sends SIGTERM: stop accepting connections, finish the open requests, then
+  // close Apollo and the database pool.
   process.on("SIGTERM", () => {
     log.info("SIGTERM received: draining requests");
     httpServer.close(async () => {

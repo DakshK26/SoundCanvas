@@ -1,3 +1,5 @@
+// The worker process: its own ECS service, same image as the API. One job at a time, forever:
+// sweep stuck jobs every 5 minutes, wait for a message, run it through pipeline.ts.
 import { receiveJob } from "./aws/queue";
 import { failStaleJobs, pool } from "./db";
 import { log } from "./log";
@@ -28,6 +30,7 @@ async function main(): Promise<void> {
       const message = await receiveJob();
       if (message) await handleMessage(message);
     } catch (error) {
+      // SQS or MySQL being briefly unreachable shouldn't kill the process: log, wait, carry on.
       log.error("worker loop error", { error: (error as Error).message });
       await sleep(ERROR_BACKOFF_MS);
     }

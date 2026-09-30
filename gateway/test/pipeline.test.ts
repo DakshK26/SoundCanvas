@@ -1,3 +1,5 @@
+// Tests the worker's decisions for one message: complete, fail now, retry, send to the DLQ,
+// skip a duplicate, and keep the heartbeat going. S3, SQS, MySQL and the services are all mocked.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/aws/s3", () => ({
@@ -38,6 +40,7 @@ function jobRow(requestedGenre: string | null = null) {
   return { id: "job-1", status: "QUEUED", requested_genre: requestedGenre } as never;
 }
 
+// By default every step succeeds; each test breaks the one it cares about.
 beforeEach(() => {
   vi.resetAllMocks();
   vi.mocked(db.getGeneration).mockResolvedValue(jobRow());
@@ -110,6 +113,7 @@ describe("handleMessage", () => {
     expect(queue.deleteJob).toHaveBeenCalledOnce();
   });
 
+  // Fake timers: 150 seconds of a stuck render should give two heartbeats, and none after it ends.
   it("keeps the message hidden while a long job runs, and stops once it ends", async () => {
     vi.useFakeTimers();
     let finishRender: (wav: Buffer) => void = () => {};

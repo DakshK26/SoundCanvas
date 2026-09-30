@@ -1,3 +1,5 @@
+// One SQS message is one job: get features, pick a genre, compose, render, then save the WAV.
+// Decides whether the job is finished, failed for good, or goes back on the queue for a retry.
 import { audioKey, getObject, imageKey, putObject } from "./aws/s3";
 import { deleteJob, extendVisibility, QueuedJob, releaseJob } from "./aws/queue";
 import { getGeneration, markCompleted, markFailed, startProcessing } from "./db";
@@ -9,6 +11,7 @@ export const RETRY_DELAY_SECONDS = 30;
 export const VISIBILITY_TIMEOUT_SECONDS = 120; // must match visibility_timeout_seconds in queue.tf
 const HEARTBEAT_MS = 60 * 1000;
 
+// Runs one stage and logs how long it took, so a slow service shows up in the logs.
 async function step<T>(jobId: string, name: string, run: () => Promise<T>): Promise<T> {
   const started = Date.now();
   const result = await run();
@@ -16,6 +19,7 @@ async function step<T>(jobId: string, name: string, run: () => Promise<T>): Prom
   return result;
 }
 
+// The happy path. Rerunning it is safe: same S3 key, same conditional updates, same song.
 export async function processJob(jobId: string): Promise<void> {
   const job = await getGeneration(jobId);
   if (!job) throw new PermanentError(`Job ${jobId} not found`);
@@ -37,6 +41,8 @@ export async function processJob(jobId: string): Promise<void> {
 
 export async function handleMessage(message: QueuedJob): Promise<void> {
   const { jobId, receiveCount: attempt } = message;
+  // While this worker is busy, keep pushing the timeout back so no other worker gets the message.
+  // If this process dies the heartbeat stops, and the message reappears within 120 seconds.
   const heartbeat = setInterval(() => {
     extendVisibility(message, VISIBILITY_TIMEOUT_SECONDS)
       .catch((error) => log.warn("heartbeat failed", { jobId, error: (error as Error).message }));
@@ -49,6 +55,7 @@ export async function handleMessage(message: QueuedJob): Promise<void> {
   } catch (error) {
     const reason = (error as Error).message;
     log.error("job attempt failed", { jobId, attempt, reason });
+    // Bad input fails now. Anything else is retried in 30 seconds, until the last attempt.
     if (error instanceof PermanentError) {
       await markFailed(jobId, reason);
       await deleteJob(message);

@@ -1,3 +1,5 @@
+// Runs as a one-off ECS task before each deploy (npm run migrate). Applies every migrations/*.sql
+// not yet listed in schema_migrations, in file-name order.
 import { readdir, readFile } from "fs/promises";
 import path from "path";
 import { RowDataPacket } from "mysql2/promise";

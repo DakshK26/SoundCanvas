@@ -1,3 +1,5 @@
+// What each GraphQL query and mutation does. Everything is scoped to the caller's client id, and
+// nothing here is slow: starting a job only puts a message on the queue for a worker.
 import { randomUUID } from "crypto";
 import { GraphQLError } from "graphql";
 import { audioKey, downloadUrl, imageKey, objectExists, uploadForm } from "./aws/s3";
@@ -16,6 +18,7 @@ const SONGS_PER_HOUR = 10;
 const MAX_HISTORY = 50;
 const CONTENT_TYPES = { JPEG: "image/jpeg", PNG: "image/png" };
 
+// Database row to GraphQL type. The S3 links are signed fresh on every call and last 15 minutes.
 async function toGraphQL(row: Generation) {
   return {
     id: row.id,
@@ -41,6 +44,7 @@ async function findOwnJob(jobId: string, clientId: string): Promise<Generation> 
 
 export const resolvers = {
   Query: {
+    // The browser polls this every 2.5 seconds while a job runs.
     generation: async (_: unknown, { jobId }: { jobId: string }, { clientId }: Context) => {
       const row = await getGeneration(jobId);
       return row && row.client_id === clientId ? toGraphQL(row) : null;
@@ -75,6 +79,8 @@ export const resolvers = {
       };
     },
 
+    // Check the image really landed in S3, move PENDING to QUEUED exactly once, then send it to SQS.
+    // If the send fails the job goes back to PENDING, so the user can just press start again.
     startGeneration: async (_: unknown, { jobId }: { jobId: string }, { clientId }: Context) => {
       await findOwnJob(jobId, clientId);
       if (!(await objectExists(imageKey(jobId)))) {
@@ -92,6 +98,7 @@ export const resolvers = {
       return toGraphQL(await findOwnJob(jobId, clientId));
     },
 
+    // The UPDATE only matches the caller's own COMPLETED job, so it doubles as the ownership check.
     rateGeneration: async (
       _: unknown,
       { jobId, feedback }: { jobId: string; feedback: Feedback },

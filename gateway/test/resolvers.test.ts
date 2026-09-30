@@ -1,3 +1,5 @@
+// Tests the API rules: the rate limit, scoping to the caller, upload before start, start only
+// once, and putting the job back if SQS fails. S3, SQS and MySQL are mocked.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../src/aws/s3", () => ({
@@ -42,6 +44,7 @@ function row(overrides: Record<string, unknown> = {}) {
   } as never;
 }
 
+// The GraphQL error code a resolver threw, or undefined if it didn't throw.
 async function errorCode(call: Promise<unknown>): Promise<unknown> {
   const error = await call.then(() => null, (thrown) => thrown);
   return error?.extensions?.code;

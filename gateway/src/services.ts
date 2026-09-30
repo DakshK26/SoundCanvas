@@ -1,3 +1,6 @@
+// The worker's HTTP calls to cpp-core, ml and audio-producer, which it finds by name through
+// Cloud Map DNS. Every response is checked, so a broken service fails loudly instead of
+// passing bad data further down the pipeline.
 import { requireEnv } from "./env";
 import { Genre, GENRES } from "./schema";
 
@@ -17,6 +20,8 @@ export interface Prediction {
   confidence: number;
 }
 
+// A 4xx becomes a PermanentError, so the job fails now. A 5xx, a network error or a timeout is a
+// plain Error, so pipeline.ts retries it.
 async function post(url: string, body: Buffer | string, contentType: string): Promise<Response> {
   const response = await fetch(url, {
     method: "POST",
@@ -33,6 +38,7 @@ async function post(url: string, body: Buffer | string, contentType: string): Pr
 
 const isFraction = (value: unknown) => typeof value === "number" && value >= 0 && value <= 1;
 
+// The raw image bytes go straight in; the 8 numbers that come back feed both ml and /compose.
 export async function extractFeatures(image: Buffer): Promise<number[]> {
   const response = await post(`${CPP_CORE_URL}/features`, image, "application/octet-stream");
   const { features } = (await response.json()) as { features?: unknown };

@@ -1,3 +1,6 @@
+// Every MySQL query the API and the worker run. Status changes are compare-and-set: each UPDATE
+// names the status it expects to move from, and the caller checks that exactly one row changed.
+// That is what makes double clicks and duplicate SQS deliveries harmless.
 import mysql, { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { requireEnv } from "./env";
 
@@ -20,6 +23,7 @@ export interface Generation {
 // db.t4g.micro allows about 60 connections; 1 API task and up to 5 workers at 5 each is 30.
 const CONNECTIONS_PER_TASK = 5;
 
+// The sweeper fails jobs stuck in QUEUED or PROCESSING for longer than this.
 const STALE_JOB_MINUTES = 60;
 
 // Must match the S3 lifecycle rule in storage.tf.
@@ -50,6 +54,7 @@ export async function getGeneration(id: string): Promise<Generation | null> {
   return (rows[0] as Generation) ?? null;
 }
 
+// History: this browser's started jobs from the last 30 days, newest first. Uses history_lookup.
 export async function listGenerations(clientId: string, limit: number): Promise<Generation[]> {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT * FROM generations
@@ -58,6 +63,8 @@ export async function listGenerations(clientId: string, limit: number): Promise<
   return rows as Generation[];
 }
 
+// Rate limit: songs in the last hour from this browser or this IP, so clearing localStorage
+// doesn't reset it. The OR is why there is an index on each column.
 export async function countRecentGenerations(clientId: string, clientIp: string): Promise<number> {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT COUNT(*) AS count FROM generations
@@ -70,6 +77,7 @@ export async function markQueued(id: string): Promise<boolean> {
   return update("UPDATE generations SET status = 'QUEUED' WHERE id = ? AND status = 'PENDING'", [id]);
 }
 
+// Undoes markQueued when the SQS send fails.
 export async function markPending(id: string): Promise<void> {
   await update("UPDATE generations SET status = 'PENDING' WHERE id = ? AND status = 'QUEUED'", [id]);
 }
@@ -110,6 +118,7 @@ export async function setFeedback(id: string, clientId: string, feedback: Feedba
     [feedback, id, clientId]);
 }
 
+// True if exactly one row changed, meaning the status the query expected was really there.
 async function update(sql: string, params: unknown[]): Promise<boolean> {
   const [result] = await pool.query<ResultSetHeader>(sql, params);
   return result.affectedRows === 1;
