@@ -64,6 +64,7 @@ def cymbal(decay_seconds: float, low_hz: float) -> np.ndarray:
     return filtered_noise(seconds, low_hz) * decay(seconds, decay_seconds)
 
 
+# Builds each kit sound once, then render_drums stamps them onto the track.
 def drum_sounds(genre: str) -> dict[int, np.ndarray]:
     kit = KITS[genre]
     sounds = {
@@ -79,6 +80,7 @@ def drum_sounds(genre: str) -> dict[int, np.ndarray]:
     return {note: sound / np.abs(sound).max() for note, sound in sounds.items()}
 
 
+# Places every MIDI drum hit onto a silent track of the same length as the instruments.
 def render_drums(hits: list[tuple[float, int, int]], genre: str, length: int) -> np.ndarray:
     sounds = drum_sounds(genre)
     track = np.zeros(length)

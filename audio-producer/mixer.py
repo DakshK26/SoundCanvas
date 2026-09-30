@@ -55,6 +55,7 @@ def sidechain(kick_times: list[float], length: int, depth: float) -> np.ndarray:
     return curve
 
 
+# Scales the three layers, ducks the instruments on each kick, then peak-normalizes.
 def mix(instruments: np.ndarray, drums: np.ndarray, fx: np.ndarray,
         kick_times: list[float], genre: str) -> np.ndarray:
     levels = MIXES[genre]
@@ -65,6 +66,7 @@ def mix(instruments: np.ndarray, drums: np.ndarray, fx: np.ndarray,
     return stereo / np.abs(stereo).max()
 
 
+# Writes a float WAV, runs the ffmpeg chain, and returns 16-bit PCM bytes.
 def master(stereo: np.ndarray, work_dir: Path) -> bytes:
     raw, done = work_dir / "mix.wav", work_dir / "master.wav"
     # Float WAV, so nothing clips before the mastering chain.

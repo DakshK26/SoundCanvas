@@ -9,6 +9,7 @@ SAMPLE_RATE = 44100  # fluidsynth renders at this rate too (-r), so the arrays l
 NOISE_SEED = 0
 
 
+# Sample times in seconds, from 0 up to just under `seconds`.
 def time_axis(seconds: float) -> np.ndarray:
     return np.arange(int(seconds * SAMPLE_RATE)) / SAMPLE_RATE
 
@@ -29,6 +30,7 @@ def filtered_noise(seconds: float, low_hz: float, high_hz: float | None = None) 
     return signal.sosfilt(sos, noise)
 
 
+# Exponential fade. After about 5 time constants the sound is under 1%.
 def decay(seconds: float, time_constant: float) -> np.ndarray:
     return np.exp(-time_axis(seconds) / time_constant)
 
