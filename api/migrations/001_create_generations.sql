@@ -1,4 +1,4 @@
--- One row per song. The id is a UUID that is also the S3 key and the SQS deduplication id.
+-- One row per generation. The id is a UUID that is also the S3 key and the SQS deduplication id.
 -- Each index matches one query in db.ts: history, the rate limit, and the stale-job sweep.
 CREATE TABLE generations (
   id              CHAR(36) PRIMARY KEY,
