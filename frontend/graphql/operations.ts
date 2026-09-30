@@ -1,4 +1,4 @@
-// The GraphQL operations the UI runs. The fragment is the fields every screen needs for a job.
+// The GraphQL operations the UI runs. The fragment holds the fields every screen shows.
 
 import { gql, TypedDocumentNode } from '@apollo/client';
 import { Generation, GenerationStatus, ImageType, ImageUpload, SongGenre } from '@/types/graphql';
@@ -17,12 +17,12 @@ const GENERATION_FIELDS = gql`
 `;
 
 export const CREATE_GENERATION: TypedDocumentNode<
-    { createGeneration: { jobId: string; upload: ImageUpload } },
+    { createGeneration: { id: string; upload: ImageUpload } },
     { genre: SongGenre | null; imageType: ImageType }
 > = gql`
   mutation CreateGeneration($genre: Genre, $imageType: ImageType!) {
     createGeneration(genre: $genre, imageType: $imageType) {
-      jobId
+      id
       upload {
         url
         fields {
@@ -36,20 +36,20 @@ export const CREATE_GENERATION: TypedDocumentNode<
 
 export const START_GENERATION: TypedDocumentNode<
     { startGeneration: { id: string; status: GenerationStatus } },
-    { jobId: string }
+    { id: string }
 > = gql`
-  mutation StartGeneration($jobId: ID!) {
-    startGeneration(jobId: $jobId) {
+  mutation StartGeneration($id: ID!) {
+    startGeneration(id: $id) {
       id
       status
     }
   }
 `;
 
-export const GET_GENERATION: TypedDocumentNode<{ generation: Generation | null }, { jobId: string }> = gql`
+export const GET_GENERATION: TypedDocumentNode<{ generation: Generation | null }, { id: string }> = gql`
   ${GENERATION_FIELDS}
-  query Generation($jobId: ID!) {
-    generation(jobId: $jobId) {
+  query Generation($id: ID!) {
+    generation(id: $id) {
       ...GenerationFields
     }
   }

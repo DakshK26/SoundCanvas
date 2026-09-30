@@ -14,7 +14,7 @@ const clientIdLink = new ApolloLink((operation, forward) => {
 const apolloClient = new ApolloClient({
     link: clientIdLink.concat(new HttpLink({ uri: process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT })),
     cache: new InMemoryCache(),
-    // Otherwise polling a job just returns the cached status.
+    // Otherwise polling a generation just returns the cached status.
     defaultOptions: {
         watchQuery: { fetchPolicy: 'network-only' },
         query: { fetchPolicy: 'network-only' },

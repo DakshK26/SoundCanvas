@@ -1,7 +1,7 @@
 'use client';
 
-// This browser's songs from the last 30 days, from myGenerations. Polls every 5 s while a
-// job is still running so a song that finishes on another tab shows up here too.
+// This browser's generations from the last 30 days, from myGenerations. Polls every 5 s while
+// one is still running so a song that finishes on another tab shows up here too.
 
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@apollo/client';
@@ -41,7 +41,7 @@ function formatDate(dateString: string): string {
     });
 }
 
-export default function History() {
+export default function GenerationHistory() {
     const { data, loading, error, startPolling, stopPolling } = useQuery(MY_GENERATIONS, {
         variables: { limit: ITEMS_PER_PAGE },
         ssr: false, // the client id lives in localStorage

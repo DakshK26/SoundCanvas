@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ArrowLeft } from 'lucide-react';
 import Playground from '@/components/Playground';
-import History from '@/components/History';
+import GenerationHistory from '@/components/GenerationHistory';
 import Examples from '@/components/Examples';
 import { exampleImage, findExample } from '@/lib/examples';
 import { isSongGenre } from '@/types/graphql';
@@ -65,7 +65,7 @@ function PlaygroundContent() {
             </TabsContent>
 
             <TabsContent value="history">
-                <History />
+                        <GenerationHistory />
             </TabsContent>
         </Tabs>
     );

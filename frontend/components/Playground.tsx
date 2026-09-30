@@ -80,12 +80,12 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
     });
 
     // Ask the API every 2.5 s until COMPLETED or FAILED. A blip just shows a warning and keeps going.
-    const pollUntilDone = (jobId: string) => {
+    const pollUntilDone = (id: string) => {
         pollRef.current = setInterval(async () => {
             try {
-                const { data } = await getGeneration({ variables: { jobId } });
+                const { data } = await getGeneration({ variables: { id } });
                 const latest = data?.generation;
-                if (!latest) throw new Error(`Job ${jobId} not found`);
+                if (!latest) throw new Error(`Generation ${id} not found`);
                 setNetworkError(null);
                 setGeneration(latest);
                 setStatus(latest.status);
@@ -104,7 +104,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         return new File([await response.blob()], `${id}.jpg`, { type: 'image/jpeg' });
     };
 
-    // The two-step API: create a job, upload straight to S3, then start it.
+    // The two-step API: create a generation, upload straight to S3, then start it.
     const generate = async (image: File) => {
         const imageType = IMAGE_TYPES[image.type];
         if (!imageType) throw new Error('Please choose a JPG or PNG image');
@@ -113,7 +113,7 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         const { data } = await createGeneration({
             variables: { genre: genre === Genre.AUTO ? null : genre, imageType },
         });
-        const { jobId, upload } = data!.createGeneration;
+        const { id, upload } = data!.createGeneration;
 
         // S3 rejects the form unless the file comes after the signed fields.
         const form = new FormData();
@@ -122,12 +122,12 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
         const response = await fetch(upload.url, { method: 'POST', body: form });
         if (!response.ok) throw new Error(`Image upload failed (${response.status})`);
 
-        await startGeneration({ variables: { jobId } });
+        await startGeneration({ variables: { id } });
         setStatus(Status.QUEUED);
-        pollUntilDone(jobId);
+        pollUntilDone(id);
     };
 
-    // The example's own photo and genre already has a rendered song; anything else is a real job.
+    // The example's own photo and genre already has a rendered song; anything else is a real generation.
     const playsPrerenderedExample = !selectedImage && exampleGenre !== undefined && genre === exampleGenre;
 
     const handleGenreChange = (value: Genre) => {
