@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
     Table,
@@ -26,10 +26,13 @@ function isUrlExpired(url: string, createdAt: string): boolean {
 
 export default function History() {
     const [playingId, setPlayingId] = useState<string | null>(null);
-    const [audioElements, setAudioElements] = useState<Map<string, HTMLAudioElement>>(new Map());
+    const [loadingId, setLoadingId] = useState<string | null>(null);
     const [generations, setGenerations] = useState<LocalGeneration[]>([]);
     const [isLoaded, setIsLoaded] = useState(false);
     const [playError, setPlayError] = useState<string | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
+    const blobUrlRef = useRef<string | null>(null);
+    const playToken = useRef(0);
 
     useEffect(() => {
         setGenerations(getLocalHistory());
@@ -56,48 +59,80 @@ export default function History() {
         };
     }, [generations.length]);
 
-    useEffect(() => {
-        return () => {
-            audioElements.forEach((audio) => {
-                audio.pause();
-                audio.src = '';
-            });
-        };
-    }, [audioElements]);
+    const releaseAudio = () => {
+        const audio = audioRef.current;
+        audioRef.current = null;
+        if (audio) {
+            audio.onended = null;
+            audio.pause();
+            audio.removeAttribute('src');
+            audio.load();
+        }
+        if (blobUrlRef.current) {
+            URL.revokeObjectURL(blobUrlRef.current);
+            blobUrlRef.current = null;
+        }
+    };
 
-    const handlePlay = (id: string, audioUrl: string, createdAt: string) => {
+    useEffect(() => releaseAudio, []);
+
+    const handlePlay = async (id: string, audioUrl: string, createdAt: string) => {
         setPlayError(null);
+
+        if (playingId === id) {
+            playToken.current += 1;
+            releaseAudio();
+            setPlayingId(null);
+            setLoadingId(null);
+            return;
+        }
 
         if (isUrlExpired(audioUrl, createdAt)) {
             setPlayError('This audio link has expired. Tracks are playable for about an hour after creation.');
             return;
         }
 
-        if (playingId) {
-            const currentAudio = audioElements.get(playingId);
-            if (currentAudio) {
-                currentAudio.pause();
-            }
-        }
+        const request = ++playToken.current;
+        releaseAudio();
+        setPlayingId(null);
+        setLoadingId(id);
 
-        if (playingId === id) {
-            setPlayingId(null);
-        } else {
-            let audio = audioElements.get(id);
-            if (!audio) {
-                audio = new Audio(audioUrl);
-                audio.onended = () => setPlayingId(null);
-                audio.onerror = () => {
-                    setPlayError('Couldn\'t play this track. The link may have expired.');
-                    setPlayingId(null);
-                };
-                setAudioElements(new Map(audioElements.set(id, audio)));
+        try {
+            const response = await fetch(audioUrl);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            if (request !== playToken.current) return;
+
+            const downloaded = await response.blob();
+            const blob = downloaded.type.startsWith('audio/')
+                ? downloaded
+                : new Blob([downloaded], { type: 'audio/wav' });
+            const url = URL.createObjectURL(blob);
+            if (request !== playToken.current) {
+                URL.revokeObjectURL(url);
+                return;
             }
-            audio.play().catch(() => {
-                setPlayError('Couldn\'t play this track. The link may have expired.');
+
+            blobUrlRef.current = url;
+            const audio = new Audio(url);
+            audio.onended = () => {
+                if (audioRef.current !== audio) return;
+                releaseAudio();
                 setPlayingId(null);
-            });
+            };
+            audioRef.current = audio;
+            await audio.play();
+            if (request !== playToken.current) {
+                audio.pause();
+                return;
+            }
             setPlayingId(id);
+        } catch {
+            if (request !== playToken.current) return;
+            releaseAudio();
+            setPlayingId(null);
+            setPlayError('Couldn\'t play this track. The link may have expired.');
+        } finally {
+            if (request === playToken.current) setLoadingId(null);
         }
     };
 
@@ -289,9 +324,14 @@ export default function History() {
                                                                 size="sm"
                                                                 onClick={() => handlePlay(gen.id, gen.audioUrl!, gen.createdAt)}
                                                                 title={playingId === gen.id ? 'Pause' : 'Play'}
+                                                                disabled={loadingId === gen.id}
                                                                 className="hover:bg-[#E07A5F]/10 text-[#E07A5F]"
                                                             >
-                                                                <Play className={`h-4 w-4 ${playingId === gen.id ? 'fill-current' : ''}`} />
+                                                                {loadingId === gen.id ? (
+                                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                                ) : (
+                                                                    <Play className={`h-4 w-4 ${playingId === gen.id ? 'fill-current' : ''}`} />
+                                                                )}
                                                             </Button>
                                                             <Button
                                                                 variant="ghost"
