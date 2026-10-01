@@ -285,7 +285,7 @@ void midiWriterWritesTheStandardFormat() {
 }
 
 // Every genre makes a file that parses, has no stuck notes, and has one marker per section.
-// Rule: composeMidi in Composer.cpp gives audio-producer/app.py a file it can render, and the
+// Rule: composeMidi in Composer.cpp gives audio-producer/render.py a file it can render, and the
 // marker names audio-producer/fx.py looks for.
 void composesValidMidiForEveryGenre() {
   for (const std::string& name : GENRE_NAMES) {

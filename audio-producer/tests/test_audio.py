@@ -1,6 +1,7 @@
 """Tests for the parts written here: MIDI handling, the error codes, and the numpy sound code.
 fluidsynth and ffmpeg aren't called, so these run without them installed. They import app.py,
-drums.py, fx.py, mixer.py and synth.py directly."""
+midi.py, drums.py, fx.py, mixer.py and synth.py directly; render.py is the only module left out,
+because everything in it runs fluidsynth or ffmpeg."""
 import sys
 import unittest
 from pathlib import Path
@@ -12,9 +13,10 @@ from fastapi import HTTPException
 # Lets the tests import the service modules from the audio-producer folder one level up.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app import DRUM_CHANNEL, MAX_MIDI_BYTES, parse_midi, read_events, render, without_drums  # noqa: E402
+from app import MAX_MIDI_BYTES, render  # noqa: E402
 from drums import KICK, KITS, render_drums  # noqa: E402
 from fx import SWEEP_SECONDS, render_fx  # noqa: E402
+from midi import DRUM_CHANNEL, parse_midi, read_events, without_drums  # noqa: E402
 from mixer import MIXES, mix, sidechain  # noqa: E402
 from synth import SAMPLE_RATE  # noqa: E402
 
@@ -38,14 +40,14 @@ def song() -> mido.MidiFile:
 
 class MidiHandlingTest(unittest.TestCase):
     def test_reads_drum_hits_and_markers_in_seconds(self):
-        """read_events in app.py adds up the delta times, so hits and markers come out at their
+        """read_events in midi.py adds up the delta times, so hits and markers come out at their
         absolute time in seconds, and only drum-channel notes count as hits."""
         hits, markers = read_events(song())
         self.assertEqual(hits, [(0.5, KICK, 127)])
         self.assertEqual(markers, [(1.0, "drop")])
 
     def test_strips_drums_without_moving_later_events(self):
-        """without_drums in app.py removes the drum channel and hands the removed ticks on to
+        """without_drums in midi.py removes the drum channel and hands the removed ticks on to
         the next message, so the total length of the song doesn't change."""
         stripped = without_drums(song())
         channels = [msg.channel for msg in stripped if hasattr(msg, "channel")]
@@ -53,7 +55,7 @@ class MidiHandlingTest(unittest.TestCase):
         self.assertEqual(sum(msg.time for msg in stripped), sum(msg.time for msg in song()))
 
     def test_rejects_bytes_that_are_not_midi(self):
-        """parse_midi in app.py turns any mido error into a ValueError."""
+        """parse_midi in midi.py turns any mido error into a ValueError."""
         with self.assertRaises(ValueError):
             parse_midi(b"not a midi file")
 

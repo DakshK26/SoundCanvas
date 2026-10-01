@@ -1,7 +1,7 @@
 # Image for the audio-producer service; uvicorn serves the FastAPI app in app.py.
 # fluidsynth and its General MIDI soundfont play the instruments; ffmpeg does the mastering.
 FROM python:3.12-slim
-# System tools: fluidsynth, the GM soundfont app.py's SOUNDFONT points at, ffmpeg for mixer.py,
+# System tools: fluidsynth, the GM soundfont render.py's SOUNDFONT points at, ffmpeg for mixer.py,
 # and libsndfile for the soundfile package. The apt cache is deleted to keep the image small.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends fluidsynth fluid-soundfont-gm ffmpeg libsndfile1 \

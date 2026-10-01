@@ -1,6 +1,6 @@
 """Risers and impacts placed on the section markers cpp-core writes into the MIDI (Composer.cpp,
-with the names from GenreTemplate.cpp). app.py passes in the markers it read and gets back one
-mono track. The sounds are built from the helpers in synth.py."""
+with the names from GenreTemplate.cpp). render.py passes in the markers midi.py read and gets back
+one mono track. The sounds are built from the helpers in synth.py."""
 import numpy as np
 
 from synth import decay, filtered_noise, place, sine_sweep, time_axis

@@ -2,7 +2,7 @@
 // progression, and plays each part's 16-step pattern over it. Section energy decides which
 // parts play, so an intro is mostly chords and pad and a drop has everything.
 // Called from HttpServer.cpp /compose with the plan from SongPlanner.cpp. Writes through
-// MidiWriter.cpp; audio-producer/app.py renders the result.
+// MidiWriter.cpp; audio-producer/render.py renders the result.
 #include "Composer.hpp"
 
 #include <vector>
@@ -66,7 +66,7 @@ void forEachNote(const std::string& pattern, PlayFn play) {
 }
 
 // One drum sound, one hit per 'x'. Hats use this too, with a quieter velocity.
-// Drum hits are one step long. audio-producer/app.py only reads when each hit starts, and
+// Drum hits are one step long. audio-producer/midi.py only reads when each hit starts, and
 // audio-producer/drums.py decides how long it rings.
 void playDrum(MidiWriter& midi, int track, int barTick, const std::string& pattern, int drum,
               int velocity) {

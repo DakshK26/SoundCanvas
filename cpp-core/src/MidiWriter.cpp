@@ -1,7 +1,7 @@
 // Writes a Standard MIDI File by hand: an MThd header chunk, then one MTrk chunk per track. Events
 // are stored with absolute ticks and only turned into delta times when the file is written.
 // Called from Composer.cpp. tests/test_core.cpp reads the bytes back with its own small parser,
-// and audio-producer/app.py reads the same file with mido to render it.
+// and audio-producer/midi.py reads the same file with mido to render it.
 #include "MidiWriter.hpp"
 
 #include <algorithm>

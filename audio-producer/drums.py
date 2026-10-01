@@ -1,5 +1,5 @@
-"""Drums synthesized from the MIDI drum notes, with one Kit of settings per genre. app.py passes in
-the drum hits it read from the MIDI and gets back one mono track. The sounds are built from the
+"""Drums synthesized from the MIDI drum notes, with one Kit of settings per genre. render.py passes
+in the drum hits midi.py read from the MIDI and gets back one mono track. The sounds are built from the
 helpers in synth.py, and KITS also doubles as app.py's list of valid genres."""
 from dataclasses import dataclass
 

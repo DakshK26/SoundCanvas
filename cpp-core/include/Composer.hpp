@@ -8,5 +8,5 @@
 #include "SongPlanner.hpp"
 
 // The returned string holds binary bytes, not text; HttpServer.cpp sends it as audio/midi and
-// audio-producer/app.py renders it.
+// audio-producer/render.py renders it.
 std::string composeMidi(const SongPlan& plan);

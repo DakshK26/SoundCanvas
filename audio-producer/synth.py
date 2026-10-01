@@ -1,6 +1,6 @@
 """Small building blocks for making sounds in numpy: sweeps, filtered noise, fades, and place() to
 drop a sound into a track. drums.py and fx.py build their sounds from these, mixer.py uses
-time_axis for the ducking curve, and app.py passes SAMPLE_RATE to fluidsynth."""
+time_axis for the ducking curve, and render.py passes SAMPLE_RATE to fluidsynth."""
 import numpy as np
 from scipy import signal
 

@@ -1,5 +1,5 @@
 """The last step of a render: mixes the instruments, drums and effects at each genre's levels, then
-masters the result with ffmpeg into the WAV the user hears. app.py's render_song calls mix() and
+masters the result with ffmpeg into the WAV the user hears. render.py's render_song calls mix() and
 then master(); the drums and effects come from drums.py and fx.py."""
 import subprocess
 from dataclasses import dataclass

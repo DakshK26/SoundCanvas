@@ -17,7 +17,7 @@ namespace {
 // The paper's scale is 0-255, where about 100 is "extremely colorful".
 constexpr double COLORFULNESS_SCALE = 255.0 / 100.0;
 
-// BT.601, same as ml/features.py.
+// BT.601 video standard luminance weights, same as ml/features.py.
 constexpr double LUMA_RED = 0.299, LUMA_GREEN = 0.587, LUMA_BLUE = 0.114;
 
 constexpr long long MAX_PIXELS = 40'000'000;  // 120 MB of RGB once decoded
@@ -26,7 +26,7 @@ constexpr long long MAX_PIXELS = 40'000'000;  // 120 MB of RGB once decoded
 constexpr size_t CONTRAST_INDEX = 7;
 constexpr float MAX_CONTRAST = 0.5f;
 
-// Std dev from running sums (variance is the mean of squares minus the squared mean), so no
+// Std dev from running sums, so no
 // second pass is needed. Rounding can make the variance slightly negative.
 double stdDev(double sum, double sumOfSquares, double count) {
   double mean = sum / count;
