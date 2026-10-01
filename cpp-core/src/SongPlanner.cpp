@@ -27,7 +27,6 @@ int pickRootNote(const ImageFeatures& f) {
 }
 
 // Saturation gets the most weight because it affects arousal more than brightness does
-// (Valdez and Mehrabian 1994). The exact weights are my own choice.
 float imageEnergy(const ImageFeatures& f) {
   // Contrast tops out at 0.5, so doubling it puts it on the same 0 to 1 scale as the others.
   float raw = 0.5f * f.saturation + 0.3f * f.colorfulness + 0.2f * (f.contrast * 2.0f);

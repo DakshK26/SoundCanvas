@@ -1,7 +1,7 @@
 // The one Apollo client the whole app shares. components/ApolloProvider.tsx hands it to every
 // page, and the components use it to run graphql/operations.ts against the API in api/src/api.ts.
-// Every request gets an X-Client-Id header, and queries always hit the network so a poll is not
-// served from the cache. NEXT_PUBLIC_GRAPHQL_ENDPOINT is baked in at build time, not read at runtime.
+// Every request gets an X-Client-Id header, and every query and mutation goes to the network
+// with nothing cached. NEXT_PUBLIC_GRAPHQL_ENDPOINT is baked in at build time, not read at runtime.
 import { ApolloClient, ApolloLink, InMemoryCache, HttpLink } from '@apollo/client';
 import { getClientId } from '@/lib/clientId';
 
@@ -17,12 +17,14 @@ const clientIdLink = new ApolloLink((operation, forward) => {
 // The header link runs first, then HttpLink actually sends the request to the API.
 const apolloClient = new ApolloClient({
     link: clientIdLink.concat(new HttpLink({ uri: process.env.NEXT_PUBLIC_GRAPHQL_ENDPOINT })),
+    // ApolloClient needs a cache object, but no-cache below means nothing is ever stored in it.
     cache: new InMemoryCache(),
-    // network-only means always ask the server. Otherwise polling a generation just returns the
-    // cached status. The cache is still filled, it is just never read first.
+    // no-cache means always ask the server and don't keep the answer. Nothing in the app reads
+    // the cache: Playground copies each poll into its own state and History re-polls.
     defaultOptions: {
-        watchQuery: { fetchPolicy: 'network-only' },
-        query: { fetchPolicy: 'network-only' },
+        watchQuery: { fetchPolicy: 'no-cache' },
+        query: { fetchPolicy: 'no-cache' },
+        mutate: { fetchPolicy: 'no-cache' },
     },
 });
 

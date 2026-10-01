@@ -4,7 +4,7 @@
 # .github/workflows/deploy.yml passes the same values as TF_VAR_ environment variables.
 
 variable "aws_region" {
-  description = "Region for everything. Example: \"us-east-2\"."
+  description = "Region for everything."
   type        = string
   default     = "us-east-2"
 }

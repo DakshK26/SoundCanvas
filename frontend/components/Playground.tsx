@@ -64,10 +64,11 @@ export default function Playground({ initialImageUrl, initialGenre, exampleId }:
     const pollRef = useRef<NodeJS.Timeout | null>(null);
 
     // API calls. useMutation and useLazyQuery return a function to call later, instead of
-    // running on render like useQuery. network-only makes every poll ask the server.
+    // running on render like useQuery. The no-cache default in lib/apolloClient.ts makes every
+    // poll ask the server.
     const [createGeneration] = useMutation(CREATE_GENERATION);
     const [startGeneration] = useMutation(START_GENERATION);
-    const [getGeneration] = useLazyQuery(GET_GENERATION, { fetchPolicy: 'network-only' });
+    const [getGeneration] = useLazyQuery(GET_GENERATION);
 
     const stopPolling = () => {
         if (pollRef.current) clearInterval(pollRef.current);

@@ -11,10 +11,10 @@ resource "aws_s3_bucket" "media" {
 # Nothing in the bucket can ever be made public. Browsers only get presigned links.
 resource "aws_s3_bucket_public_access_block" "media" {
   bucket                  = aws_s3_bucket.media.id
-  block_public_acls       = true
+  block_public_acls       = true # Block access control lists
   block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
+  ignore_public_acls      = true 
+  restrict_public_buckets = true 
 }
 
 # The browser posts the upload form and fetches the WAV straight from S3, so S3 has to allow
