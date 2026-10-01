@@ -3,6 +3,10 @@
 # queue Terraform creates in AWS (storage.tf and queue.tf). awslocal is the aws CLI aimed at LocalStack.
 # VisibilityTimeout=120 must match queue.tf and pipeline.ts.
 
+# Same region as AWS_REGION in docker-compose.yml. awslocal defaults to us-east-1, and LocalStack
+# keeps queues per region, so the worker wouldn't find a queue made there.
+export AWS_DEFAULT_REGION=us-east-2
+
 # The bucket, with CORS open to any origin because this is only ever local.
 awslocal s3 mb s3://soundcanvas-local
 awslocal s3api put-bucket-cors --bucket soundcanvas-local --cors-configuration \

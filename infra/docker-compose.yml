@@ -12,6 +12,9 @@ x-api: &api
     AWS_SECRET_ACCESS_KEY: test
     # Points the AWS SDK in api/src/aws/ at LocalStack instead of real AWS.
     AWS_ENDPOINT_URL: http://localhost.localstack.cloud:4566
+    # S3 gets its own endpoint because the SDK puts the bucket in the hostname, and LocalStack
+    # only reads it from <bucket>.s3.localhost.localstack.cloud.
+    AWS_ENDPOINT_URL_S3: http://s3.localhost.localstack.cloud:4566
     S3_BUCKET: soundcanvas-local
     SQS_QUEUE_URL: http://localhost.localstack.cloud:4566/000000000000/soundcanvas-jobs.fifo
     DB_HOST: mysql
@@ -28,7 +31,7 @@ x-api: &api
 x-after-migrate: &after-migrate
   depends_on:
     migrate: { condition: service_completed_successfully }
-    localstack: { condition: service_started }
+    localstack: { condition: service_healthy }
 
 services:
   # Runs api/src/migrate.ts once, after MySQL answers its health check, then exits.
@@ -66,8 +69,10 @@ services:
       MYSQL_DATABASE: soundcanvas
       MYSQL_USER: soundcanvas
       MYSQL_PASSWORD: soundcanvas
+    # 127.0.0.1, not localhost, so the ping goes over TCP. On first start the image runs a setup
+    # server that only listens on the socket, and a socket ping would pass before migrate can connect.
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-usoundcanvas", "-psoundcanvas"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-usoundcanvas", "-psoundcanvas"]
       interval: 5s
       retries: 20
 
@@ -82,8 +87,9 @@ services:
     networks:
       default:
         # Presigned URLs must work from the browser and from the containers. Publicly
-        # localhost.localstack.cloud resolves to 127.0.0.1; inside Docker these aliases
-        # point it, and the bucket subdomain, at LocalStack.
+        # *.localhost.localstack.cloud resolves to 127.0.0.1; inside Docker these aliases
+        # point the SQS, S3 and bucket hostnames at LocalStack.
         aliases:
           - localhost.localstack.cloud
-          - soundcanvas-local.localhost.localstack.cloud
+          - s3.localhost.localstack.cloud
+          - soundcanvas-local.s3.localhost.localstack.cloud
