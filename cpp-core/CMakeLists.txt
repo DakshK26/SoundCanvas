@@ -1,14 +1,17 @@
 # Builds the music and image code as a static library, the HTTP server on top of it, and the
 # tests when SOUNDCANVAS_TESTS is on. Tests link the library without starting a server.
+# Used by the Dockerfile in this folder; the vendored headers come from vendor/.
 cmake_minimum_required(VERSION 3.15)
 project(soundcanvas_core CXX)
 
+# C++17 is required (std::clamp, structured bindings), and gcc or clang get full warnings.
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     add_compile_options(-Wall -Wextra)
 endif()
 
+# Everything except HTTP, so the server and the tests share one compiled copy.
 add_library(soundcanvas_lib STATIC
     src/ImageFeatures.cpp
     src/GenreTemplate.cpp
@@ -20,6 +23,7 @@ target_include_directories(soundcanvas_lib PUBLIC include)
 # SYSTEM keeps -Wall -Wextra quiet for the vendored headers.
 target_include_directories(soundcanvas_lib SYSTEM PUBLIC vendor)
 
+# The server binary; cpp-httplib needs a threads library for its worker pool.
 add_executable(soundcanvas_core src/main.cpp src/HttpServer.cpp)
 find_package(Threads REQUIRED)
 target_link_libraries(soundcanvas_core PRIVATE soundcanvas_lib Threads::Threads)
