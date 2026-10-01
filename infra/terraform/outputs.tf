@@ -1,15 +1,18 @@
 # Values needed after apply: the GraphQL URL for the frontend, the ECR repos, and the deploy role ARN.
+# `terraform output <name>` prints one. deploy.yml reads the last few to run the migrate task.
 
 output "api_url" {
   description = "Set this as NEXT_PUBLIC_GRAPHQL_ENDPOINT in the frontend (after pointing a DNS name at it that matches the certificate)."
   value       = "https://${aws_lb.api.dns_name}/graphql"
 }
 
+# A map from service name to repository URL, e.g. { api = "....amazonaws.com/soundcanvas/api", ... }.
 output "ecr_repositories" {
   description = "Push each service's image here."
   value       = { for name, repo in aws_ecr_repository.repo : name => repo.repository_url }
 }
 
+# Handy for checking a local or LocalStack setup against the real names.
 output "bucket_name" {
   value = aws_s3_bucket.media.bucket
 }
@@ -27,6 +30,8 @@ output "deploy_role_arn" {
   value       = aws_iam_role.deploy.arn
 }
 
+# The migrate task is started with `aws ecs run-task` in deploy.yml, which needs the cluster,
+# the private subnets (comma separated) and the tasks security group.
 output "cluster_name" {
   value = aws_ecs_cluster.main.name
 }

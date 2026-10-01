@@ -1,5 +1,6 @@
 # Runs on every push: api tsc and tests, cpp-core tests, ml and audio tests, frontend lint
 # and tsc, terraform fmt and validate.
+# Each job is independent and runs in parallel. None of them touch AWS; deploy.yml does that.
 
 name: CI
 
@@ -8,6 +9,7 @@ on:
   pull_request:
 
 jobs:
+  # npm run build is tsc, and npm test is vitest on api/test/.
   api:
     runs-on: ubuntu-latest
     defaults:
@@ -24,6 +26,7 @@ jobs:
       - run: npm run build
       - run: npm test
 
+  # SOUNDCANVAS_TESTS=ON makes CMakeLists.txt build tests/test_core.cpp, which ctest then runs.
   cpp-core:
     runs-on: ubuntu-latest
     defaults:
@@ -35,6 +38,7 @@ jobs:
       - run: cmake --build build -j
       - run: ctest --test-dir build --output-on-failure
 
+  # pillow and scikit-learn are only needed by the tests and training, not by the ml image.
   ml:
     runs-on: ubuntu-latest
     steps:
@@ -76,6 +80,7 @@ jobs:
       - run: npm run lint
       - run: npx tsc --noEmit
 
+  # -backend=false skips the S3 state bucket, so this needs no AWS credentials.
   terraform:
     runs-on: ubuntu-latest
     defaults:

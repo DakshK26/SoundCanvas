@@ -1,12 +1,16 @@
 # Local stack: the same five services as AWS, plus MySQL and LocalStack for S3 and SQS.
 # Run from infra/: docker compose up --build
+# It stands in for ecs.tf (services), storage.tf (bucket and RDS) and queue.tf (SQS).
 
+# Settings shared by migrate, api and worker, which all run the api/ image. These are the same
+# variables ecs.tf sets in app_env, read by api/src/env.ts.
 x-api: &api
   build: ../api
   environment:
     AWS_REGION: us-east-2
     AWS_ACCESS_KEY_ID: test # LocalStack accepts any keys
     AWS_SECRET_ACCESS_KEY: test
+    # Points the AWS SDK in api/src/aws/ at LocalStack instead of real AWS.
     AWS_ENDPOINT_URL: http://localhost.localstack.cloud:4566
     S3_BUCKET: soundcanvas-local
     SQS_QUEUE_URL: http://localhost.localstack.cloud:4566/000000000000/soundcanvas-jobs.fifo
@@ -15,22 +19,26 @@ x-api: &api
     DB_PASSWORD: soundcanvas
     DB_NAME: soundcanvas
     FRONTEND_ORIGIN: http://localhost:3000
+    # Compose service names work as hostnames here, like the Cloud Map names do in AWS.
     CPP_CORE_URL: http://cpp-core:8080
     ML_URL: http://ml:5000
     AUDIO_PRODUCER_URL: http://audio-producer:9001
 
+# api and worker only start once the migration has finished successfully.
 x-after-migrate: &after-migrate
   depends_on:
     migrate: { condition: service_completed_successfully }
     localstack: { condition: service_started }
 
 services:
+  # Runs api/src/migrate.ts once, after MySQL answers its health check, then exits.
   migrate:
     <<: *api
     command: ["npm", "run", "migrate"]
     depends_on:
       mysql: { condition: service_healthy }
 
+  # The GraphQL API on http://localhost:4000/graphql; frontend/.env.example points at it.
   api:
     <<: [*api, *after-migrate]
     ports: ["4000:4000"]
@@ -39,6 +47,8 @@ services:
     <<: [*api, *after-migrate]
     command: ["npm", "run", "worker"]
 
+  # The three internal services, built from their own Dockerfiles. No ports are published
+  # because only the worker calls them.
   cpp-core:
     build: ../cpp-core
 
@@ -48,6 +58,7 @@ services:
   audio-producer:
     build: ../audio-producer
 
+  # Stands in for RDS. The user and password match DB_USER and DB_PASSWORD above.
   mysql:
     image: mysql:8.0
     environment:
@@ -60,6 +71,7 @@ services:
       interval: 5s
       retries: 20
 
+  # Fake S3 and SQS on port 4566. localstack-init.sh makes the bucket and queue on startup.
   localstack:
     image: localstack/localstack:3
     environment:

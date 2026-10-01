@@ -1,3 +1,5 @@
+# Production deploy, started by hand from the Actions tab: build and push the four images,
+# run the database migration, then terraform apply so ECS rolls out the new images.
 # The old code is still live while the migration runs, so migrations may only add tables or
 # nullable columns. The first deploy must be a manual `terraform apply`, because this workflow
 # signs in with a role Terraform creates.
@@ -5,16 +7,22 @@ name: Deploy
 
 on: workflow_dispatch
 
+# id-token: write lets the job get a GitHub OIDC token, which AWS swaps for the deploy role
+# in infra/terraform/iam.tf. No AWS keys are stored in GitHub.
 permissions:
   id-token: write
   contents: read
 
+# Only one deploy at a time; a second one waits for the first.
 concurrency: deploy
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # The production environment is the approval gate, and the deploy role only trusts it.
     environment: production
+    # TF_VAR_x sets Terraform variable x (infra/terraform/variables.tf). The vars.* values are
+    # set on the GitHub production environment.
     env:
       TAG: ${{ github.sha }}
       AWS_REGION: us-east-2
@@ -27,14 +35,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Assume the deploy role (deploy_role_arn output) for the rest of the job.
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
+      # Log docker in to ECR; the registry address comes back as an output.
       - id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
+      # Each folder has its own Dockerfile. The ECR repos are made by ecs.tf.
       - name: Build and push the four images, tagged with the commit SHA
         env:
           REGISTRY: ${{ steps.ecr.outputs.registry }}
@@ -50,6 +61,7 @@ jobs:
           terraform_version: "~1.10"
           terraform_wrapper: false # the wrapper adds to stdout, which breaks `terraform output -raw`
 
+      # Read the current infrastructure's names from outputs.tf, for the run-task call below.
       - name: Read where to run the migration
         id: infra
         working-directory: infra/terraform
@@ -60,6 +72,10 @@ jobs:
           echo "security_group=$(terraform output -raw tasks_security_group_id)" >> "$GITHUB_OUTPUT"
           echo "registry=$(terraform output -json ecr_repositories | jq -r .api)" >> "$GITHUB_OUTPUT"
 
+      # The migrate task definition in ecs.tf still points at the old image. Copy it, swap in the
+      # new image (jq keeps only the fields register-task-definition accepts), register that,
+      # run it once on Fargate, wait for it to stop, and fail the deploy unless it exited 0.
+      # api/src/migrate.ts is the code that runs.
       - name: Migrate the database
         run: |
           aws ecs describe-task-definition --task-definition soundcanvas-migrate \
@@ -81,6 +97,8 @@ jobs:
           echo "migration exit code: $exit_code"
           test "$exit_code" = "0"
 
+      # image_tag is now the new SHA, so every task definition changes and ECS rolls each service.
+      # wait_for_steady_state in ecs.tf makes this step fail if the new tasks never get healthy.
       - name: Deploy the new images
         working-directory: infra/terraform
         run: terraform apply -input=false -auto-approve

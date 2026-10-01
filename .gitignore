@@ -39,6 +39,3 @@ infra/terraform/*.tfstate
 infra/terraform/*.tfstate.backup
 infra/terraform/.terraform.lock.hcl
 infra/terraform/*.ps1
-
-# Personal notes
-fix.txt

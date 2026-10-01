@@ -151,7 +151,7 @@ with a role that Terraform creates:
 
 ```sh
 cd infra/terraform
-cp terraform.tfvars.example terraform.tfvars   # bucket, frontend URL, certificate, GitHub repo, alarm email
+# create terraform.tfvars with the variables in variables.tf: bucket, frontend URL, certificate, GitHub repo, alarm email
 terraform init
 terraform apply -target=aws_ecr_repository.repo -var image_tag=bootstrap
 # build and push the four images, tagged with $(git rev-parse HEAD)

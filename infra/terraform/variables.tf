@@ -1,9 +1,12 @@
 # Inputs the deploy workflow and a first-time apply have to fill in (bucket, frontend URL,
 # certificate, GitHub repo, alarm email).
+# Locally they go in terraform.tfvars, one `name = "value"` per line (the file is gitignored).
+# .github/workflows/deploy.yml passes the same values as TF_VAR_ environment variables.
 
 variable "aws_region" {
-  type    = string
-  default = "us-east-2"
+  description = "Region for everything. Example: \"us-east-2\"."
+  type        = string
+  default     = "us-east-2"
 }
 
 variable "app_name" {
@@ -13,7 +16,7 @@ variable "app_name" {
 }
 
 variable "bucket_name" {
-  description = "S3 bucket for uploaded images and generated songs. Bucket names are global, so pick a unique one."
+  description = "S3 bucket for uploaded images and generated songs. Bucket names are global, so pick a unique one. Example: \"soundcanvas-media-yourname\"."
   type        = string
 }
 
@@ -23,17 +26,17 @@ variable "frontend_origin" {
 }
 
 variable "certificate_arn" {
-  description = "ACM certificate for the API's HTTPS listener."
+  description = "ACM certificate for the API's HTTPS listener. Example: \"arn:aws:acm:us-east-2:123456789012:certificate/...\"."
   type        = string
 }
 
 variable "image_tag" {
-  description = "Image tag to deploy from each ECR repository: the git commit SHA."
+  description = "Image tag to deploy from each ECR repository: the git commit SHA. Example: the output of `git rev-parse HEAD`."
   type        = string
 }
 
 variable "github_repository" {
-  description = "The GitHub repository (owner/name) whose deploy workflow may assume the deploy role."
+  description = "The GitHub repository (owner/name) whose deploy workflow may assume the deploy role. Example: \"yourname/SoundCanvas\"."
   type        = string
 }
 
