@@ -1,7 +1,8 @@
 'use client';
 
-// The /playground page: three tabs (create, examples, history). The URL holds the tab and
-// which example is open, so a refresh lands on the same screen.
+// The /playground page: three tabs that show components/Playground.tsx (create), Examples.tsx
+// and GenerationHistory.tsx. The URL holds the tab and which example is open, so a refresh lands
+// on the same screen. Links from app/page.tsx and the example cards in Examples.tsx set those params.
 
 import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
@@ -15,22 +16,30 @@ import Examples from '@/components/Examples';
 import { exampleImage, findExample } from '@/lib/examples';
 import { isSongGenre } from '@/types/graphql';
 
+// The part of the page that reads the URL. It is split out so it can sit inside <Suspense>
+// below, because Next.js needs a Suspense boundary around anything that calls useSearchParams.
 function PlaygroundContent() {
+    // useSearchParams reads the ?tab=...&example=...&genre=... part of the URL.
     const searchParams = useSearchParams();
     const router = useRouter();
 
     const tabFromUrl = searchParams.get('tab') || 'playground';
     const [activeTab, setActiveTab] = useState(tabFromUrl);
 
+    // Anyone can type anything into the URL, so both params are checked before use. An unknown
+    // example id or genre just becomes null and is ignored.
     const exampleId = findExample(searchParams.get('example'))?.id ?? null;
     const genreParam = searchParams.get('genre');
     const genreOverride = isSongGenre(genreParam) ? genreParam : null;
 
-    // Back and forward change the URL but not the state.
+    // Runs whenever the tab in the URL changes. Back and forward change the URL but not the
+    // state, so this copies the URL's tab back into state.
     useEffect(() => {
         setActiveTab(tabFromUrl);
     }, [tabFromUrl]);
 
+    // Switching tabs writes a new URL. The example and genre are only kept on the create tab,
+    // so they do not linger in the URL while browsing examples or history.
     const handleTabChange = (value: string) => {
         setActiveTab(value);
         const params = new URLSearchParams();
@@ -52,6 +61,7 @@ function PlaygroundContent() {
                 <TabsTrigger value="history">History</TabsTrigger>
             </TabsList>
 
+            {/* Create tab. With an example open, Playground starts with that example's photo and genre. */}
             <TabsContent value="playground">
                 <Playground
                     initialImageUrl={exampleId ? exampleImage(exampleId) : undefined}
@@ -60,10 +70,12 @@ function PlaygroundContent() {
                 />
             </TabsContent>
 
+            {/* Examples tab */}
             <TabsContent value="examples">
                 <Examples />
             </TabsContent>
 
+            {/* History tab */}
             <TabsContent value="history">
                         <GenerationHistory />
             </TabsContent>
@@ -71,6 +83,7 @@ function PlaygroundContent() {
     );
 }
 
+// The page shell: a header with a Back link to app/page.tsx, then the tabs.
 export default function PlaygroundPage() {
     return (
         <div className="min-h-screen aurora-bg">
@@ -98,7 +111,7 @@ export default function PlaygroundPage() {
                 </div>
             </header>
 
-            {/* Main Content */}
+            {/* Main Content. Suspense shows the spinner until the URL params are ready. */}
             <main className="container mx-auto px-4 py-8">
                 <Suspense fallback={
                     <div className="flex items-center justify-center py-12">

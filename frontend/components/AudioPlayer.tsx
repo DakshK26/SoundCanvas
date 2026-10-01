@@ -1,6 +1,8 @@
 'use client';
 
-// The WAV is fetched once into a blob, so playback and download keep working after the presigned link expires.
+// A custom audio player card for one song, rendered by Playground.tsx for a finished generation
+// or a pre-made example WAV. The WAV is fetched once into a blob, so playback and download keep
+// working after the presigned link from api/src/aws/s3.ts expires. Download uses lib/download.ts.
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,12 +10,15 @@ import { Download, Loader2, Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { downloadBlob } from '@/lib/download';
 import { SongGenre } from '@/types/graphql';
 
+// audioUrl is either a presigned S3 link or an /examples/ path. A null confidence means the user
+// chose the genre.
 interface AudioPlayerProps {
     audioUrl: string;
     genre: SongGenre | null;
     confidence: number | null;
 }
 
+// Seconds to m:ss. duration is NaN until the metadata loads, which is why non-finite values are caught.
 function formatTime(seconds: number): string {
     if (!isFinite(seconds) || seconds < 0) return '0:00';
     const m = Math.floor(seconds / 60);
@@ -22,21 +27,30 @@ function formatTime(seconds: number): string {
 }
 
 export default function AudioPlayer({ audioUrl, genre, confidence }: AudioPlayerProps) {
+    // Loading state. The blob is kept for the Download button, and blobUrl is what <audio> plays.
     const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
     const [blobUrl, setBlobUrl] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const isLoading = !blobUrl && !error;
 
+    // Refs point at the real <audio> element and progress bar in the page. They are refs, not
+    // state, because the code needs to call methods on them (play, pause, measure the bar), and
+    // holding them should not cause a re-render.
     const audioRef = useRef<HTMLAudioElement | null>(null);
     const progressRef = useRef<HTMLDivElement | null>(null);
+
+    // Playback state that the custom controls display
     const [isPlaying, setIsPlaying] = useState(false);
     const [currentTime, setCurrentTime] = useState(0);
     const [duration, setDuration] = useState(0);
     const [volume, setVolume] = useState(1);
     const [isMuted, setIsMuted] = useState(false);
 
+    // Download the WAV into memory. Runs on mount and again whenever audioUrl changes.
     useEffect(() => {
         let objectUrl: string | null = null;
+        // Set by the cleanup, so a fetch that finishes after the player is gone (or after
+        // audioUrl changed) does not set state with an old song.
         let cancelled = false;
 
         fetch(audioUrl)
@@ -46,6 +60,7 @@ export default function AudioPlayer({ audioUrl, genre, confidence }: AudioPlayer
             })
             .then((blob) => {
                 if (cancelled) return;
+                // A blob: URL that points at the WAV in memory, so <audio> can play it like a file.
                 objectUrl = URL.createObjectURL(blob);
                 setAudioBlob(blob);
                 setBlobUrl(objectUrl);
@@ -54,12 +69,16 @@ export default function AudioPlayer({ audioUrl, genre, confidence }: AudioPlayer
                 if (!cancelled) setError(err.message);
             });
 
+        // Cleanup on unmount or before the next audioUrl. revokeObjectURL frees the memory the
+        // blob URL was holding; without it every song played would stay in memory.
         return () => {
             cancelled = true;
             if (objectUrl) URL.revokeObjectURL(objectUrl);
         };
     }, [audioUrl]);
 
+    // Keep the time display in sync with the <audio> element. It depends on blobUrl because the
+    // <audio> element only exists once the blob has loaded. The cleanup removes the listeners.
     useEffect(() => {
         const audio = audioRef.current;
         if (!audio) return;
@@ -79,6 +98,10 @@ export default function AudioPlayer({ audioUrl, genre, confidence }: AudioPlayer
         };
     }, [blobUrl]);
 
+    // Handlers for the custom controls. useCallback keeps the same function between renders
+    // unless a value in its dependency list changes.
+
+    // play() returns a promise that rejects if the browser blocks playback; that is ignored here.
     const togglePlay = useCallback(() => {
         const audio = audioRef.current;
         if (!audio) return;
@@ -91,6 +114,7 @@ export default function AudioPlayer({ audioUrl, genre, confidence }: AudioPlayer
         }
     }, [isPlaying]);
 
+    // Seek: turn the click position along the bar into a fraction from 0 to 1, then into seconds.
     const handleProgressClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
         const audio = audioRef.current;
         const bar = progressRef.current;
@@ -101,6 +125,7 @@ export default function AudioPlayer({ audioUrl, genre, confidence }: AudioPlayer
         setCurrentTime(audio.currentTime);
     }, [duration]);
 
+    // Muting sets the element's volume to 0 but keeps the volume state, so unmuting restores it.
     const toggleMute = useCallback(() => {
         const audio = audioRef.current;
         if (!audio) return;
@@ -122,6 +147,7 @@ export default function AudioPlayer({ audioUrl, genre, confidence }: AudioPlayer
         setIsMuted(v === 0);
     }, []);
 
+    // Width of the filled part of the progress bar, as a percentage.
     const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
     return (
@@ -138,6 +164,7 @@ export default function AudioPlayer({ audioUrl, genre, confidence }: AudioPlayer
                 <CardDescription className="text-[#8C8279]">Created from your image</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+                {/* Player: loading, error, or the controls once the blob is ready */}
                 {isLoading ? (
                     <div className="flex items-center justify-center py-8 bg-white/50 rounded-xl">
                         <Loader2 className="w-6 h-6 animate-spin text-[#81B29A]" />
@@ -149,6 +176,7 @@ export default function AudioPlayer({ audioUrl, genre, confidence }: AudioPlayer
                     </div>
                 ) : blobUrl ? (
                     <div className="bg-white/70 rounded-xl p-4 space-y-3">
+                        {/* No controls attribute, so the element is invisible and the buttons below drive it */}
                         <audio ref={audioRef} src={blobUrl} preload="metadata" />
 
                         <div className="flex items-center gap-3">
@@ -215,7 +243,7 @@ export default function AudioPlayer({ audioUrl, genre, confidence }: AudioPlayer
                     </div>
                 )}
 
-                {/* Download Button */}
+                {/* Download Button. It saves the blob already in memory, so nothing is fetched again. */}
                 <Button
                     onClick={() => audioBlob && downloadBlob(audioBlob, `soundcanvas-${Date.now()}.wav`)}
                     disabled={!audioBlob}

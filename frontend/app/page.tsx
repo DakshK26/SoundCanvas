@@ -1,4 +1,6 @@
-// The landing page. All decoration; the two buttons go to /playground or the examples tab.
+// The landing page at /. It is all decoration and has no state or API calls, so it stays a
+// server component. The two buttons link to app/playground/page.tsx, either the create tab or
+// the examples tab. The animation classes like aurora-bg and animate-blob-drift live in globals.css.
 
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -6,7 +8,8 @@ import { Button } from '@/components/ui/button';
 export default function Home() {
   return (
     <div className="min-h-screen aurora-bg noise-overlay overflow-hidden">
-      {/* Background */}
+      {/* Background: blurred colour blobs, small floating dots and outlined rings. pointer-events-none
+          lets clicks pass through to the content on top. */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div
           className="absolute -top-32 -right-32 w-[500px] h-[500px] animate-blob-drift"
@@ -33,6 +36,8 @@ export default function Home() {
           style={{ background: 'radial-gradient(circle, rgba(242, 204, 143, 0.1) 0%, transparent 60%)', animationDelay: '-14s', animationDuration: '26s' }}
         />
 
+        {/* Floating dots. The negative animation delays start each one partway through its loop,
+            so they do not all move in step. */}
         <div className="absolute top-[15%] left-[10%] w-3 h-3 rounded-full bg-[#E07A5F]/20 animate-float-wander" style={{ animationDuration: '9s' }} />
         <div className="absolute top-[25%] left-[20%] w-2 h-2 rounded-full bg-[#81B29A]/25 animate-float-wander-reverse" style={{ animationDelay: '-3s', animationDuration: '11s' }} />
         <div className="absolute top-[20%] left-[35%] w-2.5 h-2.5 rounded-full bg-[#F2CC8F]/30 animate-float-wander" style={{ animationDelay: '-6s', animationDuration: '13s' }} />
@@ -53,6 +58,7 @@ export default function Home() {
         <div className="absolute bottom-[15%] right-[30%] w-2.5 h-2.5 rounded-full bg-[#F2CC8F]/25 animate-float-wander-reverse" style={{ animationDelay: '-1s', animationDuration: '13s' }} />
         <div className="absolute bottom-[50%] right-[5%] w-2 h-2 rounded-full bg-[#E07A5F]/20 animate-float-wander" style={{ animationDelay: '-8s', animationDuration: '10s' }} />
 
+        {/* Outlined rings that slowly change shape */}
         <div className="absolute top-[18%] left-[18%] w-16 h-16 border border-[#E07A5F]/10 animate-ring-morph" style={{ animationDelay: '-5s', animationDuration: '18s' }} />
         <div className="absolute top-[60%] left-[8%] w-12 h-12 border border-[#81B29A]/15 animate-ring-morph" style={{ animationDelay: '-12s', animationDuration: '22s' }} />
         <div className="absolute top-[30%] right-[10%] w-20 h-20 border border-[#F2CC8F]/10 animate-ring-morph" style={{ animationDelay: '-3s', animationDuration: '16s' }} />
@@ -88,7 +94,8 @@ export default function Home() {
         {/* Hero Section */}
         <div className="flex-1 flex items-center justify-center py-12">
           <div className="max-w-3xl mx-auto text-center space-y-8">
-            {/* Title */}
+            {/* Title. Each letter of "Sound" is its own span with a later delay, so the
+                equalizer bounce runs across the word. */}
             <div className="space-y-4">
               <h1 className="text-6xl md:text-7xl lg:text-8xl font-bold tracking-tight">
                 <span className="inline-flex items-baseline">
@@ -123,7 +130,7 @@ export default function Home() {
               ))}
             </div>
 
-            {/* CTA Buttons */}
+            {/* Buttons. The tab=examples param is read by app/playground/page.tsx to open that tab. */}
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center pt-6">
               <Link href="/playground">
                 <Button
@@ -150,7 +157,7 @@ export default function Home() {
         </div>
       </main>
 
-      {/* How It Works Section */}
+      {/* How It Works: four steps rendered from an inline array */}
       <section className="relative z-10 py-24 bg-white/50 backdrop-blur-sm">
         <div className="container mx-auto px-4">
           <div className="text-center mb-16">
@@ -193,6 +200,7 @@ export default function Home() {
                 <div key={item.step} className="text-center group">
                   <div
                     className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-5 transition-transform group-hover:scale-110"
+                    // Adding 15 to the hex colour makes it an 8-digit hex with low alpha, a faint tint.
                     style={{ backgroundColor: `${item.color}15` }}
                   >
                     <span

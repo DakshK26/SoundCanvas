@@ -1,3 +1,4 @@
+// `npm run lint` uses this: Next.js's recommended rules plus its TypeScript rules. ci.yml runs it.
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";

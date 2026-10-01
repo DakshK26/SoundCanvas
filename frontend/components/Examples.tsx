@@ -1,7 +1,8 @@
 'use client';
 
-// The examples tab. Clicking one opens Playground with that photo and its genre, so the
-// pre-made WAV plays straight away.
+// The examples tab, rendered by app/playground/page.tsx. It shows a card for each entry in
+// lib/examples.ts. Clicking one opens Playground.tsx with that photo and its genre, so the
+// pre-made WAV plays straight away. It makes no API calls.
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { GENRE_LABELS } from '@/types/graphql';
@@ -11,6 +12,8 @@ import { useRouter } from 'next/navigation';
 export default function Examples() {
     const router = useRouter();
 
+    // Changes the URL instead of passing props. app/playground/page.tsx reads tab, example and
+    // genre from the URL and switches to the create tab with this example loaded.
     const handleExampleClick = (example: Example) => {
         router.push(`/playground?tab=playground&example=${example.id}&genre=${example.genre}`);
     };
@@ -27,6 +30,7 @@ export default function Examples() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
+                    {/* One clickable card per example */}
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                         {EXAMPLES.map((example) => (
                             <div
@@ -34,6 +38,7 @@ export default function Examples() {
                                 onClick={() => handleExampleClick(example)}
                                 className="group cursor-pointer overflow-hidden rounded-2xl border border-[#E8E0D8] bg-white shadow-md hover:shadow-xl transition-all duration-300 hover:scale-[1.02]"
                             >
+                                {/* Photo with a dark gradient and the genre badge on top */}
                                 <div className="relative aspect-[4/3] overflow-hidden">
                                     <img
                                         src={exampleImage(example.id)}
@@ -50,6 +55,7 @@ export default function Examples() {
                                         </span>
                                     </div>
                                 </div>
+                                {/* Description and call to action */}
                                 <div className="p-4">
                                     <p className="text-sm text-[#5C5549]">
                                         {example.description}

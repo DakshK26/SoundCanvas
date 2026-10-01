@@ -1,7 +1,9 @@
 'use client';
 
-// This browser's generations from the last 30 days, from myGenerations. Polls every 5 s while
-// one is still running so a song that finishes on another tab shows up here too.
+// The History tab, rendered by app/playground/page.tsx. It lists this browser's started
+// generations from the last 30 days (the cutoff is in api/src/db.ts) using MY_GENERATIONS from
+// graphql/operations.ts, answered by Query.myGenerations in api/src/resolvers.ts. It polls every
+// 5 s while one is still running, so a song that finishes on another tab shows up here too.
 
 import { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@apollo/client';
@@ -20,9 +22,12 @@ import { MY_GENERATIONS } from '@/graphql/operations';
 import { Generation, GenerationStatus } from '@/types/graphql';
 import { downloadBlob } from '@/lib/download';
 
+// There is no paging, only the newest ITEMS_PER_PAGE rows. api/src/resolvers.ts caps the limit
+// at its own MAX_HISTORY.
 const ITEMS_PER_PAGE = 20;
 const REFRESH_INTERVAL_MS = 5000;
 
+// Badge colours for the Status column.
 const STATUS_STYLES: Record<GenerationStatus, string> = {
     [GenerationStatus.PENDING]: 'bg-amber-100 text-amber-800',
     [GenerationStatus.QUEUED]: 'bg-amber-100 text-amber-800',
@@ -31,6 +36,7 @@ const STATUS_STYLES: Record<GenerationStatus, string> = {
     [GenerationStatus.FAILED]: 'bg-red-100 text-red-800',
 };
 
+// createdAt arrives as an ISO string. This shows it in the user's local time zone.
 function formatDate(dateString: string): string {
     return new Date(dateString).toLocaleDateString('en-US', {
         month: 'short',
@@ -42,15 +48,23 @@ function formatDate(dateString: string): string {
 }
 
 export default function GenerationHistory() {
+    // Fetch the list. useQuery runs as soon as the tab mounts and re-renders when data arrives.
     const { data, loading, error, startPolling, stopPolling } = useQuery(MY_GENERATIONS, {
         variables: { limit: ITEMS_PER_PAGE },
-        ssr: false, // the client id lives in localStorage
+        ssr: false, // the client id lives in localStorage, which the server does not have
     });
     const generations = data?.myGenerations ?? [];
+
+    // State for the play buttons. Only one row plays at a time, tracked by its id.
     const [playingId, setPlayingId] = useState<string | null>(null);
     const [playError, setPlayError] = useState<string | null>(null);
+    // The current Audio object is kept in a ref, not state, because changing it should not
+    // re-render anything. It is only needed later to pause it.
     const audioRef = useRef<HTMLAudioElement | null>(null);
 
+    // Poll only while something is still running. The list only holds started generations, so
+    // PENDING is not checked. The effect re-runs whenever inProgress flips, and Apollo's
+    // startPolling and stopPolling turn the repeat query on and off.
     const inProgress = generations.some(
         (gen) => gen.status === GenerationStatus.QUEUED || gen.status === GenerationStatus.PROCESSING,
     );
@@ -59,8 +73,14 @@ export default function GenerationHistory() {
         else stopPolling();
     }, [inProgress, startPolling, stopPolling]);
 
+    // Empty dependency list, so this runs once. The returned cleanup runs on unmount and stops
+    // any track still playing when the user leaves the tab.
     useEffect(() => () => audioRef.current?.pause(), []);
 
+    // Handlers
+
+    // The same button plays and pauses. Clicking the playing row stops it, and clicking another
+    // row stops the old track first. This streams straight from the presigned audioUrl.
     const handlePlay = (gen: Generation) => {
         setPlayError(null);
         audioRef.current?.pause();
@@ -70,6 +90,8 @@ export default function GenerationHistory() {
         }
         const audio = new Audio(gen.audioUrl!);
         audio.onended = () => setPlayingId(null);
+        // play() fails if the presigned link has expired, since the list is not refetched
+        // once nothing is running.
         audio.play().catch(() => {
             setPlayError('Couldn\'t play this track. Reopen the History tab to get a fresh link.');
             setPlayingId(null);
@@ -78,6 +100,8 @@ export default function GenerationHistory() {
         setPlayingId(gen.id);
     };
 
+    // Browsers ignore the download attribute on links to another site like S3, so a plain link
+    // would just open the file. Fetching it into a blob first lets lib/download.ts save it.
     const handleDownload = async (gen: Generation) => {
         try {
             const response = await fetch(gen.audioUrl!);
@@ -88,6 +112,7 @@ export default function GenerationHistory() {
         }
     };
 
+    // Spinner on the first load only. Later polls keep showing the old list while they run.
     if (loading && !data) {
         return (
             <Card className="bg-white/80 backdrop-blur-sm border-[#E8E0D8] shadow-lg">
@@ -112,6 +137,7 @@ export default function GenerationHistory() {
                 </CardDescription>
             </CardHeader>
             <CardContent>
+                {/* Error banner for a failed load, play or download */}
                 {(error || playError) && (
                     <div className="bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl flex items-center gap-3 mb-4">
                         <AlertCircle className="w-5 h-5 flex-shrink-0" />
@@ -119,6 +145,7 @@ export default function GenerationHistory() {
                     </div>
                 )}
 
+                {/* Empty state, or the table of generations */}
                 {generations.length === 0 ? (
                     <div className="text-center py-12 text-[#8C8279]">
                         <div className="w-16 h-16 bg-[#F5F0EB] rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -161,6 +188,7 @@ export default function GenerationHistory() {
                                                     {gen.genre ?? '-'}
                                                 </span>
                                             </TableCell>
+                                            {/* No confidence means the user picked the genre, so the model never ran */}
                                             <TableCell className="text-sm text-[#5C5549]">
                                                 {gen.confidence == null ? 'You' : `Model, ${Math.round(gen.confidence * 100)}%`}
                                             </TableCell>
@@ -169,6 +197,7 @@ export default function GenerationHistory() {
                                                     {gen.status}
                                                 </span>
                                             </TableCell>
+                                            {/* Actions: play and download when done, the error when failed, otherwise a spinner */}
                                             <TableCell className="text-right space-x-2">
                                                 {gen.status === GenerationStatus.COMPLETED && gen.audioUrl ? (
                                                     <>
@@ -205,6 +234,7 @@ export default function GenerationHistory() {
                             </Table>
                         </div>
 
+                        {/* A full page means there may be older ones that are not shown */}
                         {generations.length === ITEMS_PER_PAGE && (
                             <p className="text-sm text-center text-[#8C8279]">
                                 Showing your {ITEMS_PER_PAGE} most recent tracks
