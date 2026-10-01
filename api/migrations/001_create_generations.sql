@@ -1,5 +1,6 @@
 -- One row per generation. The id is a UUID that is also the S3 key and the SQS deduplication id.
 -- Each index matches one query in db.ts: history, the rate limit, and the stale-job sweep.
+-- Applied once by src/migrate.ts; the deploy workflow runs it before the new API starts.
 CREATE TABLE generations (
   id              CHAR(36) PRIMARY KEY,
   client_id       CHAR(36) NOT NULL,

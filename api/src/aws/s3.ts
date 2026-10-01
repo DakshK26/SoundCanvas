@@ -1,5 +1,6 @@
 // S3 holds the uploaded images and the finished WAVs. Browsers upload and download with presigned
 // links, so file bytes never go through the API; only the worker reads and writes objects itself.
+// The bucket, its CORS rule and the 30-day expiry are in infra/terraform/storage.tf.
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
@@ -11,6 +12,7 @@ const BUCKET = requireEnv("S3_BUCKET");
 const URL_EXPIRY_SECONDS = 15 * 60;
 const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
 
+// Where each file lives. The resolvers and the worker both build keys here so they always agree.
 export const imageKey = (generationId: string) => `images/${generationId}`;
 export const audioKey = (generationId: string) => `audio/${generationId}.wav`;
 

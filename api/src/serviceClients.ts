@@ -1,10 +1,12 @@
 // The worker's HTTP calls to cpp-core, ml and audio-producer, which it finds by name through
 // Cloud Map DNS. Every response is checked, so a broken service fails loudly instead of
-// passing bad data further down the pipeline.
+// passing bad data further down the pipeline. Called by processJob in pipeline.ts; the routes are
+// cpp-core/src/HttpServer.cpp, ml/app.py and audio-producer/app.py.
 import { requireEnv } from "./env";
 import { Genre, GENRES } from "./schema";
 
-const FEATURE_COUNT = 8;
+const FEATURE_COUNT = 8; // the length of ImageFeatures::toArray in cpp-core
+// Cloud Map names in AWS (app_env in ecs.tf), compose service names locally.
 const CPP_CORE_URL = requireEnv("CPP_CORE_URL");
 const ML_URL = requireEnv("ML_URL");
 const AUDIO_PRODUCER_URL = requireEnv("AUDIO_PRODUCER_URL");
@@ -23,6 +25,7 @@ export interface Prediction {
 // A 4xx becomes a PermanentError, so the job fails now. A 5xx, a network error or a timeout is a
 // plain Error, so pipeline.ts retries it.
 async function post(url: string, body: Buffer | string, contentType: string): Promise<Response> {
+  // AbortSignal.timeout cancels the request if no response arrives in time.
   const response = await fetch(url, {
     method: "POST",
     body,
@@ -36,6 +39,7 @@ async function post(url: string, body: Buffer | string, contentType: string): Pr
   return response;
 }
 
+// Every feature and the confidence are between 0 and 1.
 const isFraction = (value: unknown) => typeof value === "number" && value >= 0 && value <= 1;
 
 // The raw image bytes go straight in; the 8 numbers that come back feed both ml and /compose.

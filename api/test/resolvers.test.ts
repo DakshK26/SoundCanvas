@@ -2,6 +2,8 @@
 // once, and putting the generation back if SQS fails. S3, SQS and MySQL are mocked.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+// Fake S3: keys are built the same way as the real ones, links are fake URLs, and each test
+// decides whether the uploaded image exists.
 vi.mock("../src/aws/s3", () => ({
   imageKey: (id: string) => `images/${id}`,
   audioKey: (id: string) => `audio/${id}.wav`,
@@ -9,7 +11,9 @@ vi.mock("../src/aws/s3", () => ({
   createUploadForm: vi.fn(),
   objectExists: vi.fn(),
 }));
+// Fake SQS: only the send is needed here; the tests check whether it was called.
 vi.mock("../src/aws/queue", () => ({ enqueueJob: vi.fn() }));
+// Fake MySQL: each query is a mock, so a test can choose what the database answers.
 vi.mock("../src/db", () => ({
   countRecentGenerations: vi.fn(),
   deleteGeneration: vi.fn(),
@@ -26,8 +30,10 @@ import * as db from "../src/db";
 import { Context, resolvers } from "../src/resolvers";
 
 const { Query, Mutation } = resolvers;
+// The caller in every test. 203.0.113.7 is an address reserved for documentation.
 const ME: Context = { clientId: "client-me", clientIp: "203.0.113.7" };
 
+// A generations row as db.ts returns it, owned by ME unless a test overrides a field.
 function row(overrides: Record<string, unknown> = {}) {
   return {
     id: "gen-1",
@@ -48,6 +54,7 @@ async function errorCode(call: Promise<unknown>): Promise<unknown> {
   return error?.extensions?.code;
 }
 
+// By default every check passes: under the rate limit, row found, image uploaded, queueing works.
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(db.countRecentGenerations).mockResolvedValue(1);
@@ -58,6 +65,7 @@ beforeEach(() => {
 });
 
 describe("createGeneration", () => {
+  // createGeneration saves the requested genre and signs a form for images/{id} with the right type.
   it("records the generation and returns an upload form", async () => {
     const result = await Mutation.createGeneration({}, { genre: "HOUSE", imageType: "PNG" }, ME);
 
@@ -66,6 +74,8 @@ describe("createGeneration", () => {
     expect(result.upload.fields).toEqual([{ name: "key", value: "images/x" }]);
   });
 
+  // The insert-then-count rate limit in createGeneration (GENERATIONS_PER_HOUR). The refused
+  // row is deleted, and no upload form is made for it.
   it("allows the 10th song in an hour but refuses the 11th and removes its row", async () => {
     vi.mocked(db.countRecentGenerations).mockResolvedValue(10);
     await Mutation.createGeneration({}, { imageType: "JPEG" }, ME);
@@ -79,6 +89,7 @@ describe("createGeneration", () => {
 });
 
 describe("startGeneration", () => {
+  // The normal startGeneration path: PENDING to QUEUED, then one SQS message.
   it("queues an uploaded generation", async () => {
     await Mutation.startGeneration({}, { id: "gen-1" }, ME);
 
@@ -86,6 +97,7 @@ describe("startGeneration", () => {
     expect(queue.enqueueJob).toHaveBeenCalledWith("gen-1", ME.clientId);
   });
 
+  // findOwnGeneration: another browser's id gives the same NOT_FOUND as a missing one.
   it("treats another browser's generation as not found", async () => {
     vi.mocked(db.getGeneration).mockResolvedValue(row({ client_id: "someone-else" }));
 
@@ -93,6 +105,7 @@ describe("startGeneration", () => {
     expect(queue.enqueueJob).not.toHaveBeenCalled();
   });
 
+  // startGeneration checks objectExists, so the worker never looks for an image that isn't there.
   it("refuses to start before the image is uploaded", async () => {
     vi.mocked(s3.objectExists).mockResolvedValue(false);
 
@@ -100,6 +113,7 @@ describe("startGeneration", () => {
     expect(db.markQueued).not.toHaveBeenCalled();
   });
 
+  // markQueued only moves a PENDING row, so a double click sends one message, not two.
   it("refuses to start the same generation twice", async () => {
     vi.mocked(db.markQueued).mockResolvedValue(false);
 
@@ -107,6 +121,7 @@ describe("startGeneration", () => {
     expect(queue.enqueueJob).not.toHaveBeenCalled();
   });
 
+  // If enqueueJob throws, markPending undoes markQueued so the user can press start again.
   it("puts the generation back to PENDING if SQS is unavailable, so it can be started again", async () => {
     vi.mocked(queue.enqueueJob).mockRejectedValue(new Error("SQS unavailable"));
 
@@ -116,12 +131,14 @@ describe("startGeneration", () => {
 });
 
 describe("queries", () => {
+  // The generation query returns null for someone else's row.
   it("hides another browser's generation", async () => {
     vi.mocked(db.getGeneration).mockResolvedValue(row({ client_id: "someone-else" }));
 
     expect(await Query.generation({}, { id: "gen-1" }, ME)).toBeNull();
   });
 
+  // toGraphQLGeneration only signs an audio link for COMPLETED rows.
   it("only links the audio once the song is finished", async () => {
     vi.mocked(db.getGeneration).mockResolvedValue(row({ status: "COMPLETED", genre: "HOUSE" }));
     const done = await Query.generation({}, { id: "gen-1" }, ME);
@@ -131,6 +148,7 @@ describe("queries", () => {
     expect((await Query.generation({}, { id: "gen-1" }, ME))?.audioUrl).toBeNull();
   });
 
+  // myGenerations clamps limit to 1..MAX_HISTORY whatever the browser sends.
   it("keeps the history limit between 1 and 50", async () => {
     vi.mocked(db.listGenerations).mockResolvedValue([]);
 

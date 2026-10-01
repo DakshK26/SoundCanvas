@@ -9,12 +9,14 @@ import { log } from "./log";
 const MIGRATIONS_DIR = path.join(__dirname, "..", "migrations");
 
 async function migrate(): Promise<void> {
+  // The table that remembers which files already ran, so each one runs only once.
   await pool.query(`CREATE TABLE IF NOT EXISTS schema_migrations (
     name VARCHAR(255) PRIMARY KEY,
     applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`);
   const [rows] = await pool.query<RowDataPacket[]>("SELECT name FROM schema_migrations");
   const applied = new Set(rows.map((row) => row.name as string));
 
+  // 001_..., 002_... sort into the order they were written. Run only the ones not applied yet.
   const files = (await readdir(MIGRATIONS_DIR)).filter((name) => name.endsWith(".sql")).sort();
   for (const name of files.filter((file) => !applied.has(file))) {
     // One statement per file. MySQL auto-commits DDL, so a half-applied file can't be rolled back.

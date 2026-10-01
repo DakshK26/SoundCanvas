@@ -1,5 +1,6 @@
 // The GraphQL contract between the browser and the API. frontend/types/graphql.ts is a
-// hand-written copy of these types.
+// hand-written copy of these types, and frontend/graphql/operations.ts holds the queries the
+// browser sends. The functions behind each field are in resolvers.ts.
 
 // Must match the genre names in cpp-core, ml and audio-producer; ml/tests checks this.
 export const GENRES = ["EDM_CHILL", "EDM_DROP", "CINEMATIC", "HOUSE"] as const;

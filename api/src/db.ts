@@ -1,6 +1,7 @@
 // Every MySQL query the API and the worker run. Status changes are compare-and-set: each UPDATE
 // names the status it expects to move from, and the caller checks that exactly one row changed.
 // That is what makes double clicks and duplicate SQS deliveries harmless.
+// The table and its indexes are in migrations/001_create_generations.sql.
 import mysql, { ResultSetHeader, RowDataPacket } from "mysql2/promise";
 import { requireEnv } from "./env";
 
@@ -65,7 +66,7 @@ export async function listGenerations(clientId: string, limit: number): Promise<
 }
 
 // Rate limit: songs in the last hour from this browser or this IP, so clearing localStorage
-// doesn't reset it. The OR is why there is an index on each column.
+// doesn't reset it. The OR is why there is an index on each column (history_lookup and rate_limit_lookup).
 export async function countRecentGenerations(clientId: string, clientIp: string): Promise<number> {
   const [rows] = await pool.query<RowDataPacket[]>(
     `SELECT COUNT(*) AS count FROM generations
@@ -108,7 +109,7 @@ export async function markFailed(id: string, message: string): Promise<void> {
 }
 
 // A worker that crashes on the last attempt never marks its generation failed; SQS just moves the
-// job to the DLQ.
+// job to the DLQ. worker.ts runs this sweep every 5 minutes; the stale_jobs index makes it cheap.
 export async function failStaleGenerations(): Promise<number> {
   const [result] = await pool.query<ResultSetHeader>(
     `UPDATE generations SET status = 'FAILED', error_message = 'Timed out'

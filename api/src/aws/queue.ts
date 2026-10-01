@@ -1,5 +1,6 @@
 // The SQS FIFO queue between startGeneration (sends) and the workers (receive, delete, release).
 // A job message only holds the generation id; everything else lives in MySQL.
+// The queue, its dead-letter queue and maxReceiveCount are defined in infra/terraform/queue.tf.
 import {
   ChangeMessageVisibilityCommand, DeleteMessageCommand, ReceiveMessageCommand, SendMessageCommand, SQSClient,
 } from "@aws-sdk/client-sqs";
